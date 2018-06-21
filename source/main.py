@@ -221,6 +221,6 @@ if __name__ == "__main__":
                "buffer_cur": "000",
                "initial_assets": {"000": 100., "001": 0., "002": 0., "003": 0., "004": 0.},
                "rebalancing_interval": 7, "trading_cost": .0025, "duration": 10000}
-    strategy_evaluation(setting, iterations=1000)
-    # r, h = rebalancing(**setting, plot="../results/1.png")
+    # strategy_evaluation(setting, iterations=1000)
+    r, h = rebalancing(**setting)  # , plot="../results/1.png")
 
