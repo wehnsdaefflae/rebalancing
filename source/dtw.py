@@ -26,7 +26,7 @@ def get_path(table):
     while 0 < i or 0 < j:
         x, y, z = table[i-1][j], table[i][j-1], table[i-1][j-1]
         min_i, min_v = min(enumerate([x, y, z]), key=lambda x_v: x_v[1])
-        path.append([-1, 1, 0][min_i])  # -1 is down, 1 is right
+        path.append(["d", "r", "o"][min_i])
         i, j = [(i-1, j), (i, j-1), (i-1, j-1)][min_i]
     return path[::-1]
 
