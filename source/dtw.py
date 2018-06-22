@@ -1,8 +1,9 @@
+import datetime
 import sys
 
 from matplotlib import pyplot
 
-from source.main import absolute_brownian
+from source.main import absolute_brownian, data_generator
 import random
 
 # random.seed(1)
@@ -11,18 +12,15 @@ import random
 def get_table(series_a, series_b):
     # assert(len(series_a) == len(series_b))
     table = [[sys.float_info.max if i == 0 or j == 0 else 0. for i in range(len(series_b))] for j in range(len(series_a))]
-    d_table = [["X" if i == j == 0 else "." for i in range(len(series_b))] for j in range(len(series_a))]
     table[0][0] = .0
     for i in range(1, len(series_a)):
         row = table[i]
-        d_row = d_table[i]
         for j in range(1, len(series_b)):
             d = abs(series_a[i] - series_b[j])
             x, y, z = table[i-1][j], row[j-1], table[i-1][j-1]
             min_i, min_v = min(enumerate([x, y, z]), key=lambda x_v: x_v[1])
             row[j] = d + min_v
-            d_row[j] = ["|", "-", "\\"][min_i]
-    return table, d_table
+    return table
 
 
 def get_path(table):
@@ -59,38 +57,69 @@ def stretch(series_a, series_b, path):
 
 
 if __name__ == "__main__":
+    #"""
+    data_parameters = {"file_path": "../data/all_currencies_new.csv",
+                       "select": {"BTC", "ETH", "DASH", "LTC"},
+                       "date_start": datetime.datetime.strptime("2017-05-04", "%Y-%m-%d")}
+    data = data_generator(**data_parameters)
+    s = list(data)
+    a = [x["DASH"] for x in s]
+    b = [x["LTC"] for x in s]
+
+    """
     g = absolute_brownian(initial=1., factor=2.)
     _a = [next(g) for _ in range(1100)]
     a = _a[:1000]
     g = absolute_brownian(initial=.9, factor=1.)
     b = [x - .1 for x in _a][100:]
-    #b = [next(g) for _ in range(1000)]
+    # b = [next(g) for _ in range(1000)]
+    #"""
 
     d_a = [1. - a[i] / a[i+1] for i in range(len(a) - 1)]
     d_b = [1. - b[i] / b[i+1] for i in range(len(b) - 1)]
 
     print(", ".join(["{:08.5f}".format(x) for x in a]))
     print(", ".join(["{:08.5f}".format(x) for x in b]))
-    t, d_t = get_table(d_a, d_b)
+    t = get_table(d_a, d_b)
     p = get_path(t)
     print(p)
     print()
-    s_a, s_b = stretch(a[:-1], b[:-1], p)
-    print(", ".join(["{:08.5f}".format(x) for x in s_a]))
-    print(", ".join(["{:08.5f}".format(x) for x in s_b]))
-    print()
-    print(sum(p))
 
-    f, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
-    ax1.plot(a, label="a")
-    ax1.plot(b, label="b")
-    ax1.legend()
+    f, (ax1, ax4, ax5, ax2, ax3) = pyplot.subplots(5, sharex="all")
+
+    ax1.plot(a, color="#1f77b4")
+    ax1.set_ylabel("a", color="#1f77b4")
+    ax11 = ax1.twinx()
+    ax11.plot(b, color="#ff7f0e")
+    ax11.set_ylabel("b", color="#ff7f0e")
     ax1.set_title("original")
-    ax2.plot(s_a)
-    ax2.plot(s_b)
+
+    ax4.plot(d_a, color="#1f77b4")
+    ax4.set_ylabel("d_a", color="#1f77b4")
+    ax41 = ax4.twinx()
+    ax41.plot(d_b, color="#ff7f0e")
+    ax41.set_ylabel("d_b", color="#ff7f0e")
+    ax4.set_title("d_original")
+
+    s_d_a, s_d_b = stretch(d_a, d_b, p)
+    ax5.plot(s_d_a, color="#1f77b4")
+    ax5.set_ylabel("s_d_a")
+    ax51 = ax5.twinx()
+    ax51.plot(s_d_b, color="#ff7f0e")
+    ax51.set_ylabel("s_d_b")
+    ax5.set_title("d_fitted")
+
+    s_a, s_b = stretch(a, b, p)
+    ax2.plot(s_a, color="#1f77b4")
+    ax2.set_ylabel("a")
+    ax21 = ax2.twinx()
+    ax21.plot(s_b, color="#ff7f0e")
+    ax21.set_ylabel("b")
     ax2.set_title("fitted")
+
     temporal_tendency = [sum(p[0:i]) for i in range(len(p))]
     ax3.plot(temporal_tendency)
-    total_tendency = sum(temporal_tendency) / len(temporal_tendency)
-    print("b is {:.2f} ahead of a".format(total_tendency))
+    total_tendency = [temporal_tendency[i] for i in range(len(temporal_tendency)) if p[i] == 0]
+    print("b is on average {:.2f} ahead of a".format(sum(total_tendency) / len(total_tendency)))
+    print("certainty: {:.2f}".format(t[-1][-1]))
     pyplot.show()
