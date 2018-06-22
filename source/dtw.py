@@ -15,6 +15,7 @@ def get_table(series_a, series_b):
     table[0][0] = .0
     for i in range(1, len(series_a)):
         row = table[i]
+        print("finished {:05.2f}%".format(100. * i / (len(series_a) - 1)))
         for j in range(1, len(series_b)):
             d = abs(series_a[i] - series_b[j])
             x, y, z = table[i-1][j], row[j-1], table[i-1][j-1]

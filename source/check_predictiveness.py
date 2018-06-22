@@ -1,3 +1,5 @@
+import os
+
 from source.dtw import get_table, get_path
 
 
@@ -37,28 +39,34 @@ def get_series(pair):
 
 
 def main():
-    all_pairs = []
+    data_dir = "../data/binance/"
+    all_pairs = [os.path.splitext(f)[0] for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))]
     all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
 
     matrix = dict()
 
     for i, each_pair in enumerate(all_pairs):
+        print(each_pair)
         if not check_range(each_pair):
             continue
         each_series = get_series(each_pair)
 
         sub_dict = matrix.get(each_pair)
         if sub_dict is None:
+            sub_dict = dict()
             matrix[each_pair] = sub_dict
 
         for j in range(i+1, len(all_pairs)):
             every_pair = all_pairs[j]
+            print(every_pair)
             if not check_range(every_pair):
                 continue
             every_series = get_series(every_pair)
 
-            shift, certainty = get_shift(each_series, every_series)
+            shift, certainty = get_shift(each_series[:1000], every_series[:1000])
             sub_dict[every_pair] = (shift, certainty)
+            print("shift: {}, certainty: {}".format(shift, certainty))
+            print()
 
     print(matrix)
 
