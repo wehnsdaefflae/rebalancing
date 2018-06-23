@@ -8,7 +8,7 @@ import numpy
 from source.main import absolute_brownian, data_generator
 import random
 
-# random.seed(1)
+random.seed(133711)
 
 
 def get_series(file_path, range_start=-1, range_end=-1):
@@ -37,11 +37,16 @@ def get_series(file_path, range_start=-1, range_end=-1):
     return series
 
 
-def get_table(s_0, s_1, derivative=True):
+def get_table(s_0, s_1, mode="default", distance=lambda v1, v2: (v1 - v2) ** 2):
     l_a, l_b = len(s_0), len(s_1)
-    if derivative:
+    if mode == "derivative":
         series_a = [0.] + [-1. if 0. >= s_0[i+1] else 1. - s_0[i] / s_0[i+1] for i in range(l_a - 1)]
         series_b = [0.] + [-1. if 0. >= s_1[i+1] else 1. - s_1[i] / s_1[i+1] for i in range(l_b - 1)]
+    elif mode == "normalized":
+        max_a, min_a = max(s_0), min(s_0)
+        series_a = [(x - min_a) / (max_a - min_a) for x in s_0]
+        max_b, min_b = max(s_1), min(s_1)
+        series_b = [(x - min_b) / (max_b - min_b) for x in s_1]
     else:
         series_a = s_0[:]
         series_b = s_1[:]
@@ -57,16 +62,16 @@ def get_table(s_0, s_1, derivative=True):
     table[0][0] = .0
     # """
 
+    factor = 1.
+
     for i in range(l_a):
         row = table[i + 1]
         # print("finished {:05.2f}%".format(100. * i / (len(series_a) - 1)))
         for j in range(l_b):
-            d = (series_a[i] - series_b[j]) ** 2.
-            row[j+1] = d + min(table[i][j+1], row[j], table[i][j])
-            #print(", ".join(["{:5.3f}".format(x) for x in series_a]))
-            #print(", ".join(["{:5.3f}".format(x) for x in series_b]))
+            d = distance(series_a[i], series_b[j])
+            row[j + 1] = d + min(table[i][j + 1] * factor, row[j] * factor, table[i][j])
             #print("{}, {}: {}".format(i, j, d))
-            #print(table_str(table))
+            #print(table_str([[-1.] + series_a] + [[series_b[idx]] + table[idx] for idx in range(l_b)]))
             #print()
     return table
 
@@ -133,7 +138,7 @@ def plot_series(series_a, series_b, path, file_path=None):
 
 
 if __name__ == "__main__":
-    #"""
+    """
     start_date = datetime.datetime(2018, 5, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
     # end_date = datetime.datetime(2018, 6, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_date = datetime.datetime(2018, 5, 27, 0, 0, 0, tzinfo=datetime.timezone.utc)
@@ -144,22 +149,25 @@ if __name__ == "__main__":
     a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end)[7500:]
     b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end)[:-7500]
 
-    """
+    ""
     g = absolute_brownian(initial=1., factor=2., relative_bias=.1)
     _a = [next(g) for _ in range(11)]
     a = _a[:10]
-    g = absolute_brownian(initial=.9, factor=1., relative_bias=-.1)
     b = [x - .1 for x in _a][1:]
-    # b = [next(g) for _ in range(10)]
+
+    """
+    a = [sin(x/7.) for x in range(1000)]
+    b = [cos(x/11.)/3 for x in range(1000)]
     #"""
 
     print("a: {}, b: {} ".format(len(a), len(b)))
-    t = get_table(a, b, derivative=False)
+    t = get_table(a, b, mode="normalized", distance=lambda _x, _y: abs(_x - _y))  # , distance=lambda v1, v2: abs(v1-v2))
     p = get_path(t)
 
     temporal_tendency = [sum(p[0:i]) for i in range(len(p))]
     total_tendency = [temporal_tendency[i] for i in range(len(temporal_tendency)) if p[i] == 0]
-    print("b is on average {:.2f} ahead of a".format(sum(total_tendency) / len(total_tendency)))
+    ahead = 0. if len(total_tendency) < 1 else sum(total_tendency) / len(total_tendency)
+    print("b is on average {:.2f} ahead of a".format(ahead))
     print("deviation: {:.2f}".format(t[-1][-1]))
 
     plot_series(a, b, p)

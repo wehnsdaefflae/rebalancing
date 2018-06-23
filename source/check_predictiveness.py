@@ -1,7 +1,7 @@
 import datetime
 import os
 
-from source.dtw import get_table, get_path, get_series, plot_series
+from source.my_dtw import get_table, get_path, get_series, plot_series
 
 
 def get_shift(p):
@@ -55,7 +55,7 @@ def main():
                 print(e)
                 continue
 
-            t = get_table(each_series, every_series, derivative=True)
+            t = get_table(each_series, every_series, mode="normalized")
             p = get_path(t)
             shift = get_shift(p)
             deviation = t[-1][-1]
