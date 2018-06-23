@@ -1,3 +1,5 @@
+import os
+
 from binance.client import Client
 
 
@@ -21,19 +23,35 @@ from binance.client import Client
 
 # pair = "ETHBTC"
 
+start_date = "23 Jun, 2017"
+end_date = "23 Jun, 2018"
+interval = Client.KLINE_INTERVAL_1MINUTE
+
+encoded_dates = start_date.replace(" ", "").replace(",", "") + "-" + end_date.replace(" ", "").replace(",", "")
+data_dir = "../data/binance/" + encoded_dates + "-" + interval + "/"
+if not os.path.isdir(data_dir):
+    os.mkdir(data_dir)
+
 client = Client("", "")
-b = client.get_exchange_info()
+while True:
+    b = client.get_exchange_info()
+    exchange_pairs = {y for y in [x["symbol"] for x in b["symbols"]] if y[-3:] == "ETH"}
 
-pairs = sorted(set(y for y in [x["symbol"] for x in b["symbols"]] if y[-3:] == "ETH"))
+    present_pairs = {os.path.splitext(f)[0] for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))}
 
-for pair_index, each_pair in enumerate(pairs):
-    print("getting {:s} ({:d}/{:d})".format(each_pair, pair_index + 1, len(pairs)))
-    # klines = client.get_historical_klines(each_pair, Client.KLINE_INTERVAL_1MINUTE, "20 Jun, 2017", "20 Jun, 2018")
-    try:
-        klines = client.get_historical_klines(each_pair, Client.KLINE_INTERVAL_1MINUTE, "20 May, 2018", "20 Jun, 2018")
-        with open("../data/binance/{}.csv".format(each_pair), mode='w') as f:
-            for each_kline in klines:
-                f.write("\t".join([str(x) for x in each_kline]) + "\n")
-    except Exception as e:
-        print("{} didn't work.".format(each_pair))
-        print(e)
+    missing_pairs = exchange_pairs - present_pairs
+    if len(missing_pairs) < 1:
+        print("all pairs retrieved")
+        exit()
+
+    print("{:d} pairs missing".format(len(missing_pairs)))
+    for pair_index, each_pair in enumerate(sorted(missing_pairs)):
+        print("getting {:s} ({:d}/{:d})".format(each_pair, pair_index + 1, len(missing_pairs)))
+        try:
+            klines = client.get_historical_klines(each_pair, interval, start_date, end_date)
+            with open(data_dir + "{}.csv".format(each_pair), mode='w') as f:
+                for each_kline in klines:
+                    f.write("\t".join([str(x) for x in each_kline]) + "\n")
+        except Exception as e:
+            print("{} didn't work, continuing.".format(each_pair))
+            print(e)
