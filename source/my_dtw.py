@@ -195,6 +195,7 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
 
 
 def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None):
+    # TODO: implement skip if result is already there
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
     fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
     fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
@@ -280,6 +281,9 @@ def main():
             print("starting {:s} X {:s} ({:d}/{:d})...".format(each_cur, every_cur, iterations, total_pairs))
 
             try:
+                if os.path.isfile(target_dir + "{:s}_{:s}.png".format(each_cur, every_cur)):
+                    print("Currency pair {:s} X {:s} already fitted. Skipping...".format(each_cur, every_cur))
+                    continue
                 o, e = fit_exchange_rates(each_cur, every_cur, start_date, end_date, interval_minutes, result_dir=target_dir)
                 row = [str(datetime.datetime.now()), each_cur, every_cur, "{:d}".format(o), "{:.5f}".format(e)]
             except ValueError as e:
