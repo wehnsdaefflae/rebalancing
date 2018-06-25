@@ -97,8 +97,13 @@ def get_table(s_0, s_1,
 def get_path(table, overlap=False):
     r = False
     if overlap:
-        r_i, r_j = min({(len(table) - 1, _j) for _j in range(1, len(table[0]))}, key=lambda ij: table[ij[0]][ij[1]])
-        c_i, c_j = min({(_i, len(table[0]) - 1) for _i in range(1, len(table))}, key=lambda ij: table[ij[0]][ij[1]])
+        # left right overlap
+        # r_i, r_j = min({(len(table) - 1, _j) for _j in range(1, len(table[0]))}, key=lambda ij: table[ij[0]][ij[1]])
+        # c_i, c_j = min({(_i, len(table[0]) - 1) for _i in range(1, len(table))}, key=lambda ij: table[ij[0]][ij[1]])
+
+        # new overlap
+        r_i, r_j = min({(len(table) - 1, _j) for _j in range(len(table) // 2, len(table[0]))}, key=lambda ij: table[ij[0]][ij[1]])
+        c_i, c_j = min({(_i, len(table[0]) - 1) for _i in range(len(table[0]) // 2, len(table))}, key=lambda ij: table[ij[0]][ij[1]])
 
         if table[r_i][r_j] < table[c_i][c_j]:
             i, j = r_i, r_j
@@ -111,10 +116,11 @@ def get_path(table, overlap=False):
     fork = [(-1, 0), (0, -1), (-1, -1)]
     path = [(i, j)]
 
-    # overlap
-    # while (overlap and not any(0 == x for x in (i, j))) or (not overlap and (i, j) != (0, 0)):
-    # semi-overlap
-    while (overlap and ((r and not 0 == j) or (not r and not 0 == i))) or (not overlap and (i, j) != (0, 0)):
+    # left-right-overlap
+    # while (overlap and ((r and not 0 == j) or (not r and not 0 == i))) or (not overlap and (i, j) != (0, 0)):
+
+    # new overlap
+    while (overlap and ((r and not (0 == j and i < len(table) // 2)) or (not r and not (0 == i and j < len(table[0]) // 2)))) or (not overlap and (i, j) != (0, 0)):
         if 0 < i and 0 < j:
             d_i, d_j = min(fork, key=lambda _ij: table[i+_ij[0]][j+_ij[1]])
         elif 0 < i:
