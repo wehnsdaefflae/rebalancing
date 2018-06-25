@@ -15,11 +15,11 @@ def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters,
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
         raise ValueError(msg.format(fp_a, fp_b, str(timestamp_start), str(timestamp_end), len(a), len(b)))
 
-    temp_offset, error = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
+    temp_offset, error, overlap = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
 
-    msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
-    print(msg.format(cur_a, temp_offset, cur_b, error))
-    return temp_offset, error
+    msg = "{} is {:d} ahead of {} with an overlap of {} and a deviation of {:.4f}"
+    print(msg.format(cur_a, temp_offset, cur_b, overlap, error))
+    return temp_offset, error, overlap
 
 
 def fit_test_data():
@@ -35,7 +35,7 @@ def fit_test_data():
     #"""
 
     parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5}
-    temp_offset, error = get_fit(a, cur_a, b, cur_b, **parameters)
+    temp_offset, error, overlap = get_fit(a, cur_a, b, cur_b, **parameters)
 
     msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
     print(msg.format(cur_a, temp_offset, cur_b, error))
@@ -59,6 +59,10 @@ def batch():
     all_pairs = [os.path.splitext(f)[0] for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
     all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
 
+    if not os.path.exists(target_dir + "results.csv"):
+        with open(target_dir + "results.csv", mode="w") as file:
+            file.write("time\tcurrency_a\tcurrency_b\ttime_difference\terror\toverlap\n")
+
     iterations = 0
     total_pairs = len(all_pairs) * (len(all_pairs) - 1) // 2
 
@@ -72,11 +76,11 @@ def batch():
                 if os.path.isfile(target_dir + "{:s}_{:s}.png".format(each_cur, every_cur)):
                     print("Currency pair {:s} X {:s} already fitted. Skipping...".format(each_cur, every_cur))
                     continue
-                o, e = fit_exchange_rates(each_cur, every_cur,
-                                          start_date, end_date,
-                                          interval_minutes, parameters, result_dir=target_dir)
+                o, e, ol = fit_exchange_rates(each_cur, every_cur,
+                                              start_date, end_date,
+                                              interval_minutes, parameters, result_dir=target_dir)
 
-                row = [str(datetime.datetime.now()), each_cur, every_cur, "{:d}".format(o), "{:.5f}".format(e)]
+                row = [str(datetime.datetime.now()), each_cur, every_cur, "{:d}".format(o), "{:.5f}".format(e), "{:d}".format(ol)]
             except ValueError as e:
                 row = [str(datetime.datetime.now()), each_cur, every_cur, str(e)]
 

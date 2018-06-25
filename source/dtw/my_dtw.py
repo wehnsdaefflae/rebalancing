@@ -219,4 +219,5 @@ def get_fit(a, b, cur_a, cur_b,
     end_offset = abs((len(a) - end_pos[0]) - (len(b) - end_pos[1]))
     offset = min(start_offset, end_offset)
     deviation = t[end_pos[0]][end_pos[1]]
-    return offset, deviation
+    overlap = min(end_pos) - max(start_pos)
+    return offset, deviation, overlap
