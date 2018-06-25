@@ -5,7 +5,7 @@ from math import sin, cos
 from source.dtw.my_dtw import get_series, get_fit
 
 
-def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None, w=.0):
+def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None, parameters=None):
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
     fp_a = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
     fp_b = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
@@ -15,10 +15,8 @@ def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
         raise ValueError(msg.format(fp_a, fp_b, str(timestamp_start), str(timestamp_end), len(a), len(b)))
 
-    if not 1. >= w >= 0.:
-        raise ValueError("Relative window size must be between 1. and .0 (zero means unbound window)!")
-
-    parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5, "w": int(len(a) * w)}
+    if parameters is None:
+        parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5, "w": int(len(a) * 0.)}
     temp_offset, error = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
 
     msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
@@ -52,9 +50,6 @@ def batch():
 
     source_dir = "../../data/binance/23Jun2017-23Jun2018-1m/"
     target_dir = "../../results/dtw/2018-06-25/"
-    #if os.path.isdir(target_dir):
-    #    print("result path {} already exists!".format(target_dir))
-    #    exit()
 
     all_pairs = [os.path.splitext(f)[0] for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
     all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
@@ -86,12 +81,16 @@ def single_run():
     end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
     interval_minutes = 10
 
-    fit_exchange_rates("ADAETH", "BCCETH", start_date, end_date, interval_minutes, w=.0)
+    parameters = {"overlap": False,
+                  "normalized": True,
+                  "derivative": False,
+                  "diag_factor": 1.}
+    fit_exchange_rates("HSRETH", "WANETH", start_date, end_date, interval_minutes, parameters=parameters)
 
 
 def main():
-    # single_run()
-    batch()
+    single_run()
+    # batch()
 
 
 if __name__ == "__main__":

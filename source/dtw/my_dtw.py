@@ -67,6 +67,8 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, w=-1, d
     table = [[0. for _ in range(l_b)] for _ in range(l_a)]
     # """
 
+    diag_factors = [1., 1., diag_factor]
+
     for i in range(l_a):
         row = table[i]
         sub_range = (0, l_b) if 0. >= w else (max(0, i-w), min(l_b, i+w))
@@ -79,7 +81,8 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, w=-1, d
             elif not overlap and i == 0:
                 row[j] = dist + row[j-1]
             else:
-                row[j] = dist + min(table[i-1][j], row[j-1], table[i-1][j-1] * diag_factor)
+                _i, prev_dist = min(enumerate([table[i-1][j], row[j-1], table[i-1][j-1]]), key=lambda _x: _x[1])
+                row[j] = dist * diag_factors[_i] + prev_dist
             #print("{}, {}: {}".format(i, j, d))
             #print(table_str([[-1.] + series_a] + [[series_b[idx]] + table[idx] for idx in range(l_b)]))
             #print()
