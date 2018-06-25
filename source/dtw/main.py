@@ -15,11 +15,11 @@ def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters,
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
         raise ValueError(msg.format(fp_a, fp_b, str(timestamp_start), str(timestamp_end), len(a), len(b)))
 
-    error, overlap = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
+    error, overlap, offset = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
 
-    msg = "{:s} and {:s} overlap for {:d} with a deviation of {:.4f}"
-    print(msg.format(cur_a, cur_b, overlap, error))
-    return error, overlap
+    msg = "{:s} precedes {:s} with an offset of {:d} and an overlap for {:d} with a deviation of {:.4f}"
+    print(msg.format(cur_a, cur_b, offset, overlap, error, offset))
+    return error, overlap, offset
 
 
 def fit_test_data():
@@ -35,10 +35,10 @@ def fit_test_data():
     # """
 
     parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5}
-    error, overlap = get_fit(a, cur_a, b, cur_b, **parameters)
+    error, overlap, offset = get_fit(a, cur_a, b, cur_b, **parameters)
 
-    msg = "{:s} and {:s} overlap for {:d} with a deviation of {:.4f}"
-    print(msg.format(cur_a, cur_b, overlap, error))
+    msg = "{:s} precedes {:s} with an offset of {:d} and an overlap for {:d} with a deviation of {:.4f}"
+    print(msg.format(cur_a, cur_b, offset, overlap, error, offset))
 
 
 def batch():
@@ -64,7 +64,7 @@ def batch():
 
     if not os.path.exists(target_dir + "results.csv"):
         with open(target_dir + "results.csv", mode="w") as file:
-            file.write("time\tcurrency_a\tcurrency_b\terror\toverlap\n")
+            file.write("time\tcurrency_a\tcurrency_b\terror\toverlap\toffset\n")
 
     iterations = 0
     total_pairs = len(all_pairs) * (len(all_pairs) - 1) // 2
@@ -79,12 +79,12 @@ def batch():
                 if os.path.isfile(target_dir + "{:s}_{:s}.png".format(each_cur, every_cur)):
                     print("Currency pair {:s} X {:s} already fitted. Skipping...".format(each_cur, every_cur))
                     continue
-                e, o = fit_exchange_rates(each_cur, every_cur,
-                                          start_date, end_date,
-                                          interval_minutes, parameters, result_dir=target_dir)
+                e, o, ofs = fit_exchange_rates(each_cur, every_cur,
+                                               start_date, end_date,
+                                               interval_minutes, parameters, result_dir=target_dir)
 
                 row = [str(datetime.datetime.now()),
-                       each_cur, every_cur, "{:.5f}".format(e), "{:d}".format(o)]
+                       each_cur, every_cur, "{:.5f}".format(e), "{:d}".format(o), "{:d}".format(ofs)]
 
             except ValueError as e:
                 row = [str(datetime.datetime.now()), each_cur, every_cur, str(e)]
@@ -109,8 +109,8 @@ def single_run():
 
 
 def main():
-    # single_run()
-    batch()
+    single_run()
+    # batch()
 
 
 if __name__ == "__main__":
