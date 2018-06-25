@@ -1,8 +1,10 @@
 import datetime
+import math
 import sys
 from math import sin, cos
 
 from matplotlib import pyplot
+from scipy import stats
 
 import numpy
 from source.main import absolute_brownian, data_generator
@@ -23,7 +25,7 @@ def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
             if -1 < range_start:
                 if range_start < row_ts:
                     if i < 1:
-                        raise ValueError("Source {} does not support range_start!".format(file_path))
+                        raise ValueError("Source {} does not support range_start: {:d}!".format(file_path, range_start))
                 elif row_ts < range_end:
                     continue
 
@@ -34,7 +36,7 @@ def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
             series.append(close)
 
         if row_ts < range_end:
-            raise ValueError("Source {} does not support range_end!".format(file_path))
+            raise ValueError("Source {} does not support range_end: {:d}!".format(file_path, range_end))
 
     return series
 
@@ -42,18 +44,20 @@ def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
 def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_factor=1., distance=lambda v1, v2: (v1 - v2) ** 2):
     l_a, l_b = len(s_0), len(s_1)
     if normalized:
-        max_a, min_a = max(s_0), min(s_0)
-        series_a = [(x - min_a) / (max_a - min_a) for x in s_0]
-        max_b, min_b = max(s_1), min(s_1)
-        series_b = [(x - min_b) / (max_b - min_b) for x in s_1]
+        #max_a, min_a = max(s_0), min(s_0)
+        #series_a = [(x - min_a) / (max_a - min_a) for x in s_0]
+        #max_b, min_b = max(s_1), min(s_1)
+        #series_b = [(x - min_b) / (max_b - min_b) for x in s_1]
+        series_a = stats.zscore(s_0)
+        series_b = stats.zscore(s_1)
 
     else:
         series_a = s_0[:]
         series_b = s_1[:]
 
     if derivative:
-        series_a = [0.] + [-1. if 0. >= series_a[i+1] else 1. - series_a[i] / series_a[i+1] for i in range(l_a - 1)]
-        series_b = [0.] + [-1. if 0. >= series_b[i+1] else 1. - series_b[i] / series_b[i+1] for i in range(l_b - 1)]
+        series_a = [0.] + [0. if 0. >= series_a[i+1] else 1. - series_a[i] / series_a[i+1] for i in range(l_a - 1)]
+        series_b = [0.] + [0. if 0. >= series_b[i+1] else 1. - series_b[i] / series_b[i+1] for i in range(l_b - 1)]
 
 
     """
@@ -70,15 +74,15 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_fa
         row = table[i]
         # print("finished {:05.2f}%".format(100. * i / (len(series_a) - 1)))
         for j in range(l_b):
-            d = distance(series_a[i], series_b[j])
+            dist = distance(series_a[i], series_b[j])
             if j == i == 0 or (overlap and (i == 0 or j == 0)):
-                row[j] = d
+                row[j] = dist
             elif not overlap and j == 0:
-                row[j] = d + table[i-1][j]
+                row[j] = dist + table[i-1][j]
             elif not overlap and i == 0:
-                row[j] = d + row[j-1]
+                row[j] = dist + row[j-1]
             else:
-                row[j] = d + min(table[i-1][j], row[j-1], table[i-1][j-1] * diag_factor)
+                row[j] = dist + min(table[i-1][j], row[j-1], table[i-1][j-1] * diag_factor)
             #print("{}, {}: {}".format(i, j, d))
             #print(table_str([[-1.] + series_a] + [[series_b[idx]] + table[idx] for idx in range(l_b)]))
             #print()
@@ -86,20 +90,28 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_fa
 
 
 def get_path(table, overlap=False):
-    path = []
     if overlap:
         last_row = {(len(table) - 1, _j) for _j in range(1, len(table[0]))}
         last_col = {(_i, len(table[0]) - 1) for _i in range(1, len(table))}
         i, j = min(last_row | last_col, key=lambda ij: table[ij[0]][ij[1]])
     else:
         i, j = len(table) - 1, len(table[0]) - 1
-    i_end, j_end = i, j
-    while (not overlap and (0 < i or 0 < j)) or (overlap and (0 < i and 0 < j)):
-        x, y, z = table[i-1][j], table[i][j-1], table[i-1][j-1]
-        min_i, min_v = min(enumerate([x, y, z]), key=lambda x_v: x_v[1])
-        path.append([1, -1, 0][min_i])
-        i, j = [(i-1, j), (i, j-1), (i-1, j-1)][min_i]
-    return (i, j), path[::-1], (i_end, j_end)
+
+    fork = [(-1, 0), (0, -1), (-1, -1)]
+    path = [(i, j)]
+
+    while (overlap and not any(0 == x for x in (i, j))) or (not overlap and (i, j) != (0, 0)):
+        if 0 < i and 0 < j:
+            d_i, d_j = min(fork, key=lambda _ij: table[i+_ij[0]][j+_ij[1]])
+        elif 0 < i:
+            d_i, d_j = -1, 0
+        else:
+            d_i, d_j = 0, -1
+        i += d_i
+        j += d_j
+        path.append((i, j))
+
+    return path[::-1]
 
 
 def table_str(table):
@@ -108,63 +120,16 @@ def table_str(table):
     return "\n".join(rows)
 
 
-def stretch(series_a, series_b, path):
-    new_a, new_b = [], []
-    i, j = 0, 0
-    path_index = 0
-    while i < len(series_a) and j < len(series_b) and path_index < len(path):
-        new_a.append(series_a[i])
-        new_b.append(series_b[j])
-        each_d = path[path_index]
-        if each_d == 0:
-            i += 1
-            j += 1
-        elif each_d == 1:
-            i += 1
-        elif each_d == -1:
-            j += 1
-        path_index += 1
-    return new_a, new_b
+def fit(series_a, series_b, path):
+    fit_a, fit_b = [], []
+    for i, j in path:
+        fit_a.append(series_a[i])
+        fit_b.append(series_b[j])
+    return fit_a, fit_b
 
 
-def count_from_start(sequence, condition):
-    index = 0
-    l_ = len(sequence)
-    while index < l_ and condition(sequence[index]):
-        index += 1
-    return index
-
-
-def count_from_end(sequence, condition):
-    l_ = len(sequence)
-    index = l_ - 1
-    while index >= 0 and condition(sequence[index]):
-        index -= 1
-    return len(sequence) - 1 - index
-
-
-def strip(sequence, condition):
-    beg = True
-    out_seq = []
-    prev_elem_i = -1
-    for elem_i, elem in enumerate(sequence):
-        if condition(elem):
-            if beg:
-                continue
-            else:
-                out_seq.append(elem)
-        else:
-            beg = False
-            out_seq.append(elem)
-        if elem_i >= 1 and sequence[elem_i - 1] != elem:
-            prev_elem_i = elem_i
-    if prev_elem_i >= 0 and condition(sequence[-1]):
-        out_seq = out_seq[:-(len(sequence) - prev_elem_i)]
-    return out_seq
-
-
-def plot_series(series_a, series_b, start_offset, path, end_offset, a_label="series a", b_label="series b", file_path=None):
-    f, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
+def plot_series(series_a, series_b, path, a_label="series a", b_label="series b", file_path=None):
+    _, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
 
     ax1.set_title("original")
     ax11 = ax1.twinx()
@@ -177,22 +142,39 @@ def plot_series(series_a, series_b, start_offset, path, end_offset, a_label="ser
     ax11.plot(series_b, color="#ff7f0e")
     ax11.set_ylabel(b_label, color="#ff7f0e")
 
-    a_mid, b_mid = stretch(series_a[start_offset[0]:end_offset[0]], series_b[start_offset[1]:end_offset[1]], path)
+    start_offset = path[0]
+    end_offset = path[-1]
+
     a_start = series_a[:start_offset[0]]
-    a_end = series_a[end_offset[0]:]
+    a_mid = series_a[start_offset[0]:end_offset[0] + 1]
+    a_end = series_a[end_offset[0] + 1:]
+
     b_start = series_b[:start_offset[1]]
-    b_end = series_b[end_offset[1]:]
+    b_mid = series_b[start_offset[1]:end_offset[1] + 1]
+    b_end = series_b[end_offset[1] + 1:]
 
-    stretched_a = a_start + a_mid + a_end
-    stretched_b = b_start + b_mid + b_end
+    a_fit, b_fit = fit(a_mid, b_mid, [(_i - len(a_start), _j - len(b_start)) for _i, _j in path])
 
-    ax2.plot(range(len(b_start), len(b_start) + len(stretched_a)), stretched_a, color="#1f77b4", alpha=.5)
+    fitted_a = a_start + a_fit + a_end
+    fitted_b = b_start + b_fit + b_end
+
+    ax2.plot(range(len(b_start), len(b_start) + len(fitted_a)), fitted_a, color="#1f77b4", alpha=.5)
     ax2.set_ylabel(a_label)
 
-    ax21.plot(range(len(a_start), len(a_start) + len(stretched_b)), stretched_b, color="#ff7f0e", alpha=.5)
+    ax21.plot(range(len(a_start), len(a_start) + len(fitted_b)), fitted_b, color="#ff7f0e", alpha=.5)
     ax21.set_ylabel(b_label)
 
-    tendency = [sum(path[0:i]) for i in range(len(path))]
+    def _diff_path(_path):
+        _diff = []
+        for _index in range(len(_path) - 2):
+            _last, _this = _path[_index:_index + 2]
+            _dir = _last[0] - _this[0], _last[1] - _this[1]
+            _diff.append(_dir)
+        return _diff
+
+    diff_path = _diff_path(path)
+    acc_path = [_i - _j for _i, _j in diff_path]
+    tendency = [sum(acc_path[:i]) for i in range(len(acc_path))]
     ax3.plot(range(len(a_start) + len(b_start), len(a_start) + len(b_start) + len(tendency)), tendency)
 
     pyplot.tight_layout()
@@ -206,16 +188,17 @@ def plot_series(series_a, series_b, start_offset, path, end_offset, a_label="ser
 
 if __name__ == "__main__":
     #"""
-    start_date = datetime.datetime(2017, 10, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    start_date = datetime.datetime(2018, 3, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     # end_date = datetime.datetime(2018, 6, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
-    end_date = datetime.datetime(2018, 5, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    end_date = datetime.datetime(2018, 6, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
 
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
-    fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format("EOSETH")
-    fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format("SNTETH")
-    a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=3000)
-    b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=3000)
-    # b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end)[:1000]
+    fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format("NEOETH")
+    fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format("QTUMETH")
+    full_a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=60)
+    full_b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=60)
+    a = full_a  # full_a[200:]
+    b = full_b  # [_x * .9 for _x in full_a[:-200]]
     print("a: {}, b: {} ".format(len(a), len(b)))
 
     """
@@ -228,18 +211,24 @@ if __name__ == "__main__":
     b = [cos(x/11.)/3 for x in range(1000)]
     #"""
 
-    t = get_table(a, b, normalized=True, derivative=False, overlap=False, diag_factor=1., distance=lambda _x, _y: (_x - _y) ** 2.)  # , distance=lambda v1, v2: abs(v1-v2))
-    start, p, end = get_path(t, overlap=False)
+    o = True
+    n = True
+    d = False
+    f = .9  # 1. / math.sqrt(2)
+    t = get_table(a, b, normalized=n, derivative=d, overlap=o, diag_factor=f, distance=lambda _x, _y: (_x - _y) ** 2.)
+    p = get_path(t, overlap=o)
 
-    # print(table_str(t))
-    # print(p)
+    #print("\t".join(["{:08.5}".format(_x) for _x in a]))
+    #print("\t".join(["{:08.5}".format(_x) for _x in b]))
+    #print(table_str(t))
+    #print(p)
 
-    temporal_tendency = [sum(p[0:i]) for i in range(len(p))]
-    total_tendency = [temporal_tendency[i] for i in range(len(temporal_tendency)) if p[i] == 0]
-    ahead = 0. if len(total_tendency) < 1 else sum(total_tendency) / len(total_tendency)
-    print("b is on average {:.2f} ahead of a".format(ahead))
-    print("deviation: {:.2f}".format(t[-1][-1]))
+    #temporal_tendency = [sum(p[0:i]) for i in range(len(p))]
+    #total_tendency = [temporal_tendency[i] for i in range(len(temporal_tendency)) if p[i] == 0]
+    #ahead = 0. if len(total_tendency) < 1 else sum(total_tendency) / len(total_tendency)
+    #print("b is on average {:.2f} ahead of a".format(ahead))
+    #print("deviation: {:.2f}".format(t[-1][-1]))
 
-    plot_series(a, b, start, p, end)
+    plot_series(a, b, p)
 
 
