@@ -195,7 +195,6 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
 
 
 def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None):
-    # TODO: implement skip if result is already there
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
     fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
     fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
