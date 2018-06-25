@@ -52,9 +52,9 @@ def batch():
 
     source_dir = "../../data/binance/23Jun2017-23Jun2018-1m/"
     target_dir = "../../results/dtw/2018-06-25/"
-    if os.path.isdir(target_dir):
-        print("result path {} already exists!".format(target_dir))
-        exit()
+    #if os.path.isdir(target_dir):
+    #    print("result path {} already exists!".format(target_dir))
+    #    exit()
 
     all_pairs = [os.path.splitext(f)[0] for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
     all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
@@ -90,8 +90,8 @@ def single_run():
 
 
 def main():
-    single_run()
-    # batch()
+    # single_run()
+    batch()
 
 
 if __name__ == "__main__":

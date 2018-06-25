@@ -198,7 +198,7 @@ def get_fit(a, b, cur_a, cur_b,
             derivative=False,
             diag_factor=1.,
             distance=lambda v1, v2: (v1 - v2) ** 2):
-    print("{}: {}, {}: {} ".format(cur_a, len(a), cur_b, len(b)))
+    print("{:s}: {:d}, {:s}: {:d} ".format(cur_a, len(a), cur_b, len(b)))
 
     t = get_table(a, b, normalized=normalized, derivative=derivative, overlap=overlap, diag_factor=diag_factor, distance=distance, w=w)
     p = get_path(t, overlap=overlap)
@@ -207,7 +207,7 @@ def get_fit(a, b, cur_a, cur_b,
     if result_dir is not None:
         if not os.path.isdir(result_dir):
             os.mkdir(result_dir)
-        target_path = result_dir + "{}_{}.png".format(cur_a, cur_b)
+        target_path = result_dir + "{:s}_{:s}.png".format(cur_a, cur_b)
 
     plot_series(a, b, p, a_label=cur_a, b_label=cur_b, file_path=target_path)
 
