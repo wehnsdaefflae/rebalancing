@@ -5,7 +5,7 @@ from math import sin, cos
 from source.dtw.my_dtw import get_series, get_fit
 
 
-def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None, parameters=None):
+def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, result_dir=None):
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
     fp_a = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
     fp_b = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
@@ -15,8 +15,6 @@ def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
         raise ValueError(msg.format(fp_a, fp_b, str(timestamp_start), str(timestamp_end), len(a), len(b)))
 
-    if parameters is None:
-        parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5, "w": int(len(a) * 0.)}
     temp_offset, error = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
 
     msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
@@ -48,6 +46,13 @@ def batch():
     end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
     interval_minutes = 10
 
+    parameters = {"overlap": True,
+                  "normalized": True,
+                  "derivative": False,
+                  "diag_factor": 2.,
+                  "w": 0,
+                  "distance": lambda v1, v2: (v1 - v2) ** 2}
+
     source_dir = "../../data/binance/23Jun2017-23Jun2018-1m/"
     target_dir = "../../results/dtw/2018-06-25/"
 
@@ -67,7 +72,10 @@ def batch():
                 if os.path.isfile(target_dir + "{:s}_{:s}.png".format(each_cur, every_cur)):
                     print("Currency pair {:s} X {:s} already fitted. Skipping...".format(each_cur, every_cur))
                     continue
-                o, e = fit_exchange_rates(each_cur, every_cur, start_date, end_date, interval_minutes, result_dir=target_dir)
+                o, e = fit_exchange_rates(each_cur, every_cur,
+                                          start_date, end_date,
+                                          interval_minutes, parameters, result_dir=target_dir)
+
                 row = [str(datetime.datetime.now()), each_cur, every_cur, "{:d}".format(o), "{:.5f}".format(e)]
             except ValueError as e:
                 row = [str(datetime.datetime.now()), each_cur, every_cur, str(e)]
@@ -81,16 +89,18 @@ def single_run():
     end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
     interval_minutes = 10
 
-    parameters = {"overlap": False,
+    parameters = {"overlap": True,
                   "normalized": True,
                   "derivative": False,
-                  "diag_factor": 1.}
+                  "diag_factor": 2.,
+                  "w": 0,
+                  "distance": lambda v1, v2: (v1 - v2) ** 2}
     fit_exchange_rates("HSRETH", "WANETH", start_date, end_date, interval_minutes, parameters=parameters)
 
 
 def main():
-    single_run()
-    # batch()
+    # single_run()
+    batch()
 
 
 if __name__ == "__main__":
