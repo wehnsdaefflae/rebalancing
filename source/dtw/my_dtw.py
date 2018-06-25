@@ -221,4 +221,7 @@ def get_fit(a, b, cur_a, cur_b,
 
     start_pos, end_pos = p[0], p[-1]
     deviation = t[end_pos[0]][end_pos[1]]
-    return deviation, end_pos[0] - start_pos[0], end_pos[1] - start_pos[1]
+    overlap = len(a) + len(b)
+    overlap -= max(start_pos)
+    overlap -= len(a) - end_pos[0] if end_pos[0] < end_pos[1] else len(b) - end_pos[1]
+    return deviation, overlap
