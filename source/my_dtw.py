@@ -1,5 +1,6 @@
 import datetime
 import math
+import os
 import sys
 from math import sin, cos
 
@@ -90,17 +91,24 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_fa
 
 
 def get_path(table, overlap=False):
+    r = False
     if overlap:
-        last_row = {(len(table) - 1, _j) for _j in range(1, len(table[0]))}
-        last_col = {(_i, len(table[0]) - 1) for _i in range(1, len(table))}
-        i, j = min(last_row | last_col, key=lambda ij: table[ij[0]][ij[1]])
+        r_i, r_j = min({(len(table) - 1, _j) for _j in range(1, len(table[0]))}, key=lambda ij: table[ij[0]][ij[1]])
+        c_i, c_j = min({(_i, len(table[0]) - 1) for _i in range(1, len(table))}, key=lambda ij: table[ij[0]][ij[1]])
+
+        if table[r_i][r_j] < table[c_i][c_j]:
+            i, j = r_i, r_j
+            r = True
+        else:
+            i, j = c_i, c_j
     else:
         i, j = len(table) - 1, len(table[0]) - 1
 
     fork = [(-1, 0), (0, -1), (-1, -1)]
     path = [(i, j)]
 
-    while (overlap and not any(0 == x for x in (i, j))) or (not overlap and (i, j) != (0, 0)):
+    # while (overlap and not any(0 == x for x in (i, j))) or (not overlap and (i, j) != (0, 0)):               # overlap
+    while (overlap and ((r and not 0 == j) or (not r and not 0 == i))) or (not overlap and (i, j) != (0, 0)):  # semi-overlap
         if 0 < i and 0 < j:
             d_i, d_j = min(fork, key=lambda _ij: table[i+_ij[0]][j+_ij[1]])
         elif 0 < i:
@@ -159,10 +167,10 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
     fitted_b = b_start + b_fit + b_end
 
     ax2.plot(range(len(b_start), len(b_start) + len(fitted_a)), fitted_a, color="#1f77b4", alpha=.5)
-    ax2.set_ylabel(a_label)
+    ax2.set_ylabel(a_label, color="#1f77b4")
 
     ax21.plot(range(len(a_start), len(a_start) + len(fitted_b)), fitted_b, color="#ff7f0e", alpha=.5)
-    ax21.set_ylabel(b_label)
+    ax21.set_ylabel(b_label, color="#ff7f0e")
 
     def _diff_path(_path):
         _diff = []
@@ -186,49 +194,100 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
     pyplot.close()
 
 
-if __name__ == "__main__":
-    #"""
-    start_date = datetime.datetime(2018, 3, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-    # end_date = datetime.datetime(2018, 6, 20, 0, 0, 0, tzinfo=datetime.timezone.utc)
-    end_date = datetime.datetime(2018, 6, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-
+def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None):
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
-    fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format("NEOETH")
-    fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format("QTUMETH")
-    full_a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=60)
-    full_b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=60)
-    a = full_a  # full_a[200:]
-    b = full_b  # [_x * .9 for _x in full_a[:-200]]
-    print("a: {}, b: {} ".format(len(a), len(b)))
+    fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
+    fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
+    a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
+    b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
 
+    parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5}
+    temp_offset, error = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
+
+    msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
+    print(msg.format(cur_a, temp_offset, cur_b, error))
+    return temp_offset, error
+
+
+def fit_test_data():
     """
     g = absolute_brownian(initial=1., factor=2., relative_bias=.1)
     a = [next(g) for _ in range(10)]
     b = [x - .1 for x in a][3:8]
 
-    ""
+    """
+    cur_a, cur_b = "sin", "cos"
     a = [sin(x/7.) for x in range(1000)]
     b = [cos(x/11.)/3 for x in range(1000)]
     #"""
 
-    o = True
-    n = True
-    d = False
-    f = .9  # 1. / math.sqrt(2)
-    t = get_table(a, b, normalized=n, derivative=d, overlap=o, diag_factor=f, distance=lambda _x, _y: (_x - _y) ** 2.)
-    p = get_path(t, overlap=o)
+    parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5}
+    temp_offset, error = get_fit(a, cur_a, b, cur_b, **parameters)
 
-    #print("\t".join(["{:08.5}".format(_x) for _x in a]))
-    #print("\t".join(["{:08.5}".format(_x) for _x in b]))
-    #print(table_str(t))
-    #print(p)
-
-    #temporal_tendency = [sum(p[0:i]) for i in range(len(p))]
-    #total_tendency = [temporal_tendency[i] for i in range(len(temporal_tendency)) if p[i] == 0]
-    #ahead = 0. if len(total_tendency) < 1 else sum(total_tendency) / len(total_tendency)
-    #print("b is on average {:.2f} ahead of a".format(ahead))
-    #print("deviation: {:.2f}".format(t[-1][-1]))
-
-    plot_series(a, b, p)
+    msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
+    print(msg.format(cur_a, temp_offset, cur_b, error))
 
 
+def get_fit(a, b, cur_a, cur_b,
+            result_dir=None,
+            overlap=False,
+            normalized=True,
+            derivative=False,
+            diag_factor=1.,
+            distance=lambda v1, v2: (v1 - v2) ** 2):
+    print("{}: {}, {}: {} ".format(cur_a, len(a), cur_b, len(b)))
+
+    t = get_table(a, b, normalized=normalized, derivative=derivative, overlap=overlap, diag_factor=diag_factor, distance=distance)
+    p = get_path(t, overlap=overlap)
+
+    target_path = None
+    if result_dir is not None:
+        if not os.path.isdir(result_dir):
+            os.mkdir(result_dir)
+        target_path = result_dir + "{}_{}.png".format(cur_a, cur_b)
+
+    plot_series(a, b, p, a_label=cur_a, b_label=cur_b, file_path=target_path)
+
+    start_pos, end_pos = p[0], p[-1]
+    start_offset = abs(start_pos[0] - start_pos[1])
+    end_offset = abs((len(a) - end_pos[0]) - (len(b) - end_pos[1]))
+    offset = min(start_offset, end_offset)
+    deviation = t[end_pos[0]][end_pos[1]]
+    return offset, deviation
+
+
+def main():
+    start_date = datetime.datetime(2018, 6, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    interval_minutes = 10
+
+    source_dir = "../data/binance/23Jun2017-23Jun2018-1m/"
+    target_dir = "../results/dtw/2018-06-25/"
+    if os.path.isdir(target_dir):
+        print("result path {} already exists!".format(target_dir))
+        exit()
+
+    all_pairs = [os.path.splitext(f)[0] for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
+    all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
+
+    iterations = 0
+    total_pairs = len(all_pairs) * (len(all_pairs) - 1) // 2
+
+    for i, each_cur in enumerate(all_pairs):
+        for j in range(i + 1, len(all_pairs)):
+            every_cur = all_pairs[j]
+            iterations += 1
+            print("starting {:s} X {:s} ({:d}/{:d})...".format(each_cur, every_cur, iterations, total_pairs))
+
+            try:
+                o, e = fit_exchange_rates(each_cur, every_cur, start_date, end_date, interval_minutes, result_dir=target_dir)
+                row = [str(datetime.datetime.now()), each_cur, every_cur, "{:d}".format(o), "{:.5f}".format(e)]
+            except ValueError as e:
+                row = [str(datetime.datetime.now()), each_cur, every_cur, str(e)]
+
+            with open(target_dir + "results.csv", mode="a") as file:
+                file.write("\t".join(row) + "\n")
+
+
+if __name__ == "__main__":
+    main()
