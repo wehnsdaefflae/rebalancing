@@ -1,4 +1,3 @@
-import os
 import sys
 
 from matplotlib import pyplot
@@ -37,13 +36,19 @@ def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
     return series
 
 
-def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, w=0, diag_factor=1., distance=lambda v1, v2: (v1 - v2) ** 2):
+def get_table(s_0, s_1,
+              derivative=False,
+              normalized=True,
+              overlap=True,
+              w=0,
+              diag_factor=1.,
+              distance=lambda v1, v2: (v1 - v2) ** 2):
     l_a, l_b = len(s_0), len(s_1)
     if normalized:
-        #max_a, min_a = max(s_0), min(s_0)
-        #series_a = [(x - min_a) / (max_a - min_a) for x in s_0]
-        #max_b, min_b = max(s_1), min(s_1)
-        #series_b = [(x - min_b) / (max_b - min_b) for x in s_1]
+        # max_a, min_a = max(s_0), min(s_0)
+        # series_a = [(x - min_a) / (max_a - min_a) for x in s_0]
+        # max_b, min_b = max(s_1), min(s_1)
+        # series_b = [(x - min_b) / (max_b - min_b) for x in s_1]
         series_a = stats.zscore(s_0)
         series_b = stats.zscore(s_1)
 
@@ -83,9 +88,9 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, w=0, di
             else:
                 _i, prev_dist = min(enumerate([table[i-1][j], row[j-1], table[i-1][j-1]]), key=lambda _x: _x[1])
                 row[j] = dist * diag_factors[_i] + prev_dist
-            #print("{}, {}: {}".format(i, j, d))
-            #print(table_str([[-1.] + series_a] + [[series_b[idx]] + table[idx] for idx in range(l_b)]))
-            #print()
+            # print("{}, {}: {}".format(i, j, d))
+            # print(table_str([[-1.] + series_a] + [[series_b[idx]] + table[idx] for idx in range(l_b)]))
+            # print()
     return table
 
 
@@ -106,8 +111,10 @@ def get_path(table, overlap=False):
     fork = [(-1, 0), (0, -1), (-1, -1)]
     path = [(i, j)]
 
-    # while (overlap and not any(0 == x for x in (i, j))) or (not overlap and (i, j) != (0, 0)):               # overlap
-    while (overlap and ((r and not 0 == j) or (not r and not 0 == i))) or (not overlap and (i, j) != (0, 0)):  # semi-overlap
+    # overlap
+    # while (overlap and not any(0 == x for x in (i, j))) or (not overlap and (i, j) != (0, 0)):
+    # semi-overlap
+    while (overlap and ((r and not 0 == j) or (not r and not 0 == i))) or (not overlap and (i, j) != (0, 0)):
         if 0 < i and 0 < j:
             d_i, d_j = min(fork, key=lambda _ij: table[i+_ij[0]][j+_ij[1]])
         elif 0 < i:
@@ -208,16 +215,10 @@ def get_fit(a, b, cur_a, cur_b,
 
     target_path = None
     if result_dir is not None:
-        if not os.path.isdir(result_dir):
-            os.mkdir(result_dir)
         target_path = result_dir + "{:s}_{:s}.png".format(cur_a, cur_b)
 
     plot_series(a, b, p, a_label=cur_a, b_label=cur_b, file_path=target_path)
 
     start_pos, end_pos = p[0], p[-1]
-    start_offset = abs(start_pos[0] - start_pos[1])
-    end_offset = abs((len(a) - end_pos[0]) - (len(b) - end_pos[1]))
-    offset = min(start_offset, end_offset)
     deviation = t[end_pos[0]][end_pos[1]]
-    overlap = min(end_pos) - max(start_pos)
-    return offset, deviation, overlap
+    return deviation, end_pos[0] - start_pos[0], end_pos[1] - start_pos[1]
