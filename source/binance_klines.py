@@ -1,4 +1,5 @@
 import os
+import time
 
 from binance.client import Client
 
@@ -34,7 +35,14 @@ if not os.path.isdir(data_dir):
 
 client = Client("", "")
 while True:
-    b = client.get_exchange_info()
+    while True:
+        try:
+            b = client.get_exchange_info()
+            break
+        except Exception as e:
+            print("Cannot connect, retrying...")
+            time.sleep(1)
+
     exchange_pairs = {y for y in [x["symbol"] for x in b["symbols"]] if y[-3:] == "ETH"}
 
     present_pairs = {os.path.splitext(f)[0] for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))}
@@ -55,3 +63,4 @@ while True:
         except Exception as e:
             print("{} didn't work, continuing.".format(each_pair))
             print(e)
+            time.sleep(1)
