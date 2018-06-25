@@ -37,7 +37,7 @@ def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
     return series
 
 
-def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_factor=1., distance=lambda v1, v2: (v1 - v2) ** 2):
+def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, w=-1, diag_factor=1., distance=lambda v1, v2: (v1 - v2) ** 2):
     l_a, l_b = len(s_0), len(s_1)
     if normalized:
         #max_a, min_a = max(s_0), min(s_0)
@@ -55,7 +55,8 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_fa
         series_a = [0.] + [0. if 0. >= series_a[i+1] else 1. - series_a[i] / series_a[i+1] for i in range(l_a - 1)]
         series_b = [0.] + [0. if 0. >= series_b[i+1] else 1. - series_b[i] / series_b[i+1] for i in range(l_b - 1)]
 
-
+    if 0. < w:
+        w = max(w, abs(l_a - l_b))
     """
     # https://docs.scipy.org/doc/numpy/user/quickstart.html
     table = numpy.zeros((l_a + 1, l_b + 1))
@@ -68,8 +69,8 @@ def get_table(s_0, s_1, derivative=False, normalized=True, overlap=True, diag_fa
 
     for i in range(l_a):
         row = table[i]
-        # print("finished {:05.2f}%".format(100. * i / (len(series_a) - 1)))
-        for j in range(l_b):
+        sub_range = (0, l_b) if 0. >= w else (max(0, i-w), min(l_b, i+w))
+        for j in range(*sub_range):
             dist = distance(series_a[i], series_b[j])
             if j == i == 0 or (overlap and (i == 0 or j == 0)):
                 row[j] = dist
@@ -192,13 +193,14 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
 def get_fit(a, b, cur_a, cur_b,
             result_dir=None,
             overlap=False,
+            w=-1,
             normalized=True,
             derivative=False,
             diag_factor=1.,
             distance=lambda v1, v2: (v1 - v2) ** 2):
     print("{}: {}, {}: {} ".format(cur_a, len(a), cur_b, len(b)))
 
-    t = get_table(a, b, normalized=normalized, derivative=derivative, overlap=overlap, diag_factor=diag_factor, distance=distance)
+    t = get_table(a, b, normalized=normalized, derivative=derivative, overlap=overlap, diag_factor=diag_factor, distance=distance, w=w)
     p = get_path(t, overlap=overlap)
 
     target_path = None
@@ -215,4 +217,3 @@ def get_fit(a, b, cur_a, cur_b,
     offset = min(start_offset, end_offset)
     deviation = t[end_pos[0]][end_pos[1]]
     return offset, deviation
-

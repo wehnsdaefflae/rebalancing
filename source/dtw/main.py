@@ -5,14 +5,20 @@ from math import sin, cos
 from source.dtw.my_dtw import get_series, get_fit
 
 
-def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None):
+def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, result_dir=None, w=.0):
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
-    fp_a = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
-    fp_b = "../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
+    fp_a = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
+    fp_b = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
     a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
     b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
+    if len(a) != len(b):
+        msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
+        raise ValueError(msg.format(fp_a, fp_b, str(timestamp_start), str(timestamp_end), len(a), len(b)))
 
-    parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5}
+    if not 1. >= w >= 0.:
+        raise ValueError("Relative window size must be between 1. and .0 (zero means unbound window)!")
+
+    parameters = {"overlap": True, "normalized": True, "derivative": False, "diag_factor": .5, "w": int(len(a) * w)}
     temp_offset, error = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
 
     msg = "{} is {:d} ahead of {} with an overlap deviation of {:.4f}"
@@ -39,13 +45,13 @@ def fit_test_data():
     print(msg.format(cur_a, temp_offset, cur_b, error))
 
 
-def main():
+def batch():
     start_date = datetime.datetime(2018, 6, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
     interval_minutes = 10
 
-    source_dir = "../data/binance/23Jun2017-23Jun2018-1m/"
-    target_dir = "../results/dtw/2018-06-25/"
+    source_dir = "../../data/binance/23Jun2017-23Jun2018-1m/"
+    target_dir = "../../results/dtw/2018-06-25/"
     if os.path.isdir(target_dir):
         print("result path {} already exists!".format(target_dir))
         exit()
@@ -73,6 +79,19 @@ def main():
 
             with open(target_dir + "results.csv", mode="a") as file:
                 file.write("\t".join(row) + "\n")
+
+
+def single_run():
+    start_date = datetime.datetime(2018, 6, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    interval_minutes = 10
+
+    fit_exchange_rates("ADAETH", "BCCETH", start_date, end_date, interval_minutes, w=.0)
+
+
+def main():
+    single_run()
+    # batch()
 
 
 if __name__ == "__main__":
