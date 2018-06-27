@@ -168,6 +168,17 @@ def test_dtw():
 
         delta = range_a[1] - range_b[1]
         overlap = abs(delta)
+        if 1 >= overlap:
+            with open(target_dir + "final_results.csv", mode="a") as file:
+                row = [str(datetime.datetime.now()),
+                       cur_a, cur_b,
+                       *["{:d}".format(_x) for _x in range_a],
+                       *["{:d}".format(_x) for _x in range_b],
+                       "{:.5f}".format(error),
+                       "overlap too small"]
+            file.write("\t".join(row) + "\n")
+
+            continue
         overlap_time = datetime.timedelta(minutes=overlap * interval_minutes)
         output_start_date = end_date - overlap_time
         target_end_date = end_date + overlap_time
