@@ -1,0 +1,7 @@
+{
+  "data_dir": "../../data/binance/23Jun2017-23Jun2018-1m/",
+  "target_dir": "../../results/dtw/binance/",
+  "start_time": "2018-06-01_00:00:00_UTC",
+  "end_time": "2018-06-07_00:00:00_UTC",
+  "interval_minutes": 10
+}

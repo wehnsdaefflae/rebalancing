@@ -54,7 +54,7 @@ def train_dtw():
                   "w": 0,
                   "distance": lambda v1, v2: (v1 - v2) ** 2}
 
-    with open("config.json", mode="r") as file:
+    with open("../../data/binance/config.json", mode="r") as file:
         config = json.load(file)
     source_dir = config["data_dir"]     # "../../data/binance/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
@@ -100,13 +100,13 @@ def train_dtw():
 
 
 def single_run():
-    with open("config.json", mode="r") as file:
+    with open("../../data/binance/config.json", mode="r") as file:
         config = json.load(file)
     source_dir = config["data_dir"]     # "../../data/binance/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
     interval_minutes = config["interval_minutes"]
-    start_date = datetime.datetime.strptime(config["start_date"], "%Y-%m-%d_%H:%M:%S_%Z")
-    end_date = datetime.datetime.strptime(config["end_date"], "%Y-%m-%d_%H:%M:%S_%Z")
+    start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
+    end_date = datetime.datetime.strptime(config["end_time"], "%Y-%m-%d_%H:%M:%S_%Z")
 
     parameters = {"overlap": True,
                   "normalized": True,
@@ -119,7 +119,7 @@ def single_run():
 
 
 def test_dtw():
-    with open("config.json", mode="r") as file:
+    with open("../../data/binance/config.json", mode="r") as file:
         config = json.load(file)
     source_dir = config["data_dir"]         # "../../data/binance/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]       # "../../results/dtw/2018-06-25/"
@@ -146,9 +146,10 @@ def test_dtw():
         # get deviation between continuation and predictive currency
         # add as column to results.csv
 
+
 def main():
-    # single_run()
-    train_dtw()
+    single_run()
+    # train_dtw()
 
 
 if __name__ == "__main__":
