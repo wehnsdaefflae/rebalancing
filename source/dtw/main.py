@@ -140,7 +140,11 @@ def test_dtw():
     for each_result in results:
         cur_a, cur_b = each_result["currency_a"], each_result["currency_b"]
         error, overlap, offset = each_result["error"], each_result["overlap"], each_result["offset"]
-
+        # get real end of overlap
+        # get real overhang
+        # get actual continuation during overhang
+        # get deviation between continuation and predictive currency
+        # add as column to results.csv
 
 def main():
     # single_run()
