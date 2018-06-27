@@ -151,9 +151,10 @@ def test_dtw():
 
             results.append(each_result)
 
-    with open(target_dir + "final_results.csv", mode="w") as file:
-        header = "time", "currency_a", "currency_b", "start_a", "end_a", "start_b", "end_b", "error", "prediction_error"
-        file.write("\t".join(header) + "\n")
+    if not os.path.exists(target_dir + "final_results.csv"):
+        with open(target_dir + "final_results.csv", mode="w") as file:
+            header = "time", "currency_a", "currency_b", "start_a", "end_a", "start_b", "end_b", "error", "prediction_error"
+            file.write("\t".join(header) + "\n")
 
     prediction_dir = target_dir + "predictions/"
     if not os.path.isdir(prediction_dir):
@@ -186,8 +187,12 @@ def test_dtw():
         fp_b = source_dir + "{}.csv".format(cur_b)
         fp_a = source_dir + "{}.csv".format(cur_a)
 
-        output, target = (fp_b, fp_a) if delta < 0 else (fp_a, fp_b)
+        a_desc, b_desc = (cur_a + "-t", cur_b + "-o") if delta < 0 else (cur_a + "-o", cur_b + "t")
+        if os.path.isfile(prediction_dir + "{:s}_{:s}.png".format(a_desc, b_desc)):
+            print("pair {:s} X {:s} already exist. Skipping...".format(a_desc, b_desc))
+            continue
 
+        output, target = (fp_b, fp_a) if delta < 0 else (fp_a, fp_b)
         output_series = get_series(output,
                                    range_start=int(output_start_date.timestamp()),
                                    range_end=int(end_date.timestamp()),
@@ -197,7 +202,6 @@ def test_dtw():
                                    range_end=int(target_end_date.timestamp()),
                                    interval_minutes=interval_minutes)
 
-        a_desc, b_desc = (cur_a + "-t", cur_b + "-o") if delta < 0 else (cur_a + "-o", cur_b + "t")
         prediction_error, _, _ = get_fit(output_series, target_series, a_desc, b_desc, result_dir=prediction_dir)
 
         with open(target_dir + "final_results.csv", mode="a") as file:
