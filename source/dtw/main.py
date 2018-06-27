@@ -176,9 +176,9 @@ def test_dtw():
                        *["{:d}".format(_x) for _x in range_b],
                        "{:.5f}".format(error),
                        "overlap too small"]
-            file.write("\t".join(row) + "\n")
-
+                file.write("\t".join(row) + "\n")
             continue
+
         overlap_time = datetime.timedelta(minutes=overlap * interval_minutes)
         output_start_date = end_date - overlap_time
         target_end_date = end_date + overlap_time
