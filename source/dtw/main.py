@@ -54,9 +54,9 @@ def train_dtw():
                   "w": 0,
                   "distance": lambda v1, v2: (v1 - v2) ** 2}
 
-    with open("../../data/binance/config.json", mode="r") as file:
+    with open("../../configs/config.json", mode="r") as file:
         config = json.load(file)
-    source_dir = config["data_dir"]     # "../../data/binance/23Jun2017-23Jun2018-1m/"
+    source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
     interval_minutes = config["interval_minutes"]
     start_date = datetime.datetime.strptime(config["start_date"], "%Y-%m-%d_%H:%M:%S_%Z")
@@ -100,9 +100,9 @@ def train_dtw():
 
 
 def single_run():
-    with open("../../data/binance/config.json", mode="r") as file:
+    with open("../../configs/config.json", mode="r") as file:
         config = json.load(file)
-    source_dir = config["data_dir"]     # "../../data/binance/23Jun2017-23Jun2018-1m/"
+    source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
     interval_minutes = config["interval_minutes"]
     start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
@@ -119,9 +119,9 @@ def single_run():
 
 
 def test_dtw():
-    with open("../../data/binance/config.json", mode="r") as file:
+    with open("../../configs/config.json", mode="r") as file:
         config = json.load(file)
-    source_dir = config["data_dir"]         # "../../data/binance/23Jun2017-23Jun2018-1m/"
+    source_dir = config["data_dir"]         # "../../configs/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]       # "../../results/dtw/2018-06-25/"
     interval = config["interval_minutes"]   # 10
 
@@ -148,8 +148,8 @@ def test_dtw():
 
 
 def main():
-    single_run()
-    # train_dtw()
+    # single_run()
+    train_dtw()
 
 
 if __name__ == "__main__":
