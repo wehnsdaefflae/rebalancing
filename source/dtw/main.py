@@ -142,7 +142,9 @@ def test_dtw():
 
     for each_result in results:
         cur_a, cur_b = each_result["currency_a"], each_result["currency_b"]
-        error, overlap, offset = each_result["error"], each_result["overlap"], each_result["offset"]
+        range_a = each_result["start_a"], each_result["end_a"]
+        range_b = each_result["start_b"], each_result["end_b"]
+        error = each_result["error"]
 
         # start_time, start_overlap, end_overlap, end_time
         # get real end of overlap
