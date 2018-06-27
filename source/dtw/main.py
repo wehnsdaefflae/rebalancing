@@ -59,8 +59,8 @@ def train_dtw():
     source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
     interval_minutes = config["interval_minutes"]
-    start_date = datetime.datetime.strptime(config["start_date"], "%Y-%m-%d_%H:%M:%S_%Z")
-    end_date = datetime.datetime.strptime(config["end_date"], "%Y-%m-%d_%H:%M:%S_%Z")
+    start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
+    end_date = datetime.datetime.strptime(config["end_time"], "%Y-%m-%d_%H:%M:%S_%Z")
 
     all_pairs = [os.path.splitext(f)[0] for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
     all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
