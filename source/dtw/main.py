@@ -1,14 +1,16 @@
 import datetime
+import json
 import os
 from math import sin, cos
 
-from source.dtw.my_dtw import get_series, get_fit
+from source.dtw.my_dtw import get_fit
+from source.data.parse_data import get_series
 
 
-def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, result_dir=None):
+def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, data_dir, result_dir=None):
     timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
-    fp_a = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_a)
-    fp_b = "../../data/binance/23Jun2017-23Jun2018-1m/{}.csv".format(cur_b)
+    fp_a = data_dir + "{}.csv".format(cur_a)
+    fp_b = data_dir + "{}.csv".format(cur_b)
     a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
     b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
     if len(a) != len(b):
@@ -49,12 +51,14 @@ def batch():
     parameters = {"overlap": True,
                   "normalized": True,
                   "derivative": False,
-                  "diag_factor": 2.,
+                  "diag_factor": .05,
                   "w": 0,
                   "distance": lambda v1, v2: (v1 - v2) ** 2}
 
-    source_dir = "../../data/binance/23Jun2017-23Jun2018-1m/"
-    target_dir = "../../results/dtw/2018-06-25/"
+    with open("config.json", mode="r") as file:
+        config = json.load(file)
+    source_dir = config["data_path"]     # "../../data/binance/23Jun2017-23Jun2018-1m/"
+    target_dir = config["target_path"]  # "../../results/dtw/2018-06-25/"
 
     all_pairs = [os.path.splitext(f)[0] for f in os.listdir(source_dir) if os.path.isfile(os.path.join(source_dir, f))]
     all_pairs = sorted(x for x in all_pairs if x[-3:] == "ETH")
@@ -81,7 +85,7 @@ def batch():
                     continue
                 e, o, ofs = fit_exchange_rates(each_cur, every_cur,
                                                start_date, end_date,
-                                               interval_minutes, parameters, result_dir=target_dir)
+                                               interval_minutes, parameters, source_dir, result_dir=target_dir)
 
                 row = [str(datetime.datetime.now()),
                        each_cur, every_cur, "{:.5f}".format(e), "{:d}".format(o), "{:d}".format(ofs)]
@@ -98,19 +102,24 @@ def single_run():
     end_date = datetime.datetime(2018, 6, 7, 0, 0, 0, tzinfo=datetime.timezone.utc)
     interval_minutes = 10
 
+    with open("config.json", mode="r") as file:
+        config = json.load(file)
+    source_dir = config["data_path"]     # "../../data/binance/23Jun2017-23Jun2018-1m/"
+    target_dir = config["target_path"]  # "../../results/dtw/2018-06-25/"
+
     parameters = {"overlap": True,
                   "normalized": True,
                   "derivative": False,
-                  "diag_factor": 2.,
+                  "diag_factor": .05,
                   "w": 0,
                   "distance": lambda v1, v2: (v1 - v2) ** 2}
 
-    fit_exchange_rates("ADAETH", "ADXETH", start_date, end_date, interval_minutes, parameters=parameters)
+    fit_exchange_rates("ADAETH", "ADXETH", start_date, end_date, interval_minutes, parameters, source_dir)
 
 
 def main():
-    single_run()
-    # batch()
+    # single_run()
+    batch()
 
 
 if __name__ == "__main__":

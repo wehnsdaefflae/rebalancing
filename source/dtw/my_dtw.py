@@ -8,34 +8,6 @@ import random
 random.seed(133711)
 
 
-def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
-    series = []
-    with open(file_path, mode="r") as file:
-        row_ts = -1
-        for i, line in enumerate(file):
-            if i % interval_minutes != 0:
-                continue
-            row = line[:-1].split("\t")
-            row_ts = int(row[0]) / 1000
-            if -1 < range_start:
-                if range_start < row_ts:
-                    if i < 1:
-                        raise ValueError("Source {} does not support range_start: {:d}!".format(file_path, range_start))
-                elif row_ts < range_end:
-                    continue
-
-            if -1 < range_end < row_ts:
-                break
-
-            close = float(row[4])
-            series.append(close)
-
-        if row_ts < range_end:
-            raise ValueError("Source {} does not support range_end: {:d}!".format(file_path, range_end))
-
-    return series
-
-
 def get_table(s_0, s_1,
               derivative=False,
               normalized=True,
@@ -101,7 +73,7 @@ def get_path(table, overlap=False):
         # r_i, r_j = min({(len(table) - 1, _j) for _j in range(1, len(table[0]))}, key=lambda ij: table[ij[0]][ij[1]])
         # c_i, c_j = min({(_i, len(table[0]) - 1) for _i in range(1, len(table))}, key=lambda ij: table[ij[0]][ij[1]])
 
-        # new overlap
+        # forced overlap
         r_i, r_j = min({(len(table) - 1, _j) for _j in range(len(table) // 2, len(table[0]))}, key=lambda ij: table[ij[0]][ij[1]])
         c_i, c_j = min({(_i, len(table[0]) - 1) for _i in range(len(table[0]) // 2, len(table))}, key=lambda ij: table[ij[0]][ij[1]])
 
@@ -119,7 +91,7 @@ def get_path(table, overlap=False):
     # left-right-overlap
     # while (overlap and ((r and not 0 == j) or (not r and not 0 == i))) or (not overlap and (i, j) != (0, 0)):
 
-    # new overlap
+    # forced overlap
     while (overlap and ((r and not (0 == j and i < len(table) // 2)) or (not r and not (0 == i and j < len(table[0]) // 2)))) or (not overlap and (i, j) != (0, 0)):
         if 0 < i and 0 < j:
             d_i, d_j = min(fork, key=lambda _ij: table[i+_ij[0]][j+_ij[1]])

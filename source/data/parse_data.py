@@ -37,5 +37,33 @@ def historic_data(in_file_path, out_file_path):
             file.write(each_date_str + "\t" + "\t".join(["{:f}".format(sub_dict.get(x, 0.)) for x in sorted_symbols]) + "\n")
 
 
+def get_series(file_path, range_start=-1, range_end=-1, interval_minutes=1):
+    series = []
+    with open(file_path, mode="r") as file:
+        row_ts = -1
+        for i, line in enumerate(file):
+            if i % interval_minutes != 0:
+                continue
+            row = line[:-1].split("\t")
+            row_ts = int(row[0]) / 1000
+            if -1 < range_start:
+                if range_start < row_ts:
+                    if i < 1:
+                        raise ValueError("Source {} does not support range_start: {:d}!".format(file_path, range_start))
+                elif row_ts < range_end:
+                    continue
+
+            if -1 < range_end < row_ts:
+                break
+
+            close = float(row[4])
+            series.append(close)
+
+        if row_ts < range_end:
+            raise ValueError("Source {} does not support range_end: {:d}!".format(file_path, range_end))
+
+    return series
+
+
 if __name__ == "__main__":
     historic_data("../data/all_currencies.csv", "../data/all_currencies_new.csv")
