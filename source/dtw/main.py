@@ -124,9 +124,11 @@ def single_run():
 def test_dtw():
     with open("../../configs/config.json", mode="r") as file:
         config = json.load(file)
-    source_dir = config["data_dir"]         # "../../configs/23Jun2017-23Jun2018-1m/"
-    target_dir = config["target_dir"]       # "../../results/dtw/2018-06-25/"
-    interval = config["interval_minutes"]   # 10
+    source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
+    target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
+    interval_minutes = config["interval_minutes"]
+    start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
+    end_date = datetime.datetime.strptime(config["end_time"], "%Y-%m-%d_%H:%M:%S_%Z")
 
     results = []
     with open(target_dir + "results.csv", mode="r") as file:
@@ -135,28 +137,72 @@ def test_dtw():
         for each_line in file:
             row = each_line[1:-1].split("\t")
             try:
-                each_result = {_h: float(_c) if not _h.startswith("cur") else _c for _h, _c in zip(header, row)}
+                each_result = dict()
+                for _h, _c in zip(header, row):
+                    if _h.startswith("start_") or _h.startswith("end_"):
+                        each_result[_h] = int(_c)
+                    elif _h == "error":
+                        each_result[_h] = float(_c)
+                    else:
+                        each_result[_h] = _c
+
             except ValueError:
                 continue
+
             results.append(each_result)
 
-    for each_result in results:
+    with open(target_dir + "final_results.csv", mode="w") as file:
+        header = "time", "currency_a", "currency_b", "start_a", "end_a", "start_b", "end_b", "error", "prediction_error"
+        file.write("\t".join(header) + "\n")
+
+    prediction_dir = target_dir + "predictions/"
+    if not os.path.isdir(prediction_dir):
+        os.makedirs(prediction_dir)
+
+    for no_pairs, each_result in enumerate(results):
         cur_a, cur_b = each_result["currency_a"], each_result["currency_b"]
+        print("{:s} vs {:s} ({:d}/{:d})".format(cur_a, cur_b, no_pairs + 1, len(results)))
         range_a = each_result["start_a"], each_result["end_a"]
         range_b = each_result["start_b"], each_result["end_b"]
         error = each_result["error"]
 
-        # start_time, start_overlap, end_overlap, end_time
-        # get real end of overlap
-        # get real overhang
-        # get actual continuation during overhang
-        # get deviation between continuation and predictive currency
-        # add as column to results.csv
+        delta = range_a[1] - range_b[1]
+        overlap = abs(delta)
+        overlap_time = datetime.timedelta(minutes=overlap * interval_minutes)
+        output_start_date = end_date - overlap_time
+        target_end_date = end_date + overlap_time
+
+        fp_b = source_dir + "{}.csv".format(cur_b)
+        fp_a = source_dir + "{}.csv".format(cur_a)
+
+        output, target = (fp_b, fp_a) if delta < 0 else (fp_a, fp_b)
+
+        output_series = get_series(output,
+                                   range_start=int(output_start_date.timestamp()),
+                                   range_end=int(end_date.timestamp()),
+                                   interval_minutes=interval_minutes)
+        target_series = get_series(target,
+                                   range_start=int(end_date.timestamp()),
+                                   range_end=int(target_end_date.timestamp()),
+                                   interval_minutes=interval_minutes)
+
+        a_desc, b_desc = (cur_a + "-t", cur_b + "-o") if delta < 0 else (cur_a + "-o", cur_b + "t")
+        prediction_error, _, _ = get_fit(output_series, target_series, a_desc, b_desc, result_dir=prediction_dir)
+
+        with open(target_dir + "final_results.csv", mode="a") as file:
+            row = [str(datetime.datetime.now()),
+                   cur_a, cur_b,
+                   *["{:d}".format(_x) for _x in range_a],
+                   *["{:d}".format(_x) for _x in range_b],
+                   "{:.5f}".format(error),
+                   "{:.5f}".format(prediction_error)]
+            file.write("\t".join(row) + "\n")
 
 
 def main():
-    single_run()
+    # single_run()
     # train_dtw()
+    test_dtw()
 
 
 if __name__ == "__main__":

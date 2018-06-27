@@ -178,7 +178,7 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
     pyplot.close()
 
 
-def get_fit(a, b, cur_a, cur_b,
+def get_fit(a, b, label_a, label_b,
             result_dir=None,
             overlap=False,
             w=0,
@@ -186,16 +186,16 @@ def get_fit(a, b, cur_a, cur_b,
             derivative=False,
             diag_factor=1.,
             distance=lambda v1, v2: (v1 - v2) ** 2):
-    print("{:s}: {:d}, {:s}: {:d} ".format(cur_a, len(a), cur_b, len(b)))
+    print("{:s}: {:d}, {:s}: {:d} ".format(label_a, len(a), label_b, len(b)))
 
     t = get_table(a, b, normalized=normalized, derivative=derivative, overlap=overlap, diag_factor=diag_factor, distance=distance, w=w)
     p = get_path(t, overlap=overlap)
 
     target_path = None
     if result_dir is not None:
-        target_path = result_dir + "{:s}_{:s}.png".format(cur_a, cur_b)
+        target_path = result_dir + "{:s}_{:s}.png".format(label_a, label_b)
 
-    plot_series(a, b, p, a_label=cur_a, b_label=cur_b, file_path=target_path)
+    plot_series(a, b, p, a_label=label_a, b_label=label_b, file_path=target_path)
 
     start_pos, end_pos = p[0], p[-1]
     deviation = t[end_pos[0]][end_pos[1]]
