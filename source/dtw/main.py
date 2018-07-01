@@ -4,18 +4,17 @@ import os
 from math import sin, cos
 
 from source.dtw.my_dtw import get_fit
-from source.data.parse_data import get_series
+from source.data.data_generation import get_series
 
 
 def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, data_dir, result_dir=None):
-    timestamp_start, timestamp_end = int(start_date.timestamp()), int(end_date.timestamp())
     fp_a = data_dir + "{}.csv".format(cur_a)
     fp_b = data_dir + "{}.csv".format(cur_b)
-    a = get_series(fp_a, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
-    b = get_series(fp_b, range_start=timestamp_start, range_end=timestamp_end, interval_minutes=interval)
+    a = get_series(fp_a, range_start=start_date, range_end=end_date, interval_minutes=interval)
+    b = get_series(fp_b, range_start=start_date, range_end=end_date, interval_minutes=interval)
     if len(a) != len(b):
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
-        raise ValueError(msg.format(fp_a, fp_b, str(timestamp_start), str(timestamp_end), len(a), len(b)))
+        raise ValueError(msg.format(fp_a, fp_b, str(start_date), str(end_date), len(a), len(b)))
 
     error, a_range, b_range = get_fit(a, b, cur_a, cur_b, result_dir=result_dir, **parameters)
 
@@ -194,12 +193,10 @@ def test_dtw():
 
         output, target = (fp_b, fp_a) if delta < 0 else (fp_a, fp_b)
         output_series = get_series(output,
-                                   range_start=int(output_start_date.timestamp()),
-                                   range_end=int(end_date.timestamp()),
+                                   range_start=output_start_date, range_end=end_date,
                                    interval_minutes=interval_minutes)
         target_series = get_series(target,
-                                   range_start=int(end_date.timestamp()),
-                                   range_end=int(target_end_date.timestamp()),
+                                   range_start=end_date, range_end=target_end_date,
                                    interval_minutes=interval_minutes)
 
         prediction_error, _, _ = get_fit(output_series, target_series, a_desc, b_desc, result_dir=prediction_dir)
