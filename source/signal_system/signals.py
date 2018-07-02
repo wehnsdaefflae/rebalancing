@@ -12,10 +12,11 @@ SIGNAL_OUTPUT = Dict[str, float]
 
 
 class TradingSignal(Generic[SIGNAL_INPUT]):
-    def __init__(self, asset_name: str, plot_log: bool = True, state_path: str = None):
+    def __init__(self, asset_name: str, initialization: int = 50, plot_log: bool = True, state_path: str = None):
         self.asset_name = asset_name
         self.plot_log = plot_log
         self.state_path = state_path
+        self.initialization = initialization
 
     def _get_signal(self, source_info: SIGNAL_INPUT) -> float:
         # return a value between -1 and 1
@@ -25,7 +26,13 @@ class TradingSignal(Generic[SIGNAL_INPUT]):
         raise NotImplementedError()
 
     def get_tendency(self, source_info: SIGNAL_INPUT) -> float:
-        signal = self._get_signal(source_info)
+        if 0 < self.initialization:
+            self.initialization -= 1
+            signal = 0.
+
+        else:
+            signal = self._get_signal(source_info)
+
         if self.plot_log:
             self._log(source_info)
         return signal
