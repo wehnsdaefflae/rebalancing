@@ -4,14 +4,14 @@ import os
 from math import sin, cos
 
 from source.dtw.my_dtw import get_fit
-from source.data.data_generation import get_series
+from source.data.data_generation import series_generator
 
 
 def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, data_dir, result_dir=None):
     fp_a = data_dir + "{}.csv".format(cur_a)
     fp_b = data_dir + "{}.csv".format(cur_b)
-    a = get_series(fp_a, range_start=start_date, range_end=end_date, interval_minutes=interval)
-    b = get_series(fp_b, range_start=start_date, range_end=end_date, interval_minutes=interval)
+    a = list(series_generator(fp_a, range_start=start_date, range_end=end_date, interval_minutes=interval))
+    b = list(series_generator(fp_b, range_start=start_date, range_end=end_date, interval_minutes=interval))
     if len(a) != len(b):
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
         raise ValueError(msg.format(fp_a, fp_b, str(start_date), str(end_date), len(a), len(b)))
@@ -192,12 +192,12 @@ def test_dtw():
             continue
 
         output, target = (fp_b, fp_a) if delta < 0 else (fp_a, fp_b)
-        output_series = get_series(output,
-                                   range_start=output_start_date, range_end=end_date,
-                                   interval_minutes=interval_minutes)
-        target_series = get_series(target,
-                                   range_start=end_date, range_end=target_end_date,
-                                   interval_minutes=interval_minutes)
+        output_series = series_generator(output,
+                                         range_start=output_start_date, range_end=end_date,
+                                         interval_minutes=interval_minutes)
+        target_series = series_generator(target,
+                                         range_start=end_date, range_end=target_end_date,
+                                         interval_minutes=interval_minutes)
 
         prediction_error, _, _ = get_fit(output_series, target_series, a_desc, b_desc, result_dir=prediction_dir)
 

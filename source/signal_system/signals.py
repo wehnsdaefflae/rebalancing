@@ -115,3 +115,11 @@ class ChannelSignal(TradingSignal[RATE_INFO]):
         self.expect.clear()
         self.lower.clear()
         self.upper.clear()
+
+
+def main():
+    pass
+
+
+if __name__ == "__main__":
+    main()

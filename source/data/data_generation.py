@@ -1,3 +1,5 @@
+import datetime
+import json
 import random
 import numpy
 
@@ -21,9 +23,8 @@ def absolute_brownian(initial=1., factor=1., relative_bias=0.):  # constant equi
             a = max(a + rnd_value / 100., .0)
 
 
-def get_series(file_path, range_start=None, range_end=None, interval_minutes=1):
+def series_generator(file_path, range_start=None, range_end=None, interval_minutes=1):
     print("Reading time series from {:s}...".format(file_path))
-    series = []
     start_timestamp = -1 if range_start is None else int(range_start.timestamp())
     end_timestamp = -1 if range_end is None else int(range_end.timestamp())
     with open(file_path, mode="r") as file:
@@ -44,9 +45,29 @@ def get_series(file_path, range_start=None, range_end=None, interval_minutes=1):
                 break
 
             close = float(row[4])
-            series.append(close)
+            yield close
 
         if row_ts < end_timestamp:
             raise ValueError("Source {} ends before {:s}!".format(file_path, str(range_end)))
 
-    return series
+
+def main():
+    with open("../../configs/config.json", mode="r") as file:
+        config = json.load(file)
+    source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
+    target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
+    interval_minutes = config["interval_minutes"]
+    start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
+    end_date = datetime.datetime.strptime(config["end_time"], "%Y-%m-%d_%H:%M:%S_%Z")
+
+    cur_a, cur_b = "ADA", "ETH"
+    source_path = source_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
+    time_series = series_generator(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
+
+    gen_series = [_x for _x in time_series]
+    print(gen_series)
+    print(time_series == gen_series)
+
+
+if __name__ == "__main__":
+    main()

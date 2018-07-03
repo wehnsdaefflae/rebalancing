@@ -4,7 +4,7 @@ from typing import Dict, Tuple, Generic, Sequence
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
-from source.data.data_generation import get_series
+from source.data.data_generation import series_generator
 from source.signal_system.signals import TradingSignal, TECH_INFO, SIGNAL_INPUT, PORTFOLIO_INFO, RATE_INFO, \
     SIGNAL_OUTPUT, ChannelSignal
 
@@ -59,19 +59,12 @@ class Backtest(Generic[SIGNAL_INPUT]):
         series = dict()
         for each_cur in self.signals:
             source_path = self.source_dir + "{:s}{:s}.csv".format(each_cur, self.base_asset)
-            series[each_cur] = get_series(source_path,
-                                          range_start=start_date, range_end=end_date,
-                                          interval_minutes=self.interval_minutes)
+            series[each_cur] = series_generator(source_path,
+                                                range_start=start_date, range_end=end_date,
+                                                interval_minutes=self.interval_minutes)
 
         for i in range(len(self.time_axis) - 1):
             self._iterate({_c: series[_c][i] for _c in self.signals})
-
-        for each_signal in self.signals.values():
-            _fig, _ax1 = pyplot.subplots(1, sharex="all")
-            each_signal.plot(self.time_axis, _ax1)
-            pyplot.show()
-            pyplot.clf()
-            pyplot.close()
 
     def _iterate(self, rates: Dict[str, float]):
         portfolio = self._redistribute(rates)

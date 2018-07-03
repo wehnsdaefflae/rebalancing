@@ -9,7 +9,7 @@ import json
 
 from matplotlib import pyplot
 
-from source.data.data_generation import get_series
+from source.data.data_generation import series_generator
 from source.signal_system.signals import ChannelSignal
 
 
@@ -24,7 +24,7 @@ def main():
 
     cur_a, cur_b = "ADA", "ETH"
     source_path = source_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
-    time_series = get_series(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
+    time_series = series_generator(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
     time_axis = [start_date + datetime.timedelta(minutes=interval_minutes * _x) for _x in range(len(time_series))]
 
     pyplot.clf()
