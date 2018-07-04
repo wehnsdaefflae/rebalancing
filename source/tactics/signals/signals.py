@@ -36,7 +36,7 @@ class TradingSignal(Generic[SIGNAL_INPUT]):
             self._log(source_info)
 
         self.iterations += 1
-        return signal
+        return min(1., max(-1., signal / 100.))
 
     def train(self, arguments: Any):
         if self.state_path is not None:
@@ -157,7 +157,7 @@ class RelativeStrengthIndexSignal(TradingSignal[float]):
             signal = .0
 
         self.history.append(source_info)
-        return min(1., max(-1., signal / 100.))
+        return signal
 
     def _log(self, source_info: float):
         self.original.append(source_info)
