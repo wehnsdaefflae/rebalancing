@@ -6,11 +6,8 @@ from matplotlib.axes import Axes
 
 from source.data.data_generation import DEBUG_SERIES
 
-SIGNAL_INPUT = TypeVar("T")
+SIGNAL_INPUT = TypeVar("SIGNAL_INPUT")
 RATE_INFO = Dict[str, float]
-PORTFOLIO_INFO = Dict[str, float]
-TECH_INFO = Tuple[RATE_INFO, PORTFOLIO_INFO]
-SIGNAL_OUTPUT = Dict[str, float]
 
 
 class TradingSignal(Generic[SIGNAL_INPUT]):
