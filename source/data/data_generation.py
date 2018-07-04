@@ -45,14 +45,14 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
                 break
 
             close = float(row[4])
-            yield close
+            yield datetime.datetime.utcfromtimestamp(row_ts), close
 
         if row_ts < end_timestamp:
             raise ValueError("Source {} ends before {:s}!".format(file_path, str(range_end)))
 
 
-def main():
-    with open("../../configs/config.json", mode="r") as file:
+def DEBUG_SERIES(cur_a, cur_b="ETH"):
+    with open("../../../configs/config.json", mode="r") as file:
         config = json.load(file)
     source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
@@ -60,13 +60,13 @@ def main():
     start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
     end_date = datetime.datetime.strptime(config["end_time"], "%Y-%m-%d_%H:%M:%S_%Z")
 
-    cur_a, cur_b = "ADA", "ETH"
     source_path = source_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
     time_series = series_generator(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
+    return time_series
 
-    gen_series = [_x for _x in time_series]
-    print(gen_series)
-    print(time_series == gen_series)
+
+def main():
+    print(len(list(DEBUG_SERIES("ADA"))))
 
 
 if __name__ == "__main__":

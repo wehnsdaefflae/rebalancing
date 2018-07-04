@@ -1,12 +1,12 @@
 import datetime
-from typing import Dict, Tuple, Generic, Sequence
+from typing import Dict, Tuple, Generic
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
 from source.data.data_generation import series_generator
-from source.signal_system.signals import TradingSignal, TECH_INFO, SIGNAL_INPUT, PORTFOLIO_INFO, RATE_INFO, \
-    SIGNAL_OUTPUT, ChannelSignal
+from source.tactics.signals.signals import TradingSignal, TECH_INFO, SIGNAL_INPUT, PORTFOLIO_INFO, RATE_INFO, \
+    SIGNAL_OUTPUT, SymmetricChannelSignal
 
 
 class Backtest(Generic[SIGNAL_INPUT]):
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     config = {"base_asset": "ETH",
               "initial_assets": {"ADA": 0.,
                                  "ETH": 10.},
-              "asset_signals": {"ADA": ChannelSignal("ADA", window_size=50)},
+              "asset_signals": {"ADA": SymmetricChannelSignal(window_size=50)},
               "source_dir": "../../data/binance/23Jun2017-23Jun2018-1m/",
               "date_start": "2018-06-01_00:00:00_UTC",
               "date_end": "2018-06-07_00:00:00_UTC",

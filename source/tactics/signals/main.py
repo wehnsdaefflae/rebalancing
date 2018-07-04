@@ -10,7 +10,7 @@ import json
 from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
-from source.signal_system.signals import ChannelSignal
+from source.tactics.signals import ChannelSignal
 
 
 def main():
