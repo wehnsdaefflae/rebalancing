@@ -1,18 +1,19 @@
 import datetime
-from typing import Dict, Tuple, Generic, Collection, Callable
+from typing import Dict, Tuple, Generic, Collection, Callable, Any
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
 from source.data.data_generation import series_generator
-from source.tactics.redistributions.redistributions import Redistribution
 from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, RATE_INFO, SymmetricChannelSignal
 
 
 PORTFOLIO_INFO = Dict[str, float]
 TECH_INFO = Tuple[RATE_INFO, PORTFOLIO_INFO]
-SIGNAL_OUTPUT = Dict[str, float]
-RATE_GENERATOR = Callable[None, Tuple[datetime.datetime, float]]  # covers generators?!
+SIGNALS_OUTPUT = Dict[str, float]
+SIGNALS_INPUT = Dict[str, SIGNAL_INPUT]
+REBALANCER = Callable[TECH_INFO, PORTFOLIO_INFO]
+RATE_GENERATOR = Callable[Any, Tuple[datetime.datetime, float]]  # covers generators?!
 
 # parameters of data generator
 """
@@ -26,71 +27,121 @@ class TradingBot(Generic[SIGNAL_INPUT]):
     def __init__(self,
                  portfolio: PORTFOLIO_INFO,
                  signals: Dict[str, TradingSignal],
-                 redistributions: Collection[Redistribution],
                  data_sources: Dict[str, RATE_GENERATOR],
+                 risk: float = .5,
+                 rebalancer: REBALANCER = None,
                  trading_fee_percentage: float = .0025,
-                 transaction_min: Tuple[str, float] = ("ETH", 0.025)):
+                 base_asset: str = "ETH",
+                 min_base_transaction_volume: float = .025):
 
-        if not transaction_min[0] in data_sources:
-            raise ValueError("Minimum transaction volume cannot be determined.")
+        if base_asset not in data_sources:
+            raise ValueError("No data source for base asset.")
 
-        self.portfolio = portfolio
         self.signals = signals
-        self.redistributions = redistributions
+        self.data_sources = data_sources
+        self.base_asset = base_asset
+        self.risk = risk
+        self.rebalancer = rebalancer
         self.trading_factor = 1. - trading_fee_percentage
-        self.transaction_min = transaction_min
+        self.min_base_transaction_volume = min_base_transaction_volume
+        self.rates = None
+        self.current_time = None
 
-        self.time_axis = []
-        self.asset_development = {_k: [] for _k in self.portfolio}
+        self.asset_development = []  # Sequence[Tuple[datetime.datetime, Dict[str, float]]]
 
-    def _get_portfolio(self) -> PORTFOLIO_INFO:
-        return {_k: _v[-1] for _k, _v in self.asset_development.items()}
+    def _log_portfolio(self, time: datetime.datetime, portfolio: PORTFOLIO_INFO):
+        new_entry = time, dict(portfolio)
+        self.asset_development.append(new_entry)
 
-    def _log_portfolio(self):
-        for each_asset, each_value in self.portfolio.items():
-            each_development = self.asset_development[each_asset]
-            each_development.append(each_value)
+    @staticmethod
+    def _get_delta(portfolio: PORTFOLIO_INFO, base_asset: str, signals: SIGNALS_OUTPUT, ratio: float) -> PORTFOLIO_INFO:
+        base_volume = portfolio.get(base_asset, 0.)
+        pos_sum = sum(_v for _v in signals.values() if _v < 0.)
+        delta = dict()
+        for _k, _s in signals.items():
+            if _s < 0.:
+                asset_volume = portfolio.get(_k, -1.)
+                if 0. < asset_volume:
+                    delta[_k] = ratio * asset_volume * _s
+            elif 0. < _s:
+                delta[_k] = ratio * base_volume * _s / pos_sum
 
-    def run(self):
-        # make method to get portfolio delta from signals
-        # get portfolio deltas from redistributions
-        # add all
-        # execute
+        return delta
 
+    def __get_rates(self) -> RATE_INFO:
+        rate_info = dict()
+        dates = set()
+        for each_asset, each_source in self.data_sources.items():
+            each_date, each_rate = next(each_source)
+            dates.add(each_date)
+            if 1 < len(dates):
+                raise ValueError("Data sources returned inconsistent time information.")
+            self.current_time, = dates
+            rate_info[each_asset] = each_rate
+        return rate_info
 
-        self.time_axis.clear()
-        self.time_axis.append(start_date)
-        while self.time_axis[-1] + datetime.timedelta(minutes=self.interval_minutes) < end_date:
-            self.time_axis.append(self.time_axis[-1] + datetime.timedelta(minutes=self.interval_minutes))
-
-        # replace get_series with generator
-        series = dict()
-        for each_cur in self.signals:
-            source_path = self.source_dir + "{:s}{:s}.csv".format(each_cur, self.base_asset)
-            series[each_cur] = series_generator(source_path,
-                                                range_start=start_date, range_end=end_date,
-                                                interval_minutes=self.interval_minutes)
-
-        for i in range(len(self.time_axis) - 1):
-            self._iterate({_c: series[_c][i] for _c in self.signals})
-
-
-    def _iterate(self, rates: Dict[str, float]):
-        portfolio = self._redistribute(rates)
-        self._log_portfolio(portfolio)
-
-    def _redistribute(self, rates: RATE_INFO) -> PORTFOLIO_INFO:
+    def _get_signals_input(self) -> SIGNALS_INPUT:
         raise NotImplementedError()
 
-    def _get_tendencies(self, source_info: SIGNAL_INPUT) -> SIGNAL_OUTPUT:
+    def _get_signals(self, signals_input: SIGNALS_INPUT) -> SIGNALS_OUTPUT:
+        tendencies = dict()
+        for each_asset, each_input in signals_input.items():
+            each_signal = self.signals.get(each_asset, None)
+            if each_signal is None:
+                continue
+            each_output = each_signal.get_tendency(each_input)
+            tendencies[each_asset] = each_output
+        return tendencies
+
+    def run(self):
+        while True:
+            try:
+                self.rates = self.__get_rates()
+            except StopIteration as e:
+                break
+
+            signal_inputs = self._get_signals_input()   # internet problems?
+            portfolio = self._get_portfolio()           # no access to api?
+            signals = self._get_signals(signal_inputs)
+
+            self._log_portfolio(self.current_time, portfolio)
+
+            portfolio_delta = TradingBot._get_delta(portfolio, self.base_asset, signals, self.risk)
+            if self.rebalancer is not None:
+                portfolio_target = self._change_portfolio(portfolio, portfolio_delta, no_fees=True)
+                tech_info = portfolio_target, self.rates
+                portfolio_delta = self.rebalancer(tech_info)
+
+            portfolio_target = self._change_portfolio(portfolio, portfolio_delta)
+            self._redistribute(portfolio, portfolio_target)
+
+    def _change_portfolio(self, portfolio: PORTFOLIO_INFO, delta: PORTFOLIO_INFO, no_fees: bool = False):
+        all_assets = set(portfolio.keys()) | set(delta.keys())
+        if no_fees:
+            return {_k: (portfolio.get(_k, .0) + delta.get(_k, .0)) for _k in all_assets}
+        return {_k: (portfolio.get(_k, .0) + delta.get(_k, .0)) * self.trading_factor ** 2 for _k in all_assets}
+
+    def _redistribute(self, current_portfolio: PORTFOLIO_INFO, target_portfolio: PORTFOLIO_INFO):
+        # call self._transfer
+        pass
+
+    def _transfer(self, source_value: float, source_asset: str, target_value: float, target_asset: str):
+        raise NotImplementedError()
+
+    def _get_portfolio(self):
         raise NotImplementedError()
 
     def plot_stack(self, axis: Axes):
-        if len(self.time_axis) < 1:
-            raise ReferenceError("Simulation has not been run.")
-        portfolio = self._get_portfolio()
-        assets = sorted(set(portfolio.keys()))
-        axis.stackplot(self.time_axis, *[self.asset_development[_k] for _k in assets], labels=assets)
+        all_assets = sorted(set(_x for _y in self.asset_development for _x in _y[1].keys()))
+        all_plots = {_k: [] for _k in all_assets}
+        time_axis = []
+        for each_time, each_portfolio in self.asset_development:
+            time_axis.append(each_time)
+            for each_asset in all_assets:
+                each_development = all_plots[each_asset]
+                each_development.appen(each_portfolio.get(each_asset, .0))
+
+        axis.stackplot(time_axis, *[all_plots[_k] for _k in all_assets], labels=all_assets)
 
 
 class Simulation(TradingBot):
@@ -102,7 +153,7 @@ class TechnicalBacktest(Backtest[TECH_INFO]):
     def __init__(self, *arguments, **keywords):
         super().__init__(*arguments, **keywords)
 
-    def _get_tendencies(self, source_info: TECH_INFO) -> SIGNAL_OUTPUT:
+    def _get_tendencies(self, source_info: TECH_INFO) -> SIGNALS_OUTPUT:
         portfolio, rates = source_info
         tendencies = dict()
         for each_asset in self.signals:

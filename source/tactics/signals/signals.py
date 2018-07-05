@@ -11,10 +11,10 @@ RATE_INFO = Dict[str, float]
 
 
 class TradingSignal(Generic[SIGNAL_INPUT]):
-    def __init__(self, initialization: int = 0, plot_log: bool = True, state_path: str = None):
-        self.plot_log = plot_log
-        self.state_path = state_path
+    def __init__(self, initialization: int = 0, dead_zone: Tuple[float, float] = (-.5, .5), plot_log: bool = True):
         self.initialization = initialization
+        self.dead_zone = dead_zone
+        self.plot_log = plot_log
         self.iterations = 0
 
     def _get_signal(self, source_info: SIGNAL_INPUT) -> float:
@@ -33,13 +33,10 @@ class TradingSignal(Generic[SIGNAL_INPUT]):
             self._log(source_info)
 
         self.iterations += 1
-        return min(1., max(-1., signal / 100.))
+        return min(1., max(-1., signal if self.dead_zone[0] >= signal or signal >= self.dead_zone[1] else 0.))
 
-    def train(self, arguments: Any):
-        if self.state_path is not None:
-            raise NotImplementedError()
-        else:
-            raise TypeError("Stateless signals cannot be trained.")
+    def train(self, state_path: str, arguments: Any):
+        raise NotImplementedError()
 
     def reset_log(self):
         raise NotImplementedError()
@@ -55,11 +52,17 @@ class TradingSignal(Generic[SIGNAL_INPUT]):
         raise NotImplementedError()
 
 
-class SymmetricChannelSignal(TradingSignal[float]):
+class StatelessMixin(object):
+    def train(self, state_path: str, arguments: Any):
+        raise TypeError("This is a stateless signal.")
+
+
+class SymmetricChannelSignal(StatelessMixin, TradingSignal[float]):
     def __init__(self, window_size: int = 50):
         if window_size < 1:
             raise ValueError("Window must be > 1!")
-        super().__init__(initialization=window_size)
+        TradingSignal.__init__(self, initialization=window_size)
+        StatelessMixin.__init__(self)
         self.e = -1.
         self.d = -1.
         self.is_running = False
@@ -117,9 +120,12 @@ class SymmetricChannelSignal(TradingSignal[float]):
         self.dev.clear()
 
 
-class RelativeStrengthIndexSignal(TradingSignal[float]):
+class RelativeStrengthIndexSignal(StatelessMixin, TradingSignal[float]):
     def __init__(self, history_length: int = 144):
-        super().__init__(initialization=history_length)
+        if history_length < 1:
+            raise ValueError("history_length must be equal to or greater than 1.")
+        TradingSignal.__init__(self, initialization=history_length)
+        StatelessMixin.__init__(self)
         self.history_length = history_length
         self.history = []
 
@@ -154,7 +160,7 @@ class RelativeStrengthIndexSignal(TradingSignal[float]):
             signal = .0
 
         self.history.append(source_info)
-        return signal
+        return signal / 100.
 
     def _log(self, source_info: float):
         self.original.append(source_info)
@@ -173,6 +179,10 @@ class RelativeStrengthIndexSignal(TradingSignal[float]):
         axis.plot(time[self.initialization:], self.lower, label="lower bound")
         axis.plot(time[self.initialization:], self.upper, label="upper bound")
         axis.legend()
+
+    def train(self, state_path: str, arguments: Any):
+        raise TypeError("This is a stateless signal.")
+
 
 
 def main():

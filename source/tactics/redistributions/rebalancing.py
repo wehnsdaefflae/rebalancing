@@ -1,9 +1,11 @@
 import datetime
 import os
 import random
+from typing import Callable
 
 from matplotlib import pyplot
 # random.seed(2353534234563)
+from source.applications.backtests import PORTFOLIO_INFO
 
 
 def absolute_brownian(initial=1., factor=1., relative_bias=0.):  # constant equiprobable change
