@@ -80,19 +80,19 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             tendencies[each_asset] = each_output
         return tendencies
 
-    @staticmethod
-    def __get_delta(portfolio: PORTFOLIO_INFO, base_asset: str, signals: SIGNALS_OUTPUT, risk: float) -> PORTFOLIO_INFO:
-        base_volume = portfolio.get(base_asset, 0.)
+    def __get_delta(self, portfolio: PORTFOLIO_INFO, rates: RATE_INFO, signals: SIGNALS_OUTPUT) -> PORTFOLIO_INFO:
+        # TODO: check!
+        base_volume = portfolio.get(self.base_asset, 0.)
         pos_sum = sum(_v for _v in signals.values() if .0 < _v)
         delta = dict()
         for _k, _s in signals.items():
             if _s < 0.:     # sell
                 asset_volume = portfolio.get(_k, -1.)
                 if 0. < asset_volume:
-                    delta[_k] = risk * asset_volume * _s
+                    delta[_k] = self.risk * asset_volume * _s
 
             elif 0. < _s:   # buy
-                delta[_k] = risk * base_volume * _s / pos_sum  # * asset_rate
+                delta[_k] = self.risk * base_volume * rates[_k] * _s / pos_sum
 
         return delta
 
@@ -150,7 +150,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
 
             signals = self._get_signals(signal_inputs)
 
-            portfolio_delta = TradingBot.__get_delta(portfolio, self.base_asset, signals, self.risk)
+            portfolio_delta = self.__get_delta(portfolio, rates, signals)
             if self.balancing is not None:
                 portfolio_target = self.__change_portfolio(portfolio, portfolio_delta, no_fees=True)
                 tech_info = portfolio_target, rates
