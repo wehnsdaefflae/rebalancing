@@ -63,6 +63,8 @@ def get_table(s_0, s_1,
             # print("{}, {}: {}".format(i, j, d))
             # print(table_str([[-1.] + series_a] + [[series_b[idx]] + table[idx] for idx in range(l_b)]))
             # print()
+        if i % 10 == 0:
+            print("{:d}/{:d} rows generated".format(i + 1, l_a))
     return table
 
 
@@ -176,6 +178,26 @@ def plot_series(series_a, series_b, path, a_label="series a", b_label="series b"
         pyplot.show()
     pyplot.clf()
     pyplot.close()
+
+
+def get_fitted_sequences(series_a, series_b, path):
+    start_offset = path[0]
+    end_offset = path[-1]
+
+    a_start = series_a[:start_offset[0]]
+    a_mid = series_a[start_offset[0]:end_offset[0] + 1]
+    a_end = series_a[end_offset[0] + 1:]
+
+    b_start = series_b[:start_offset[1]]
+    b_mid = series_b[start_offset[1]:end_offset[1] + 1]
+    b_end = series_b[end_offset[1] + 1:]
+
+    a_fit, b_fit = fit(a_mid, b_mid, [(_i - len(a_start), _j - len(b_start)) for _i, _j in path])
+
+    fitted_a = a_start + a_fit + a_end
+    fitted_b = b_start + b_fit + b_end
+
+    return fitted_a, fitted_b
 
 
 def get_fit(a, b, label_a, label_b,
