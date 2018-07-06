@@ -1,17 +1,18 @@
 import datetime
-from typing import Dict, Tuple, Generic, Collection, Callable, Any, Sequence, Optional, List
+from typing import Dict, Tuple, Generic, Callable, Any, List, Iterator
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
+from source.data.data_generation import DEBUG_SERIES
 from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, RATE_INFO, SymmetricChannelSignal
 
 PORTFOLIO_INFO = Dict[str, float]
 TECH_INFO = Tuple[RATE_INFO, PORTFOLIO_INFO]
 SIGNALS_OUTPUT = Dict[str, float]
 SIGNALS_INPUT = Dict[str, SIGNAL_INPUT]
-BALANCING = Callable[TECH_INFO, PORTFOLIO_INFO]
-RATE_GENERATOR = Callable[Any, Tuple[datetime.datetime, float]]  # covers generators?!
+BALANCING = Callable[[TECH_INFO], PORTFOLIO_INFO]
+RATE_GENERATOR = Iterator[Tuple[datetime.datetime, float]]  # covers generators?!
 
 # parameters of data generator
 """
@@ -31,11 +32,8 @@ class TradingBot(Generic[SIGNAL_INPUT]):
                  base_asset: str = "ETH",
                  min_base_transaction_volume: float = .025):
 
-        if base_asset not in data_sources:
-            raise ValueError("No data source for base asset.")
-
         if base_asset in signals:
-            raise ValueError("No bas asset signal for now.")
+            raise ValueError("No base asset signal for now.")
 
         self.signals = signals
         self.data_sources = data_sources
@@ -47,7 +45,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
 
         self.asset_development = []  # type: List[Tuple[datetime.datetime, Dict[str, float]]]
 
-    def get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
+    def _get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
         rate_info = dict()                                                      # type: Dict[str, float]
         utc_timestamps = []                                                     # type: List[float]
         for each_asset, each_source in self.data_sources.items():
@@ -85,9 +83,12 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             raise ValueError("Balance must be between 0. and 1.")
         no_signals = len(signals)
         signal_sum = (no_signals + sum(signals.values())) / 2.
-        ratios = {_k: (1. - balance) * ((_v + 1.) / (2. * signal_sum)) +
-                      (balance / no_signals)
-                  for _k, _v in signals.items()}
+        ratios = dict()
+        for _k, _v in signals.items():
+            # TODO: maybe _v instead of 0.?
+            balanced = 0. if 0. >= no_signals else balance / no_signals
+            unbalanced = 0. if 0. >= signal_sum else (1. - balance) * ((_v + 1.) / (2. * signal_sum))
+            ratios[_k] = unbalanced + balanced
         total_base_value = sum(portfolio[_k] / rates[_k] for _k in signals)
         target_distribution = {_k: (total_base_value * ratios[_k]) * rates[_k] for _k, _v in signals.items()}
         return target_distribution
@@ -120,7 +121,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
     def run(self):
         while True:
             try:
-                time, rates = self.__get_rates()
+                time, rates = self._get_rates()
             except StopIteration as e:
                 print(e)
                 break
@@ -141,12 +142,16 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             signals = self._get_signals(signal_inputs)
 
             target_portfolio = self.__get_target(portfolio, rates, signals, self.balance)
-            portfolio_delta = {_k: target_portfolio[_k] - _v for _k, _v in portfolio.items()}
+            portfolio_delta = {_k: target_portfolio.get(_k, portfolio[_k]) - _v for _k, _v in signals.items()}
 
-            self.__redistribute(portfolio_delta, rates)
+            try:
+                self.__redistribute(portfolio_delta, rates)
+            except ValueError as e:
+                raise e
             self._wait()
 
     def plot_stack(self, axis: Axes):
+        # TODO: write to file instead
         all_assets = sorted(set(_x for _y in self.asset_development for _x in _y[1].keys()))
         all_plots = {_k: [] for _k in all_assets}
         time_axis = []
@@ -154,19 +159,35 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             time_axis.append(each_time)
             for each_asset in all_assets:
                 each_development = all_plots[each_asset]
-                each_development.appen(each_portfolio.get(each_asset, .0))
+                each_development.append(each_portfolio.get(each_asset, .0))
 
         axis.stackplot(time_axis, *[all_plots[_k] for _k in all_assets], labels=all_assets)
 
 
 class Simulation(TradingBot[RATE_INFO]):
-    def __init__(self, portfolio: PORTFOLIO_INFO, *arguments, **keywords):
-        super().__init__(*arguments, **keywords)
+    def __init__(self,
+                 portfolio: PORTFOLIO_INFO,
+                 signals: Dict[str, TradingSignal],
+                 data_sources: Dict[str, RATE_GENERATOR],
+                 risk: float = .5,
+                 balance: float = 0.,
+                 trading_fee_percentage: float = .0025,
+                 base_asset: str = "ETH",
+                 min_base_transaction_volume: float = .025):
+        super().__init__(
+            signals,
+            data_sources,
+            risk=risk,
+            balance=balance,
+            trading_fee_percentage=trading_fee_percentage,
+            base_asset=base_asset,
+            min_base_transaction_volume=min_base_transaction_volume
+        )
         self.portfolio = dict(portfolio)
         self.rates = dict()                 # type: RATE_INFO
 
-    def get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
-        time, self.rates = super().get_rates()
+    def _get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
+        time, self.rates = super()._get_rates()
         return time, self.rates
 
     def _get_portfolio(self) -> PORTFOLIO_INFO:
@@ -185,7 +206,17 @@ class Simulation(TradingBot[RATE_INFO]):
 
 
 def main():
-    pass
+    portfolio = {"IOTA": 0., "ADA": 0., "ETH": 10.}
+    signals = {_k: SymmetricChannelSignal() for _k in portfolio if _k != "ETH"}
+    data_sources = {_k: DEBUG_SERIES(_k) for _k in portfolio if _k != "ETH"}
+    simulation = Simulation(portfolio, signals, data_sources)
+    simulation.run()
+
+    pyplot.clf()
+    pyplot.close()
+    fix, ax1 = pyplot.subplots(1, sharex="all")
+    simulation.plot_stack(ax1)
+    pyplot.show()
 
 
 if __name__ == "__main__":
