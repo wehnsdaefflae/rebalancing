@@ -6,7 +6,6 @@ from matplotlib.axes import Axes
 
 from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, RATE_INFO, SymmetricChannelSignal
 
-
 PORTFOLIO_INFO = Dict[str, float]
 TECH_INFO = Tuple[RATE_INFO, PORTFOLIO_INFO]
 SIGNALS_OUTPUT = Dict[str, float]
@@ -27,7 +26,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
                  signals: Dict[str, TradingSignal],
                  data_sources: Dict[str, RATE_GENERATOR],
                  risk: float = .5,
-                 balancing: BALANCING = None,
+                 balance: float = 0.,
                  trading_fee_percentage: float = .0025,
                  base_asset: str = "ETH",
                  min_base_transaction_volume: float = .025):
@@ -42,11 +41,11 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         self.data_sources = data_sources
         self.base_asset = base_asset
         self.risk = risk
-        self.balancing = balancing
+        self.balance = balance
         self.trading_factor = 1. - trading_fee_percentage
         self.min_base_transaction_volume = min_base_transaction_volume
 
-        self.asset_development = []     # type: List[Tuple[datetime.datetime, Dict[str, float]]]
+        self.asset_development = []  # type: List[Tuple[datetime.datetime, Dict[str, float]]]
 
     def __get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
         rate_info = dict()
@@ -80,21 +79,19 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             tendencies[each_asset] = each_output
         return tendencies
 
-    def __get_delta(self, portfolio: PORTFOLIO_INFO, rates: RATE_INFO, signals: SIGNALS_OUTPUT) -> PORTFOLIO_INFO:
-        # TODO: check!
-        base_volume = portfolio.get(self.base_asset, 0.)
-        pos_sum = sum(_v for _v in signals.values() if .0 < _v)
-        delta = dict()
-        for _k, _s in signals.items():
-            if _s < 0.:     # sell
-                asset_volume = portfolio.get(_k, -1.)
-                if 0. < asset_volume:
-                    delta[_k] = self.risk * asset_volume * _s
-
-            elif 0. < _s:   # buy
-                delta[_k] = self.risk * base_volume * rates[_k] * _s / pos_sum
-
-        return delta
+    @staticmethod
+    def __get_target(portfolio: PORTFOLIO_INFO, rates: RATE_INFO, signals: SIGNALS_OUTPUT,
+                     balance: float) -> PORTFOLIO_INFO:
+        if not 1. >= balance >= 0.:
+            raise ValueError("Balance must be between 0. and 1.")
+        no_signals = len(signals)
+        signal_sum = (no_signals + sum(signals.values())) / 2.
+        ratios = {_k: (1. - balance) * ((_v + 1.) / (2. * signal_sum)) +
+                      (balance / no_signals)
+                  for _k, _v in signals.items()}
+        total_base_value = sum(portfolio[_k] / rates[_k] for _k in signals)
+        target_distribution = {_k: (total_base_value * ratios[_k]) * rates[_k] for _k, _v in signals.items()}
+        return target_distribution
 
     def __change_portfolio(self, portfolio: PORTFOLIO_INFO, delta: PORTFOLIO_INFO, no_fees: bool = False):
         all_assets = set(portfolio.keys()) | set(delta.keys())
@@ -150,11 +147,8 @@ class TradingBot(Generic[SIGNAL_INPUT]):
 
             signals = self._get_signals(signal_inputs)
 
-            portfolio_delta = self.__get_delta(portfolio, rates, signals)
-            if self.balancing is not None:
-                portfolio_target = self.__change_portfolio(portfolio, portfolio_delta, no_fees=True)
-                tech_info = portfolio_target, rates
-                portfolio_delta = self.balancing(tech_info)
+            target_portfolio = self.__get_target(portfolio, rates, signals, self.balance)
+            portfolio_delta = {_k: target_portfolio[_k] - _v for _k, _v in portfolio.items()}
 
             self.__redistribute(portfolio_delta, rates)
             self._wait()
