@@ -47,19 +47,18 @@ class TradingBot(Generic[SIGNAL_INPUT]):
 
         self.asset_development = []  # type: List[Tuple[datetime.datetime, Dict[str, float]]]
 
-    def __get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
-        rate_info = dict()
-        dates = set()
+    def get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
+        rate_info = dict()                                                      # type: Dict[str, float]
+        utc_timestamps = []                                                     # type: List[float]
         for each_asset, each_source in self.data_sources.items():
-            each_date, each_rate = next(each_source)
-            dates.add(each_date)
-            if 1 < len(dates):
-                raise ValueError("Data sources returned inconsistent time information.")
+            each_date, each_rate = next(each_source)                            # type: datetime.datetime, float
+            utc_timestamps.append(each_date.timestamp())
             rate_info[each_asset] = each_rate
-        current_time, = dates
+        average_timestamp = sum(utc_timestamps) / len(utc_timestamps)           # type: float
+        current_time = datetime.datetime.utcfromtimestamp(average_timestamp)    # type: datetime.datetime
         return current_time, rate_info
 
-    def _get_portfolio(self):
+    def _get_portfolio(self) -> PORTFOLIO_INFO:
         raise NotImplementedError()
 
     def __log_portfolio(self, time: datetime.datetime, portfolio: PORTFOLIO_INFO):
@@ -93,12 +92,6 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         target_distribution = {_k: (total_base_value * ratios[_k]) * rates[_k] for _k, _v in signals.items()}
         return target_distribution
 
-    def __change_portfolio(self, portfolio: PORTFOLIO_INFO, delta: PORTFOLIO_INFO, no_fees: bool = False):
-        all_assets = set(portfolio.keys()) | set(delta.keys())
-        if no_fees:
-            return {_k: (portfolio.get(_k, .0) + delta.get(_k, .0)) for _k in all_assets}
-        return {_k: (portfolio.get(_k, .0) + delta.get(_k, .0)) * self.trading_factor ** 2 for _k in all_assets}
-
     def __redistribute(self, delta: PORTFOLIO_INFO, rates: RATE_INFO):
         if self.base_asset in delta:
             raise ValueError("No base asset transactions!")
@@ -116,7 +109,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
                 base_value = each_value / asset_rate
                 if base_value < self.min_base_transaction_volume:
                     continue
-                self._transfer(base_value, self.base_asset, each_asset, asset_rate)
+                self._transfer(base_value, self.base_asset, each_asset, 1. / asset_rate)
 
     def _transfer(self, source_value: float, source_asset: str, target_asset: str, rate: float):
         raise NotImplementedError()
@@ -166,85 +159,34 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         axis.stackplot(time_axis, *[all_plots[_k] for _k in all_assets], labels=all_assets)
 
 
-class Simulation(TradingBot):
-    def run(self):
-        self._simulate(None, None)
-
-
-class TechnicalBacktest(Backtest[TECH_INFO]):
-    def __init__(self, *arguments, **keywords):
+class Simulation(TradingBot[RATE_INFO]):
+    def __init__(self, portfolio: PORTFOLIO_INFO, *arguments, **keywords):
         super().__init__(*arguments, **keywords)
+        self.portfolio = dict(portfolio)
+        self.rates = dict()                 # type: RATE_INFO
 
-    def _get_tendencies(self, source_info: TECH_INFO) -> SIGNALS_OUTPUT:
-        portfolio, rates = source_info
-        tendencies = dict()
-        for each_asset in self.signals:
-            each_signal = self.signals[each_asset]
-            each_tendency = each_signal.get_tendency(rates)
-            tendencies[each_asset] = each_tendency
-        return tendencies
+    def get_rates(self) -> Tuple[datetime.datetime, RATE_INFO]:
+        time, self.rates = super().get_rates()
+        return time, self.rates
 
-    def _redistribute(self, rates: RATE_INFO):
-        # get current portfolio and signal tendencies
-        portfolio = self._get_portfolio()
-        tendencies = self._get_tendencies((portfolio, rates))
+    def _get_portfolio(self) -> PORTFOLIO_INFO:
+        return self.portfolio
 
-        # sell assets for base asset
-        redistribution = dict()
-        for each_asset, each_tendency in tendencies.items():
-            if self.dead_zone[0] >= each_tendency and each_asset != self.base_asset:
-                asset_value = portfolio[each_asset]
-                diff = asset_value * each_tendency
-                diff_base = diff / rates[each_asset]
-                if diff_base < self.trade_min_base_volume:
-                    continue
+    def _get_signals_input(self) -> RATE_INFO:
+        return self.rates
 
-                portfolio[each_asset] -= diff
-                portfolio[self.base_asset] += self.trading_factor * diff_base
+    def _transfer(self, source_value: float, source_asset: str, target_asset: str, rate: float):
+        target_value = source_value * rate
+        self.portfolio[source_asset] -= source_value
+        self.portfolio[target_asset] += self.trading_factor * target_value
 
-            elif each_tendency >= self.dead_zone[1]:
-                redistribution[each_asset] = each_tendency
-
-        # buy assets from base asset
-        total = sum(redistribution.values())
-        base_value = portfolio[self.base_asset]
-        for each_asset, each_tendency in redistribution.items():
-            if each_tendency < self.dead_zone[1] or each_asset == self.base_asset:
-                continue
-
-            each_ratio = each_tendency / total
-            diff_base = each_ratio * base_value
-            if diff_base < self.trade_min_base_volume:
-                continue
-
-            portfolio[self.base_asset] -= diff_base
-            diff = diff_base * rates[each_asset]
-            portfolio[each_asset] += self.trading_factor * diff
-
-        return portfolio
+    def _wait(self):
+        pass
 
 
-class FundamentalBacktest(Backtest):
-    def __init__(self, *arguments, **keywords):
-        super().__init__(*arguments, **keywords)
+def main():
+    pass
 
 
 if __name__ == "__main__":
-    config = {"base_asset": "ETH",
-              "initial_assets": {"ADA": 0.,
-                                 "ETH": 10.},
-              "asset_signals": {"ADA": SymmetricChannelSignal(window_size=50)},
-              "source_dir": "../../data/binance/23Jun2017-23Jun2018-1m/",
-              "date_start": "2018-06-01_00:00:00_UTC",
-              "date_end": "2018-06-07_00:00:00_UTC",
-              "interval_minutes": 10,
-              "dead_zone": (-.2, .2),
-              "trading_fee": .0025,
-              "trade_min_base_volume": .025
-              }
-    tbt = TechnicalBacktest(**config)
-    tbt.simulate()
-
-    fig, ax1 = pyplot.subplots(1, sharex="all")
-    tbt.plot_stack(ax1)
-    pyplot.show()
+    main()
