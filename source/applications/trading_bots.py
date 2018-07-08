@@ -86,11 +86,10 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             return dict(portfolio)
         normalized_signals = {_k: (_v + 1.) / 2. for _k, _v in signals.items()}
         signal_sum = sum(normalized_signals.values())
-        # return difference or target total?!
         normalized_ratios = {_k: 0. if .0 >= signal_sum else _v / signal_sum for _k, _v in normalized_signals.items()}
-        balanced_ratios = {_k: balance / no_signals + (1. - balance) * _v for _k, _v in normalized_ratios.items()}
         total_base_value = sum(portfolio[_k] * rates[_k] for _k in signals) + portfolio.get(base_asset, 0.)
-        target_distribution = {_k: total_base_value * balanced_ratios[_k] / rates[_k] for _k, _v in signals.items()}
+        target_distribution = {_k: total_base_value * normalized_ratios[_k] / rates[_k] for _k, _v in signals.items()}
+        # now rebalance
         return target_distribution
 
     def __redistribute(self, delta: PORTFOLIO_INFO, rates: RATE_INFO):
