@@ -77,20 +77,20 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         return tendencies
 
     @staticmethod
-    def __get_target(portfolio: PORTFOLIO_INFO, rates: RATE_INFO, signals: SIGNALS_OUTPUT,
+    def __get_target(portfolio: PORTFOLIO_INFO, base_asset: str, rates: RATE_INFO, signals: SIGNALS_OUTPUT,
                      balance: float) -> PORTFOLIO_INFO:
         if not 1. >= balance >= 0.:
             raise ValueError("Balance must be between 0. and 1.")
         no_signals = len(signals)
-        signal_sum = (no_signals + sum(signals.values())) / 2.
-        ratios = dict()
-        for _k, _v in signals.items():
-            # TODO: maybe _v instead of 0.?
-            balanced = 0. if 0. >= no_signals else balance / no_signals
-            unbalanced = 0. if 0. >= signal_sum else (1. - balance) * ((_v + 1.) / (2. * signal_sum))
-            ratios[_k] = unbalanced + balanced
-        total_base_value = sum(portfolio[_k] / rates[_k] for _k in signals)
-        target_distribution = {_k: (total_base_value * ratios[_k]) * rates[_k] for _k, _v in signals.items()}
+        if no_signals < 1:
+            return dict(portfolio)
+        normalized_signals = {_k: (_v + 1.) / 2. for _k, _v in signals.items()}
+        signal_sum = sum(normalized_signals.values())
+        # return difference or target total?!
+        normalized_ratios = {_k: 0. if .0 >= signal_sum else _v / signal_sum for _k, _v in normalized_signals.items()}
+        balanced_ratios = {_k: balance / no_signals + (1. - balance) * _v for _k, _v in normalized_ratios.items()}
+        total_base_value = sum(portfolio[_k] * rates[_k] for _k in signals) + portfolio.get(base_asset, 0.)
+        target_distribution = {_k: total_base_value * balanced_ratios[_k] / rates[_k] for _k, _v in signals.items()}
         return target_distribution
 
     def __redistribute(self, delta: PORTFOLIO_INFO, rates: RATE_INFO):
@@ -141,7 +141,10 @@ class TradingBot(Generic[SIGNAL_INPUT]):
 
             signals = self._get_signals(signal_inputs)
 
-            target_portfolio = self.__get_target(portfolio, rates, signals, self.balance)
+            if not all(_x == .0 for _x in signals.values()):
+                a = 0
+
+            target_portfolio = self.__get_target(portfolio, self.base_asset, rates, signals, self.balance)
             portfolio_delta = {_k: target_portfolio.get(_k, portfolio[_k]) - _v for _k, _v in signals.items()}
 
             try:
