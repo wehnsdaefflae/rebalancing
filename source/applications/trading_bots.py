@@ -28,9 +28,8 @@ class TradingBot(Generic[SIGNAL_INPUT]):
     def __init__(self,
                  signals: Dict[str, TradingSignal],
                  data_sources: Dict[str, RATE_GENERATOR],
-                 risk: float = 1.,
                  dead_zone: Tuple[float, float] = (-.5, .5),
-                 balance: float = 0.,
+                 risk: float = 0.,
                  trading_fee_percentage: float = .0025,
                  base_asset: str = "ETH",
                  min_base_transaction_volume: float = .025):
@@ -41,12 +40,14 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         if min_base_transaction_volume < 0.:
             raise ValueError("Minimum transaction value must be positive.")
 
+        if not 1. >= risk >= 0.:
+            raise ValueError("Risk value must be between 0. and 1.")
+
         self.signals = signals
         self.data_sources = data_sources
         self.base_asset = base_asset
-        self.risk = risk
         self.dead_zone = dead_zone
-        self.balance = balance
+        self.risk = risk
         self.trading_factor = 1. - trading_fee_percentage
         self.min_base_transaction_volume = min_base_transaction_volume
 
@@ -92,7 +93,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
             if each_signal is None:
                 continue
             each_output = each_signal.get_tendency(each_input)
-            if each_output < self.dead_zone[0] or self.dead_zone[1] < each_output:
+            if self.dead_zone[0] >= each_output or each_output >= self.dead_zone[1]:
                 each_output *= self.risk
             else:
                 each_output = 0.
@@ -195,6 +196,7 @@ class TradingBot(Generic[SIGNAL_INPUT]):
 
             total_base_value = TradingBot._get_total_base_value(portfolio, rates)
             target_portfolio = TradingBot._distribute(total_base_value, distribution, rates)
+            target_portfolio = {_k: self.risk * _v + (1. - self.risk) * portfolio[_k] for _k, _v in target_portfolio.items()}
             transactions = self.__get_transactions(portfolio, target_portfolio, rates)
 
             for source_value, source_asset, target_asset in transactions:
@@ -236,15 +238,15 @@ class Simulation(TradingBot[RATE_INFO]):
                  portfolio: PORTFOLIO_INFO,
                  signals: Dict[str, TradingSignal],
                  data_sources: Dict[str, RATE_GENERATOR],
-                 balance: float = 0.,
+                 risk: float = .5,
                  trading_fee_percentage: float = .0025,
                  base_asset: str = "ETH",
                  min_base_transaction_volume: float = .025):
         super().__init__(
             signals,
             data_sources,
-            risk=.1,
-            balance=balance,
+            dead_zone=(-.99, .99),
+            risk=risk,
             trading_fee_percentage=trading_fee_percentage,
             base_asset=base_asset,
             min_base_transaction_volume=min_base_transaction_volume
@@ -270,6 +272,10 @@ class Simulation(TradingBot[RATE_INFO]):
             raise ValueError("No negative values.")
 
         source_volume = self.portfolio[source_asset]
+
+        if source_volume < 0.:
+            raise ValueError("Not enough source volume")
+
         source_value = min(source_volume, source_value)
 
         self.portfolio[source_asset] = source_volume - source_value
@@ -281,11 +287,11 @@ class Simulation(TradingBot[RATE_INFO]):
 
 
 def main():
-    portfolio = {"IOTA": 0., "ADA": 0., "ETH": 10.}
+    portfolio = {"IOTA": 0., "ADA": 0., "LTC": 0., "ETH": 10.}
     signals = {_k: SymmetricChannelSignal() for _k in portfolio if _k != "ETH"}
     # signals = {_k: RelativeStrengthIndexSignal(history_length=50) for _k in portfolio if _k != "ETH"}
     data_sources = {_k: DEBUG_SERIES(_k) for _k in portfolio if _k != "ETH"}
-    simulation = Simulation(portfolio, signals, data_sources)
+    simulation = Simulation(portfolio, signals, data_sources, risk=.25)
     simulation.run()
 
     pyplot.clf()
