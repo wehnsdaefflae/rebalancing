@@ -1,5 +1,5 @@
 import datetime
-from typing import Sequence, Any, Dict, TypeVar, Generic, Tuple
+from typing import Sequence, Any, Dict, TypeVar, Generic
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
@@ -11,9 +11,8 @@ RATE_INFO = Dict[str, float]
 
 
 class TradingSignal(Generic[SIGNAL_INPUT]):
-    def __init__(self, initialization: int = 0, dead_zone: Tuple[float, float] = (-.5, .5), plot_log: bool = True):
+    def __init__(self, initialization: int = 0, plot_log: bool = True):
         self.initialization = initialization
-        self.dead_zone = dead_zone
         self.plot_log = plot_log
         self.iterations = 0
 
@@ -33,7 +32,7 @@ class TradingSignal(Generic[SIGNAL_INPUT]):
             self._log(source_info)
 
         self.iterations += 1
-        return min(1., max(-1., signal if self.dead_zone[0] >= signal or signal >= self.dead_zone[1] else 0.))
+        return min(1., max(-1., signal))
 
     def train(self, state_path: str, arguments: Any):
         raise NotImplementedError()
@@ -182,7 +181,6 @@ class RelativeStrengthIndexSignal(StatelessMixin, TradingSignal[float]):
 
     def train(self, state_path: str, arguments: Any):
         raise TypeError("This is a stateless signal.")
-
 
 
 def main():

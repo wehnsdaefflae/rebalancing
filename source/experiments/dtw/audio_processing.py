@@ -2,7 +2,7 @@ import numpy
 
 from scipy.io import wavfile
 
-from source.experiements.dtw.my_dtw import get_table, get_path, get_fitted_sequences, plot_series
+from source.experiments.dtw.my_dtw import get_table, get_path, get_fitted_sequences, plot_series
 
 fs_o, input_sequence = wavfile.read("C:/Users/Mark/Daten/Audio/test.wav")
 fs_t, target_sequence = wavfile.read("C:/Users/Mark/Daten/Audio/baum.wav")

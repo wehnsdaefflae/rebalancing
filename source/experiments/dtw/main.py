@@ -3,7 +3,7 @@ import json
 import os
 from math import sin, cos
 
-from source.experiements.dtw import get_fit
+from source.experiments.dtw import get_fit
 from source.data.data_generation import series_generator
 
 
