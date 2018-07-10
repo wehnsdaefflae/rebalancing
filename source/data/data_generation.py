@@ -37,7 +37,9 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
             if -1 < start_timestamp:
                 if start_timestamp < row_ts:
                     if i < 1:
-                        raise ValueError("Source {} starts after {:s}!".format(file_path, str(range_start)))
+                        first_date = datetime.datetime.utcfromtimestamp(row_ts)
+                        msg = "Source {:s} starts after {:s} (at {:s})!"
+                        raise ValueError(msg.format(file_path, str(range_start), str(first_date)))
                 elif row_ts < end_timestamp:
                     continue
 
@@ -48,7 +50,9 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
             yield datetime.datetime.utcfromtimestamp(row_ts), close
 
         if row_ts < end_timestamp:
-            raise ValueError("Source {} ends before {:s}!".format(file_path, str(range_end)))
+            last_date = datetime.datetime.utcfromtimestamp(row_ts)
+            msg = "Source {:s} ends before {:s} (at {:s})!"
+            raise ValueError(msg.format(file_path, str(range_end), str(last_date)))
 
 
 def DEBUG_SERIES(cur_a, cur_b="ETH", config_path="../../configs/config.json"):
