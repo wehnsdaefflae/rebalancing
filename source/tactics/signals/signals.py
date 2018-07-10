@@ -1,5 +1,5 @@
 import datetime
-from typing import Sequence, Any, Dict, TypeVar, Generic
+from typing import Sequence, Any, Dict, TypeVar, Generic, Iterable
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
@@ -183,32 +183,72 @@ class RelativeStrengthIndexSignal(StatelessMixin, TradingSignal[float]):
         raise TypeError("This is a stateless signal.")
 
 
+class FakeSignal(StatelessMixin, TradingSignal[float]):
+    def __init__(self, signal_data: Sequence[float]):
+        TradingSignal.__init__(self, initialization=0)
+        StatelessMixin.__init__(self)
+        self.signal_data = [signal_data[_i + 1] / signal_data[_i] - 1. for _i in range(len(signal_data) - 1)]
+        self.index = 0
+        self.original = []
+
+    def _get_signal(self, source_info: SIGNAL_INPUT) -> float:
+        if self.index >= len(self.signal_data):
+            return 0.
+        signal = self.signal_data[self.index]
+        self.index += 1
+        return signal
+
+    def _log(self, source_info: SIGNAL_INPUT):
+        self.original.append(source_info)
+
+    def reset_log(self):
+        self.original.clear()
+
+    def _plot(self, time: Sequence[datetime.datetime], axis: Axes):
+        axis.plot(time, self.original, label="original")
+        axis.legend()
+
+
 def main():
     cur = "ADA"
-    # signal = RelativeStrengthIndexSignal()
-    signal = SymmetricChannelSignal()
+    # signal = RelativeStrengthIndexSignal(history_length=60)
+    signal = SymmetricChannelSignal(window_size=20)
+    # signal = FakeSignal([_x[1] for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")])
 
     time_axis = []
     signal_axis = []
-    last_rate = -1.
-    success = 0.
+    value_a, value_b = 1., 0.
+    each_rate = 1.
+
+    buys = []
+    sells = []
 
     for each_date, each_rate in DEBUG_SERIES(cur, config_path="../../../configs/config.json"):
-        each_tendency = signal.get_tendency(each_rate)
-        if 0. < last_rate:
-            success += float((0. < each_tendency and 1. < each_rate / last_rate) or (each_tendency < 0. and each_rate / last_rate < 1.))
+        tendency = signal.get_tendency(each_rate)
+        if tendency >= .8:
+            if 0. < value_a:
+                buys.append(each_date)
+            value_b += value_a * each_rate
+            value_a = 0.
+        elif -.8 >= tendency:
+            if 0. < value_b:
+                sells.append(each_date)
+            value_a += value_b / each_rate
+            value_b = 0.
 
-        # [_x.append(_y) for _x, _y in zip([time_axis, signal_axis], [each_date, each_rate])]
         time_axis.append(each_date)
-        signal_axis.append(each_tendency)
-        last_rate = each_rate
+        signal_axis.append(tendency)
 
-    print("success: {:.5f}".format(success / (len(time_axis) - 1.)))
+    print("success: {:.5f}".format(value_a + value_b / each_rate))
     pyplot.clf()
     pyplot.close()
 
     fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
     signal.plot(time_axis, ax1, axis_label=cur)
+    for each_buy in buys:
+        ax1.axvline(x=each_buy, color="green")
+    for each_sell in sells:
+        ax1.axvline(x=each_sell, color="red")
     ax2.plot(time_axis, signal_axis, label="signal")
     ax2.legend()
 

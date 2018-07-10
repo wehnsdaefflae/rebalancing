@@ -10,7 +10,7 @@ import json
 from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
-from source.tactics.signals import ChannelSignal
+from source.tactics.signals.signals import SymmetricChannelSignal
 
 
 def main():
@@ -32,8 +32,8 @@ def main():
 
     _, (channel_axis, signal_axis, asset_axis) = pyplot.subplots(3, sharex="all")
 
-    channel_signal = ChannelSignal(cur_a, 50)
-    signals = [channel_signal.get_tendency({cur_a: _x}) for _x in time_series]
+    channel_signal = SymmetricChannelSignal(window_size=50)
+    signals = [channel_signal.get_tendency(_x) for _x in time_series]
     channel_axis.set_ylabel("{:s} / {:s}".format(cur_a, cur_b))
     channel_signal.plot(time_axis, channel_axis)
 
