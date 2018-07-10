@@ -185,17 +185,25 @@ class RelativeStrengthIndexSignal(StatelessMixin, TradingSignal[float]):
 
 def main():
     cur = "ADA"
-    signal = RelativeStrengthIndexSignal()  # SymmetricChannelSignal()
+    # signal = RelativeStrengthIndexSignal()
+    signal = SymmetricChannelSignal()
 
     time_axis = []
     signal_axis = []
-    for each_date, each_rate in DEBUG_SERIES(cur):
+    last_rate = -1.
+    success = 0.
+
+    for each_date, each_rate in DEBUG_SERIES(cur, config_path="../../../configs/config.json"):
         each_tendency = signal.get_tendency(each_rate)
+        if 0. < last_rate:
+            success += float((0. < each_tendency and 1. < each_rate / last_rate) or (each_tendency < 0. and each_rate / last_rate < 1.))
 
         # [_x.append(_y) for _x, _y in zip([time_axis, signal_axis], [each_date, each_rate])]
         time_axis.append(each_date)
         signal_axis.append(each_tendency)
+        last_rate = each_rate
 
+    print("success: {:.5f}".format(success / (len(time_axis) - 1.)))
     pyplot.clf()
     pyplot.close()
 

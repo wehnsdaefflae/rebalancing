@@ -51,8 +51,8 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
             raise ValueError("Source {} ends before {:s}!".format(file_path, str(range_end)))
 
 
-def DEBUG_SERIES(cur_a, cur_b="ETH"):
-    with open("../../configs/config.json", mode="r") as file:
+def DEBUG_SERIES(cur_a, cur_b="ETH", config_path="../../configs/config.json"):
+    with open(config_path, mode="r") as file:
         config = json.load(file)
     source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
     target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
