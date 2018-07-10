@@ -212,16 +212,17 @@ class FakeSignal(StatelessMixin, TradingSignal[float]):
 def main():
     cur = "ADA"
     # signal = RelativeStrengthIndexSignal(history_length=60)
-    signal = SymmetricChannelSignal(window_size=20)
+    signal = SymmetricChannelSignal(window_size=150)
     # signal = FakeSignal([_x[1] for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")])
 
     time_axis = []
     signal_axis = []
-    value_a, value_b = 1., 0.
+    value_a, value_b = 0., 1.
     each_rate = 1.
 
     buys = []
     sells = []
+    total_value = []
 
     for each_date, each_rate in DEBUG_SERIES(cur, config_path="../../../configs/config.json"):
         tendency = signal.get_tendency(each_rate)
@@ -238,18 +239,20 @@ def main():
 
         time_axis.append(each_date)
         signal_axis.append(tendency)
+        total_value.append(value_b + value_a * each_rate)
 
-    print("success: {:.5f}".format(value_a + value_b / each_rate))
+    print("success: {:.5f}".format(total_value[-1]))
     pyplot.clf()
     pyplot.close()
 
-    fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
+    fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
     signal.plot(time_axis, ax1, axis_label=cur)
     for each_buy in buys:
-        ax1.axvline(x=each_buy, color="green")
+        ax1.axvline(x=each_buy, color="green", alpha=.2)
     for each_sell in sells:
-        ax1.axvline(x=each_sell, color="red")
+        ax1.axvline(x=each_sell, color="red", alpha=.2)
     ax2.plot(time_axis, signal_axis, label="signal")
+    ax3.plot(time_axis, total_value, label="total value in {:s}".format(cur))
     ax2.legend()
 
     pyplot.tight_layout()
