@@ -104,9 +104,8 @@ class EquiprobabilitySampling:
         return parameters
 
 
-BORDER = Tuple[float, float]
-REGION = Tuple[BORDER, ...]
 POINT = Tuple[float, ...]
+REGION = Tuple[POINT, POINT]
 
 
 class MyOptimizer:
@@ -121,34 +120,33 @@ class MyOptimizer:
         pass
 
     def get_center(self, borders: REGION) -> POINT:
-        return tuple((_x + _y) / 2. for _x, _y in borders)
+        point_a, point_b = borders
+        len_a, len_b = len(point_a), len(point_b)
+        if len_a != len_b:
+            raise ValueError("Border points not of equal dimension.")
+
+        return tuple((point_a[_i] + point_b[_i]) / 2. for _i in range(len_a))
 
     def subdivide(self, borders: REGION) -> Tuple[REGION, ...]:
-        # number of divisions = 2 ** dimensions
+        # len edges = 2 ** dimensions
+        offset = self.get_center(borders)
+        dim = len(offset)
 
-        divided_borders = []
-        dimensions = len(borders)
-        center = self.get_center(borders)
-
-        new_borders = [[] for _ in borders]
-        for _i, alternatives in enumerate(new_borders):
-            each_border = borders[_i]
-            a = each_border[0], center[1]
-            b = center[0], each_border[1]
-            alternatives.append(a)
-            alternatives.append(b)
-
-        all_combinations = []
-        for each_alternatives in new_borders
-
-        return n_d_b
+        point_a, point_b = borders
+        origins = [point_a]
+        for _i in range(dim):
+            new_a = tuple(point_a[_j] if _j != _i else offset[_j] for _j in range(dim))
+            origins.append(new_a)
+        origins.append(offset)
+        regions = tuple((each_origin, tuple(each_origin[_x] + offset[_x] for _x in range(dim))) for each_origin in origins)
+        return regions
 
 
 def main():
-    region = (0., 1.), (0., 1.)
-    # region = (0., 1.), (0., 1.), (0., 1.)
-    o = MyOptimizer(lambda _x, _y: _x, region)
-    # o = MyOptimizer(lambda _x, _y, _z: _x, region)
+    # region = (0., 0.), (1., 1.)
+    region = (0., 0., 0.), (1., 1., 1)
+    # o = MyOptimizer(lambda _x, _y: _x, region)
+    o = MyOptimizer(lambda _x, _y, _z: _x, region)
     center = o.get_center(region)
     print(center)
     print()
