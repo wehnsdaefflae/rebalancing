@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import itertools
 import logging
-from math import sin, cos
-from typing import Callable, Sequence, Tuple, Optional, List
+from math import sin, cos, sqrt
+from typing import Callable, Sequence, Tuple, Optional, List, Union
 
 from matplotlib import pyplot
+
+from source.experiments.timer import Timer
 
 
 class PriorityQueue(list):
@@ -107,42 +109,61 @@ class EquiprobabilitySampling:
         return parameters
 
 
+RANGE = Tuple[float, float]
 POINT = Tuple[float, ...]
 AREA = Tuple[POINT, POINT]
+PRIOELEM = Tuple[float, POINT, AREA]
 
 
 class MyOptimizer:
-    def __init__(self, evaluation_function: Callable[[POINT], float], region: AREA, limit: int = 1000):
+    def __init__(self, evaluation_function: Callable[[POINT], float], ranges: Sequence[RANGE], limit: int = 1000):
         # convert from limits to points
         self.eval = evaluation_function
-        self.region = region
+        origin = tuple(min(_x) for _x in ranges)                             # type: POINT
+        destination = tuple(max(_x) for _x in ranges)                        # type: POINT
+        self.region = (origin, destination)                                  # type: AREA
+        self.full_diameter = MyOptimizer.__diameter(self.region)             # type: float
         self.limit = limit
 
-        self.first_value = True                             # type: bool
-        self.best_value = 0.                                # type: float
-        self.region_values = [(self.best_value, region)]    # type: List[Tuple[float, AREA]]
-        self.best_parameters = None                         # type: Optional[POINT]
+        self.first_value = True                                              # type: bool
+        self.best_value = 0.                                                 # type: float
+        self.best_parameters = MyOptimizer._get_center(self.region)          # type: POINT
+        first_entry = self.best_value, self.best_parameters, self.region     # type: PRIOELEM
+        self.region_values = [first_entry]                                   # type: List[PRIOELEM]
 
-    def __enqueue(self, value: float, region: AREA):
+    def __enqueue(self, prio_elem: PRIOELEM):
         i = 0
-        while i < len(self.region_values) and value < self.region_values[i][0]:
+        while i < len(self.region_values) and prio_elem[0] < self.region_values[i][0]:
             i += 1
-        self.region_values.insert(i, (value, region))
+        self.region_values.insert(i, prio_elem)
 
-    def next(self):
-        _, current_region = self.region_values.pop(0)
-        current_center = MyOptimizer._get_center(current_region)
-        current_value = self.eval(current_center)
+    @staticmethod
+    def __diameter(region: AREA) -> float:
+        point_a, point_b = region
+        len_a, len_b = len(point_a), len(point_b)
+        if len_a != len_b:
+            raise ValueError("Border points not of equal dimension.")
+
+        return sqrt(sum((point_a[_i] - point_b[_i]) ** 2. for _i in range(len_a)))
+
+    def next(self) -> POINT:
+        _, current_center, current_region = self.region_values.pop(0)
         for each_sub_region in MyOptimizer._subdivide(current_region, current_center):
-            self.__enqueue(current_value, each_sub_region)
+            each_center = MyOptimizer._get_center(each_sub_region)                      # type: POINT
+            each_value = self.eval(each_center)                                         # type: float
+            priority = each_value + MyOptimizer.__diameter(each_sub_region)             # type: float
+            element = priority, each_center, each_sub_region                            # type: PRIOELEM
+            self.__enqueue(element)
 
-        if self.best_value < current_value or self.first_value:
-            self.best_value = current_value
-            self.best_parameters = current_center
-            self.first_value = False
+            if self.best_value < each_value or self.first_value:
+                self.best_value = each_value
+                self.best_parameters = each_center
+                self.first_value = False
 
         while 0 < self.limit < len(self.region_values):
             self.region_values.pop()
+
+        return current_center
 
     @staticmethod
     def _get_center(borders: AREA) -> POINT:
@@ -159,16 +180,19 @@ class MyOptimizer:
 
 
 def main():
-    f = lambda _x: sin(_x[0] / 50.) + cos(_x[0] / 17.)
+    f = lambda _x: .5 * sin(_x[0] / 7.) + 11. * cos(_x[0] / 17.) + 3.
     x_values = range(1000)
     y_values = [f((_x, )) for _x in x_values]
 
-    o = MyOptimizer(f, ((0.,), (1000.,)))   # give limits, not edges
+    o = MyOptimizer(f, ((0., 1000), ))
 
     pyplot.plot(x_values, y_values)
 
-    for _ in range(1000):
-        o.next()
+    for _i in range(1000):
+        if Timer.time_passed(2000):
+            print("{:05.2f}% finished".format(100. * _i / 1000.))
+        c = o.next()
+        pyplot.axvline(x=c[0], alpha=.1)
         p = o.best_parameters
         v = o.best_value
         pyplot.plot(p, [v], "o")
