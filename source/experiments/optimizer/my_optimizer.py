@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import itertools
 import logging
+import sys
 from math import sin, cos, sqrt
 from typing import Callable, Sequence, Tuple, Optional, List, Union
 
 from matplotlib import pyplot
 
+from source.data.data_generation import DEBUG_SERIES
 from source.experiments.timer import Timer
 
 
@@ -122,11 +124,10 @@ class MyOptimizer:
         origin = tuple(min(_x) for _x in ranges)                             # type: POINT
         destination = tuple(max(_x) for _x in ranges)                        # type: POINT
         self.region = (origin, destination)                                  # type: AREA
-        self.full_diameter = MyOptimizer.__diameter(self.region)             # type: float
+        self.full_diameter = MyOptimizer.__diagonal(self.region)             # type: float
         self.limit = limit
 
-        self.first_value = True                                              # type: bool
-        self.best_value = 0.                                                 # type: float
+        self.best_value = float("-inf")                                      # type: float
         self.best_parameters = MyOptimizer._get_center(self.region)          # type: POINT
         first_entry = self.best_value, self.best_parameters, self.region     # type: PRIOELEM
         self.region_values = [first_entry]                                   # type: List[PRIOELEM]
@@ -138,7 +139,7 @@ class MyOptimizer:
         self.region_values.insert(i, prio_elem)
 
     @staticmethod
-    def __diameter(region: AREA) -> float:
+    def __diagonal(region: AREA) -> float:
         point_a, point_b = region
         len_a, len_b = len(point_a), len(point_b)
         if len_a != len_b:
@@ -151,14 +152,13 @@ class MyOptimizer:
         for each_sub_region in MyOptimizer._subdivide(current_region, current_center):
             each_center = MyOptimizer._get_center(each_sub_region)                      # type: POINT
             each_value = self.eval(each_center)                                         # type: float
-            priority = each_value + MyOptimizer.__diameter(each_sub_region)             # type: float
+            priority = each_value + MyOptimizer.__diagonal(each_sub_region)             # type: float
             element = priority, each_center, each_sub_region                            # type: PRIOELEM
             self.__enqueue(element)
 
-            if self.best_value < each_value or self.first_value:
+            if self.best_value < each_value:
                 self.best_value = each_value
                 self.best_parameters = each_center
-                self.first_value = False
 
         while 0 < self.limit < len(self.region_values):
             self.region_values.pop()
@@ -176,26 +176,36 @@ class MyOptimizer:
 
     @staticmethod
     def _subdivide(borders: AREA, center: POINT) -> Tuple[AREA, ...]:
+        # check circular equidistant distribution
         return tuple((_x, center) for _x in itertools.product(*zip(*borders)))
 
 
 def main():
-    f = lambda _x: .5 * sin(_x[0] / 7.) + 11. * cos(_x[0] / 17.) + 3.
-    x_values = range(1000)
-    y_values = [f((_x, )) for _x in x_values]
+    y_values = [_x[1] for _x in DEBUG_SERIES("BNB", config_path="../../../configs/config.json")]
+    max_value = max(y_values)
+    length = len(y_values)
+    x_values = list(range(length))
+    f = lambda _x: y_values[round(_x[0])]
 
-    o = MyOptimizer(f, ((0., 1000), ))
+    o = MyOptimizer(f, ((0., length), ))
 
     pyplot.plot(x_values, y_values)
 
-    for _i in range(1000):
-        if Timer.time_passed(2000):
-            print("{:05.2f}% finished".format(100. * _i / 1000.))
+    last_best = float("-inf")
+    for _i in range(10000):
         c = o.next()
         pyplot.axvline(x=c[0], alpha=.1)
+
         p = o.best_parameters
         v = o.best_value
         pyplot.plot(p, [v], "o")
+
+        if last_best < v:
+            print("{:05.2f}% of maximum after {:d} iterations".format(100. * v / max_value, _i))
+            if v >= max_value:
+                pyplot.axvline(x=p[0], alpha=1.)
+                break
+            last_best = v
 
     pyplot.show()
 
