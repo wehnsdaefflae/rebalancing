@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-
+import itertools
 import logging
-from typing import Callable, Sequence, Tuple
+from math import sin, cos
+from typing import Callable, Sequence, Tuple, Optional, List
+
+from matplotlib import pyplot
 
 
 class PriorityQueue(list):
@@ -105,21 +108,44 @@ class EquiprobabilitySampling:
 
 
 POINT = Tuple[float, ...]
-REGION = Tuple[POINT, POINT]
+AREA = Tuple[POINT, POINT]
 
 
 class MyOptimizer:
-    def __init__(self, evaluation_function: Callable[[Tuple[POINT, ...]], float], borders: REGION):
+    def __init__(self, evaluation_function: Callable[[POINT], float], region: AREA, limit: int = 1000):
+        # convert from limits to points
         self.eval = evaluation_function
-        self.borders = borders
+        self.region = region
+        self.limit = limit
 
-        self.next_region = [(.0,  borders)]
-        self.best_parameters = self.get_center(borders)
+        self.first_value = True                             # type: bool
+        self.best_value = 0.                                # type: float
+        self.region_values = [(self.best_value, region)]    # type: List[Tuple[float, AREA]]
+        self.best_parameters = None                         # type: Optional[POINT]
 
-    def __next__(self):
-        pass
+    def __enqueue(self, value: float, region: AREA):
+        i = 0
+        while i < len(self.region_values) and value < self.region_values[i][0]:
+            i += 1
+        self.region_values.insert(i, (value, region))
 
-    def get_center(self, borders: REGION) -> POINT:
+    def next(self):
+        _, current_region = self.region_values.pop(0)
+        current_center = MyOptimizer._get_center(current_region)
+        current_value = self.eval(current_center)
+        for each_sub_region in MyOptimizer._subdivide(current_region, current_center):
+            self.__enqueue(current_value, each_sub_region)
+
+        if self.best_value < current_value or self.first_value:
+            self.best_value = current_value
+            self.best_parameters = current_center
+            self.first_value = False
+
+        while 0 < self.limit < len(self.region_values):
+            self.region_values.pop()
+
+    @staticmethod
+    def _get_center(borders: AREA) -> POINT:
         point_a, point_b = borders
         len_a, len_b = len(point_a), len(point_b)
         if len_a != len_b:
@@ -127,33 +153,27 @@ class MyOptimizer:
 
         return tuple((point_a[_i] + point_b[_i]) / 2. for _i in range(len_a))
 
-    def subdivide(self, borders: REGION) -> Tuple[REGION, ...]:
-        # len edges = 2 ** dimensions
-        offset = self.get_center(borders)
-        dim = len(offset)
-
-        point_a, point_b = borders
-        origins = [point_a]
-        for _i in range(dim):
-            new_a = tuple(point_a[_j] if _j != _i else offset[_j] for _j in range(dim))
-            origins.append(new_a)
-        origins.append(offset)
-        regions = tuple((each_origin, tuple(each_origin[_x] + offset[_x] for _x in range(dim))) for each_origin in origins)
-        return regions
+    @staticmethod
+    def _subdivide(borders: AREA, center: POINT) -> Tuple[AREA, ...]:
+        return tuple((_x, center) for _x in itertools.product(*zip(*borders)))
 
 
 def main():
-    # region = (0., 0.), (1., 1.)
-    region = (0., 0., 0.), (1., 1., 1)
-    # o = MyOptimizer(lambda _x, _y: _x, region)
-    o = MyOptimizer(lambda _x, _y, _z: _x, region)
-    center = o.get_center(region)
-    print(center)
-    print()
-    print("\n".join(str(_e) for _e in o.borders))
-    print()
-    divisions = o.subdivide(o.borders)
-    print("\n".join(str(_e) for _e in divisions))
+    f = lambda _x: sin(_x[0] / 50.) + cos(_x[0] / 17.)
+    x_values = range(1000)
+    y_values = [f((_x, )) for _x in x_values]
+
+    o = MyOptimizer(f, ((0.,), (1000.,)))   # give limits, not edges
+
+    pyplot.plot(x_values, y_values)
+
+    for _ in range(1000):
+        o.next()
+        p = o.best_parameters
+        v = o.best_value
+        pyplot.plot(p, [v], "o")
+
+    pyplot.show()
 
 
 if __name__ == "__main__":
