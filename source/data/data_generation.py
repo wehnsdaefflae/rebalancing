@@ -18,6 +18,7 @@ def absolute_brownian(initial=1., factor=1., relative_bias=0.):  # constant equi
     while True:
         yield a
         if 0. < a:
+            # numpy.random.standard_cauchy
             rnd_value = random.gauss(0., .2 / 4.)
             rnd_value = 2. * factor * random.random() - factor + relative_bias * factor
             a = max(a + rnd_value / 100., .0)

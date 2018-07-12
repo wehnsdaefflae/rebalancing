@@ -152,7 +152,11 @@ class MyOptimizer:
         for each_sub_region in MyOptimizer._subdivide(current_region, current_center):
             each_center = MyOptimizer._get_center(each_sub_region)                      # type: POINT
             each_value = self.eval(each_center)                                         # type: float
-            priority = each_value + MyOptimizer.__diagonal(each_sub_region)             # type: float
+            diagonal = MyOptimizer.__diagonal(each_sub_region)
+            if 0. >= diagonal:
+                continue
+            # what if values are neg?
+            priority = each_value * diagonal            # type: float
             element = priority, each_center, each_sub_region                            # type: PRIOELEM
             self.__enqueue(element)
 
@@ -181,18 +185,23 @@ class MyOptimizer:
 
 
 def main():
-    y_values = [_x[1] for _x in DEBUG_SERIES("BNB", config_path="../../../configs/config.json")]
-    max_value = max(y_values)
+    y_values = [_x[1] for _x in DEBUG_SERIES("EOS", config_path="../../../configs/config.json")]
     length = len(y_values)
     x_values = list(range(length))
     f = lambda _x: y_values[round(_x[0])]
 
+    length = 1000
+    x_values = list(range(length))
+    f = lambda _x: sin(_x[0] * .07) + cos(_x[0] * .03) - 5.
+    y_values = [f([x]) for x in x_values]
+
+    max_value = max(y_values)
     o = MyOptimizer(f, ((0., length), ))
 
     pyplot.plot(x_values, y_values)
 
     last_best = float("-inf")
-    for _i in range(10000):
+    for _i in range(500):
         c = o.next()
         pyplot.axvline(x=c[0], alpha=.1)
 
