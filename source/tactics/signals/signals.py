@@ -281,22 +281,24 @@ def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.da
     other_value = []
     amount_cur = -1.
     tolerance = .1
+    trading_factor = .9975
 
     for each_date, each_rate in time_series:
         tendency = signal.get_tendency(each_rate)
         if tendency >= tolerance:
             if 0. < value_eth:
                 buys.append(each_date)
-                value_cur += value_eth / each_rate
+                value_cur += trading_factor * value_eth / each_rate
                 value_eth = 0.
         elif -tolerance >= tendency:
             if 0. < value_cur:
                 sells.append(each_date)
-                value_eth += value_cur * each_rate
+                value_eth += trading_factor * value_cur * each_rate
                 value_cur = 0.
 
         if amount_cur < 0.:
             amount_cur = 1. / each_rate
+
         other_value.append(amount_cur * each_rate)
         time_axis.append(each_date)
         signal_axis.append(tendency)
@@ -311,7 +313,7 @@ def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.da
         ax2.plot(time_axis, signal_axis)
         ax2.set_ylabel("signal")
         ax3.plot(time_axis, total_value, label="total value")
-        ax3.plot(time_axis, other_value, label="all {:s} value".format(cur))
+        ax3.plot(time_axis, other_value, label="{:s} value".format(cur))
         ax3.set_ylabel("total value in ETH")
         ax3.legend()
 
@@ -327,25 +329,30 @@ def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.da
         pyplot.tight_layout()
         pyplot.show()
 
-    return total_value[-1]
+    return total_value[-1]  #  / other_value[-1]  # against hodling
 
 
-def optimize_signal(signal: TradingSignal, time_series: Iterable[Tuple[datetime.datetime, float]]):
-    cur = "EOS"
-    time_series = [_x for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")]
-
+def optimize_signal(signal: TradingSignal, time_series: Sequence[Tuple[datetime.datetime, float]]):
     def series_eval(parameter: float): return evaluate_parameter(parameter, time_series)
 
     optimizer = MyOptimizer(series_eval, ((1., 1000.),))
+    axes = []
 
-    for i in range(50):
+    for i in range(200):
         print("Iteration {:d}".format(i))
         c = optimizer.next()
-        pyplot.plot(c, [series_eval(*c)], "o")
+        each_value = series_eval(*c)
+        point = c[0], each_value
+        axes.append(point)
+        pyplot.plot(c, [each_value], "x")
 
+    axes = sorted(axes, key=lambda _x: _x[0])
+    pyplot.plot(*zip(*axes))
+    print("Best parameters: {:s} (value: {:.4f})".format(str(optimizer.best_parameters), optimizer.best_value))
     pyplot.show()
 
 
 if __name__ == "__main__":
-    # optimize_signal(None, None)
-    evaluate_parameter(329, DEBUG_SERIES("EOS", config_path="../../../configs/config.json"), plot=True)
+    data_generator = DEBUG_SERIES("BNB", config_path="../../../configs/config.json")
+    optimize_signal(None, list(data_generator))
+    # evaluate_parameter(508, data_generator, plot=True)
