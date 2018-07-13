@@ -7,6 +7,7 @@ from matplotlib.axes import Axes
 
 from source.data.data_generation import DEBUG_SERIES
 from source.experiments.optimizer.my_optimizer import MyOptimizer
+from source.experiments.timer import Timer
 
 SIGNAL_INPUT = TypeVar("SIGNAL_INPUT")
 RATE_INFO = Dict[str, float]
@@ -329,9 +330,9 @@ class FakeSignal(StatelessMixin, TradingSignal[float]):
 def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.datetime, float]], plot: bool = False):
     cur = "asset"
     # signal = RelativeStrengthIndexSignal(history_length=round(parameter))
-    #signal = SymmetricChannelSignal(window_size=round(parameter))
-    signal = AsymmetricChannelSignal(window_size=round(parameter), invert=True)
-    # signal = HillValleySignal(window_size=round(parameter))
+    signal = SymmetricChannelSignal(window_size=round(parameter))
+    #signal = AsymmetricChannelSignal(window_size=round(parameter), invert=True)
+    #signal = HillValleySignal(window_size=round(parameter))
 
     # signal = FakeSignal([_x[1] for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")])
 
@@ -399,11 +400,14 @@ def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.da
 def optimize_signal(signal: TradingSignal, time_series: Sequence[Tuple[datetime.datetime, float]], plot: bool = True):
     def series_eval(parameter: float): return evaluate_parameter(parameter, time_series)
 
-    optimizer = MyOptimizer(series_eval, ((1., 10000.),))
+    optimizer = MyOptimizer(series_eval, ((1., 1000.),))
     axes = []
 
-    for i in range(100):
-        print("Iteration {:d}".format(i))
+    sampling = 50
+
+    for i in range(sampling):
+        if Timer.time_passed(2000):
+            print("Iteration {:d}/{:d}".format(i, sampling))
         c = optimizer.next()
         each_value = series_eval(*c)
         point = c[0], each_value
@@ -425,16 +429,20 @@ def optimal_parameter_development(start_time, end_time, trail_length):
     _config["start_time"] = start_time
     _config["end_time"] = end_time
 
-    time_axis, time_series = zip(*DEBUG_SERIES("QTUM", "ETH", **config))
+    time_series = list(DEBUG_SERIES("QTUM", "ETH", **_config))
+    time_axis = [_x[0] for _x in time_series]
 
     if trail_length >= len(time_series):
         raise ValueError("Trail length is too long for time series")
 
     optimal_parameter_axis = []
-    time_axis = []
     for i in range(len(time_series) - trail_length):
-        optimize_signal(None, time_series[i:i+trail_length], plot=False)
+        max_parameters, max_value = optimize_signal(None, time_series[i:i+trail_length], plot=False)
+        optimal_parameter_axis.append(max_parameters[0])
+        print("Finished {:d}/{:d} trails...".format(i, len(time_series) - trail_length))
 
+    pyplot.plot(time_axis[trail_length:], optimal_parameter_axis)
+    pyplot.show()
 
 
 if __name__ == "__main__":
@@ -446,4 +454,4 @@ if __name__ == "__main__":
 
     # optimize_signal(None, list(data_generator))
     # evaluate_parameter(3250, data_generator, plot=True)
-    optimal_parameter_development("2017-07-27 00:03:00 UTC", "2018-06-22 23:52:00 UTC", 500)
+    optimal_parameter_development("2017-07-27 00:03:00 UTC", "2017-08-27 23:52:00 UTC", 1008)  # one week trailing
