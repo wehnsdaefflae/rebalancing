@@ -1,5 +1,5 @@
 import datetime
-from typing import Sequence, Any, Dict, TypeVar, Generic, Iterable
+from typing import Sequence, Any, Dict, TypeVar, Generic, Iterable, Tuple
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
@@ -261,6 +261,9 @@ class FakeSignal(StatelessMixin, TradingSignal[float]):
     def _plot(self, time: Sequence[datetime.datetime], axis: Axes):
         pass
 
+
+def optimize_signal(signal: TradingSignal, time_series: Iterable[Tuple[datetime.datetime, float]]):
+    pass
 
 def main():
     cur = "EOS"
