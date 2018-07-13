@@ -1,4 +1,5 @@
 import datetime
+import json
 from typing import Sequence, Any, Dict, TypeVar, Generic, Iterable, Tuple
 
 from matplotlib import pyplot
@@ -64,6 +65,7 @@ class SymmetricChannelSignal(StatelessMixin, TradingSignal[float]):
             raise ValueError("Window must be > 1!")
         TradingSignal.__init__(self, initialization=window_size)
         StatelessMixin.__init__(self)
+        # dont learn expectation and deviation but cauchy parameters s, t: f(x) = (1 / pi) * (s / (s ** 2 + (x - t) ** 2))
         self.e = -1.
         self.d = -1.
         self.is_running = False
@@ -108,6 +110,67 @@ class SymmetricChannelSignal(StatelessMixin, TradingSignal[float]):
         lower = [_e - _d for _e, _d in zip(self.expect, self.dev)]
         axis.plot(time[self.initialization:], lower, label="lower bound")
         upper = [_e + _d for _e, _d in zip(self.expect, self.dev)]
+        axis.plot(time[self.initialization:], upper, label="upper bound")
+
+
+class AsymmetricChannelSignal(StatelessMixin, TradingSignal[float]):
+    def __init__(self, window_size: int = 50, invert: bool = False):
+        if window_size < 1:
+            raise ValueError("Window must be > 1!")
+        TradingSignal.__init__(self, initialization=window_size)
+        StatelessMixin.__init__(self)
+
+        self.e = -1.
+        self.d_up = -1.
+        self.d_dn = -1.
+        self.is_running = False
+        self.window_size = window_size // 2
+        self.invert = invert
+        self.last_position = 0
+        self.expect, self.dev_up, self.dev_dn = [], [], []
+
+    def _log(self):
+        if self.iterations < self.initialization:
+            return
+        self.dev_up.append(self.d_up)
+        self.dev_dn.append(self.d_dn)
+        self.expect.append(self.e)
+
+    def _get_signal(self, source_info: float) -> float:
+        v = source_info
+        if not self.is_running:
+            self.e = v
+            self.d_up = 0.
+            self.d_dn = 0.
+            self.is_running = True
+        else:
+            self.e = (self.e * (self.window_size - 1) + v) / self.window_size
+            if (v >= self.e and not self.invert) or (v < self.e and self.invert):
+                self.d_up = (self.d_up * (self.window_size - 1) + abs(self.e - v)) / self.window_size
+            elif (v < self.e and not self.invert) or (v >= self.e and self.invert):
+                self.d_dn = (self.d_dn * (self.window_size - 1) + abs(self.e - v)) / self.window_size
+
+        if v >= self.e + self.d_up:
+            position = 1
+        elif v < self.e - self.d_dn:
+            position = -1
+        else:
+            position = 0
+
+        tendency = 0.
+        if position == 0:
+            if self.last_position == 1:
+                tendency = -1.
+            elif self.last_position == -1:
+                tendency = 1.
+        self.last_position = position
+        return tendency
+
+    def _plot(self, time: Sequence[datetime.datetime], axis: Axes):
+        axis.plot(time[self.initialization:], self.expect, label="expectation")
+        lower = [_e - _d for _e, _d in zip(self.expect, self.dev_dn)]
+        axis.plot(time[self.initialization:], lower, label="lower bound")
+        upper = [_e + _d for _e, _d in zip(self.expect, self.dev_up)]
         axis.plot(time[self.initialization:], upper, label="upper bound")
 
 
@@ -266,7 +329,8 @@ class FakeSignal(StatelessMixin, TradingSignal[float]):
 def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.datetime, float]], plot: bool = False):
     cur = "asset"
     # signal = RelativeStrengthIndexSignal(history_length=round(parameter))
-    signal = SymmetricChannelSignal(window_size=round(parameter))
+    #signal = SymmetricChannelSignal(window_size=round(parameter))
+    signal = AsymmetricChannelSignal(window_size=round(parameter), invert=True)
     # signal = HillValleySignal(window_size=round(parameter))
 
     # signal = FakeSignal([_x[1] for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")])
@@ -312,8 +376,8 @@ def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.da
         signal.plot(time_axis, ax1, axis_label=cur)
         ax2.plot(time_axis, signal_axis)
         ax2.set_ylabel("signal")
-        ax3.plot(time_axis, total_value, label="total value")
         ax3.plot(time_axis, other_value, label="{:s} value".format(cur))
+        ax3.plot(time_axis, total_value, label="total value")
         ax3.set_ylabel("total value in ETH")
         ax3.legend()
 
@@ -332,27 +396,54 @@ def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.da
     return total_value[-1]  #  / other_value[-1]  # against hodling
 
 
-def optimize_signal(signal: TradingSignal, time_series: Sequence[Tuple[datetime.datetime, float]]):
+def optimize_signal(signal: TradingSignal, time_series: Sequence[Tuple[datetime.datetime, float]], plot: bool = True):
     def series_eval(parameter: float): return evaluate_parameter(parameter, time_series)
 
-    optimizer = MyOptimizer(series_eval, ((1., 1000.),))
+    optimizer = MyOptimizer(series_eval, ((1., 10000.),))
     axes = []
 
-    for i in range(200):
+    for i in range(100):
         print("Iteration {:d}".format(i))
         c = optimizer.next()
         each_value = series_eval(*c)
         point = c[0], each_value
         axes.append(point)
-        pyplot.plot(c, [each_value], "x")
+        if plot:
+            pyplot.plot(c, [each_value], "x")
 
-    axes = sorted(axes, key=lambda _x: _x[0])
-    pyplot.plot(*zip(*axes))
     print("Best parameters: {:s} (value: {:.4f})".format(str(optimizer.best_parameters), optimizer.best_value))
-    pyplot.show()
+    if plot:
+        axes = sorted(axes, key=lambda _x: _x[0])
+        pyplot.plot(*zip(*axes))
+        pyplot.show()
+    return optimizer.best_parameters, optimizer.best_value
+
+
+def optimal_parameter_development(start_time, end_time, trail_length):
+    with open("../../../configs/time_series.json", mode="r") as _file:
+        _config = json.load(_file)
+    _config["start_time"] = start_time
+    _config["end_time"] = end_time
+
+    time_axis, time_series = zip(*DEBUG_SERIES("QTUM", "ETH", **config))
+
+    if trail_length >= len(time_series):
+        raise ValueError("Trail length is too long for time series")
+
+    optimal_parameter_axis = []
+    time_axis = []
+    for i in range(len(time_series) - trail_length):
+        optimize_signal(None, time_series[i:i+trail_length], plot=False)
+
 
 
 if __name__ == "__main__":
-    data_generator = DEBUG_SERIES("BNB", config_path="../../../configs/config.json")
-    optimize_signal(None, list(data_generator))
-    # evaluate_parameter(508, data_generator, plot=True)
+    with open("../../../configs/time_series.json", mode="r") as file:
+        config = json.load(file)
+    config["start_time"] = "2017-07-27 00:03:00 UTC"
+    config["end_time"] = "2018-06-22 23:52:00 UTC"
+    data_generator = DEBUG_SERIES("QTUM", "ETH", **config)
+
+    # optimize_signal(None, list(data_generator))
+    # evaluate_parameter(3250, data_generator, plot=True)
+    optimal_parameter_development("2017-07-27 00:03:00 UTC", "2018-06-22 23:52:00 UTC", 500)

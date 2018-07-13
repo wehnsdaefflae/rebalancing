@@ -2,6 +2,8 @@ import datetime
 import json
 import random
 import numpy
+from dateutil import parser
+from dateutil.tz import tzutc
 
 
 def relative_brownian(initial=1., drift=.0, volatility=.01):  # relative normally distributed change
@@ -38,7 +40,7 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
             if -1 < start_timestamp:
                 if start_timestamp < row_ts:
                     if i < 1:
-                        first_date = datetime.datetime.utcfromtimestamp(row_ts)
+                        first_date = datetime.datetime.fromtimestamp(row_ts, tz=tzutc())
                         msg = "Source {:s} starts after {:s} (at {:s})!"
                         raise ValueError(msg.format(file_path, str(range_start), str(first_date)))
                 elif row_ts < end_timestamp:
@@ -48,24 +50,19 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
                 break
 
             close = float(row[4])
-            yield datetime.datetime.utcfromtimestamp(row_ts), close
+            yield datetime.datetime.fromtimestamp(row_ts, tz=tzutc()), close
 
         if row_ts < end_timestamp:
-            last_date = datetime.datetime.utcfromtimestamp(row_ts)
+            last_date = datetime.datetime.fromtimestamp(row_ts, tz=tzutc())
             msg = "Source {:s} ends before {:s} (at {:s})!"
             raise ValueError(msg.format(file_path, str(range_end), str(last_date)))
 
 
-def DEBUG_SERIES(cur_a, cur_b="ETH", config_path="../../configs/config.json"):
-    with open(config_path, mode="r") as file:
-        config = json.load(file)
-    source_dir = config["data_dir"]     # "../../configs/23Jun2017-23Jun2018-1m/"
-    target_dir = config["target_dir"]  # "../../results/dtw/2018-06-25/"
-    interval_minutes = config["interval_minutes"]
-    start_date = datetime.datetime.strptime(config["start_time"], "%Y-%m-%d_%H:%M:%S_%Z")
-    end_date = datetime.datetime.strptime(config["end_time"], "%Y-%m-%d_%H:%M:%S_%Z")
+def DEBUG_SERIES(cur_a, cur_b, data_dir, interval_minutes, start_time, end_time):
+    start_date = parser.parse(start_time)  # datetime.datetime.strptime(start_time, "%Y-%m-%d_%H:%M:%S_%Z")
+    end_date = parser.parse(end_time)  # datetime.datetime.strptime(end_time, "%Y-%m-%d_%H:%M:%S_%Z")
 
-    source_path = source_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
+    source_path = data_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
     time_series = series_generator(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
     return time_series
 
