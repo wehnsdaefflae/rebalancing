@@ -403,11 +403,11 @@ def optimize_signal(signal: TradingSignal, time_series: Sequence[Tuple[datetime.
     optimizer = MyOptimizer(series_eval, ((1., 1000.),))
     axes = []
 
-    sampling = 50
+    samples = 50
 
-    for i in range(sampling):
+    for i in range(samples):
         if Timer.time_passed(2000):
-            print("Iteration {:d}/{:d}".format(i, sampling))
+            print("Iteration {:d}/{:d}".format(i, samples))
         c = optimizer.next()
         each_value = series_eval(*c)
         point = c[0], each_value
