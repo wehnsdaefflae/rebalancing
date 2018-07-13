@@ -58,24 +58,24 @@ class MyOptimizer:
         return tuple((_x, center) for _x in itertools.product(*zip(*borders)))
 
     def next(self) -> POINT:
-        _, current_center, current_region = self.region_values.pop(0)           # type: float, POINT, AREA
+        current_value, current_center, current_region = self.region_values.pop(0)   # type: float, POINT, AREA
         for each_sub_region in MyOptimizer._divide(current_region, current_center):
-            each_value, each_center = self.__evaluate(each_sub_region)          # type: float, POINT
+            each_value, each_center = self.__evaluate(each_sub_region)              # type: float, POINT
             if len(each_center) != self.dimensionality:
                 msg = "Expected {:d} dimensions, received {:d}."
                 raise ValueError(msg.format(self.dimensionality, len(each_center)))
             if each_value < 0.:
                 raise ValueError("Evaluation cannot be negative.")
 
-            diagonal = self.__diagonal(each_sub_region)                         # type: float
+            diagonal = self.__diagonal(each_sub_region)                             # type: float
             if 0. >= diagonal:
                 continue
-            element = each_value * diagonal, each_center, each_sub_region       # type: PRIORITY_ELEMENT
+            element = each_value * diagonal, each_center, each_sub_region           # type: PRIORITY_ELEMENT
             self.__enqueue(element)
 
             if self.best_value < each_value:
-                self.best_value = each_value                                    # type: float
-                self.best_parameters = each_center                              # type: POINT
+                self.best_value = each_value                                        # type: float
+                self.best_parameters = each_center                                  # type: POINT
 
         while 0 < self.limit < len(self.region_values):
             self.region_values.pop()

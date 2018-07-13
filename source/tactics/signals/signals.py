@@ -5,6 +5,7 @@ from matplotlib import pyplot
 from matplotlib.axes import Axes
 
 from source.data.data_generation import DEBUG_SERIES
+from source.experiments.optimizer.my_optimizer import MyOptimizer
 
 SIGNAL_INPUT = TypeVar("SIGNAL_INPUT")
 RATE_INFO = Dict[str, float]
@@ -262,14 +263,12 @@ class FakeSignal(StatelessMixin, TradingSignal[float]):
         pass
 
 
-def optimize_signal(signal: TradingSignal, time_series: Iterable[Tuple[datetime.datetime, float]]):
-    pass
+def evaluate_parameter(parameter: float, time_series: Iterable[Tuple[datetime.datetime, float]], plot: bool = False):
+    cur = "asset"
+    # signal = RelativeStrengthIndexSignal(history_length=round(parameter))
+    signal = SymmetricChannelSignal(window_size=round(parameter))
+    # signal = HillValleySignal(window_size=round(parameter))
 
-def main():
-    cur = "EOS"
-    # signal = RelativeStrengthIndexSignal(history_length=100)
-    # signal = SymmetricChannelSignal(window_size=500)
-    signal = HillValleySignal(window_size=50)
     # signal = FakeSignal([_x[1] for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")])
 
     time_axis = []
@@ -283,7 +282,7 @@ def main():
     amount_cur = -1.
     tolerance = .1
 
-    for each_date, each_rate in DEBUG_SERIES(cur, config_path="../../../configs/config.json"):
+    for each_date, each_rate in time_series:
         tendency = signal.get_tendency(each_rate)
         if tendency >= tolerance:
             if 0. < value_eth:
@@ -303,31 +302,50 @@ def main():
         signal_axis.append(tendency)
         total_value.append(value_eth + value_cur * each_rate)
 
-    print("success: {:.5f}".format(total_value[-1]))
-    pyplot.clf()
-    pyplot.close()
+    if plot:
+        pyplot.clf()
+        pyplot.close()
 
-    fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
-    signal.plot(time_axis, ax1, axis_label=cur)
-    ax2.plot(time_axis, signal_axis)
-    ax2.set_ylabel("signal")
-    ax3.plot(time_axis, total_value, label="total value")
-    ax3.plot(time_axis, other_value, label="all {:s} value".format(cur))
-    ax3.set_ylabel("total value in ETH")
-    ax3.legend()
+        fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
+        signal.plot(time_axis, ax1, axis_label=cur)
+        ax2.plot(time_axis, signal_axis)
+        ax2.set_ylabel("signal")
+        ax3.plot(time_axis, total_value, label="total value")
+        ax3.plot(time_axis, other_value, label="all {:s} value".format(cur))
+        ax3.set_ylabel("total value in ETH")
+        ax3.legend()
 
-    for each_buy in buys:
-        ax1.axvline(x=each_buy, color="red", alpha=.2)
-        ax2.axvline(x=each_buy, color="red", alpha=.2)
-        ax3.axvline(x=each_buy, color="red", alpha=.2)
-    for each_sell in sells:
-        ax1.axvline(x=each_sell, color="green", alpha=.2)
-        ax2.axvline(x=each_sell, color="green", alpha=.2)
-        ax3.axvline(x=each_sell, color="green", alpha=.2)
+        for each_buy in buys:
+            ax1.axvline(x=each_buy, color="red", alpha=.2)
+            ax2.axvline(x=each_buy, color="red", alpha=.2)
+            ax3.axvline(x=each_buy, color="red", alpha=.2)
+        for each_sell in sells:
+            ax1.axvline(x=each_sell, color="green", alpha=.2)
+            ax2.axvline(x=each_sell, color="green", alpha=.2)
+            ax3.axvline(x=each_sell, color="green", alpha=.2)
 
-    pyplot.tight_layout()
+        pyplot.tight_layout()
+        pyplot.show()
+
+    return total_value[-1]
+
+
+def optimize_signal(signal: TradingSignal, time_series: Iterable[Tuple[datetime.datetime, float]]):
+    cur = "EOS"
+    time_series = [_x for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")]
+
+    def series_eval(parameter: float): return evaluate_parameter(parameter, time_series)
+
+    optimizer = MyOptimizer(series_eval, ((1., 1000.),))
+
+    for i in range(50):
+        print("Iteration {:d}".format(i))
+        c = optimizer.next()
+        pyplot.plot(c, [series_eval(*c)], "o")
+
     pyplot.show()
 
 
 if __name__ == "__main__":
-    main()
+    # optimize_signal(None, None)
+    evaluate_parameter(329, DEBUG_SERIES("EOS", config_path="../../../configs/config.json"), plot=True)
