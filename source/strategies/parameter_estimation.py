@@ -121,36 +121,44 @@ def optimize_signal(signal_class: Type[TradingSignal],
 
 def optimal_parameter_development(signal_class: Type[TradingSignal],
                                   trail_length: int,
+                                  sampling_frequency: int,
+                                  parameter_ranges: Tuple[Tuple[float, float], ...],
                                   time_series: TIME_SERIES,
                                   plot: bool = False):
     sequence = list(time_series)
     if trail_length >= len(sequence):
         raise ValueError("Trail length is too long for time series")
 
-    sampling_frequency = 100
-    parameter_ranges = (1., 1000),
     time_axis = [_x[0] for _x in sequence]
     optimal_parameter_axis = []
     for i in range(len(sequence) - trail_length):
         trail = sequence[i:i+trail_length]
         max_parameters, max_value = optimize_signal(signal_class, trail, parameter_ranges, sampling_frequency)
-        optimal_parameter_axis.append(max_parameters[0])
+        optimal_parameter_axis.append((max_parameters[0], max_value))
         print("Finished {:d}/{:d} trails...".format(i, len(sequence) - trail_length))
 
     if plot:
+        max_value = max(_x[1] for _x in optimal_parameter_axis)
+        for each_time, (each_parameter, each_value) in zip(time_axis[trail_length:], optimal_parameter_axis):
+            size = 100. * each_value / max_value
+            if each_value >= max_value:
+                pyplot.scatter(each_time, each_parameter, s=size, alpha=.5, label="{:.5}f".format(each_value))
+            else:
+                pyplot.scatter(each_time, each_parameter, s=size, alpha=.5)
         pyplot.plot(time_axis[trail_length:], optimal_parameter_axis)
+        pyplot.legend()
         pyplot.show()
 
 
 if __name__ == "__main__":
-    with open("../../configs/time_series.json", mode="r") as file:
+    with open("../../configs/config.json", mode="r") as file:
         config = json.load(file)
 
     # start_time = "2017-07-27 00:03:00 UTC"
     # end_time = "2018-06-22 23:52:00 UTC"
-    start_time = "2017-07-27 00:03:00 UTC"
-    end_time = "2017-08-27 23:52:00 UTC"
-    interval_minutes = 120
+    start_time = "2017-08-01 00:00:00 UTC"
+    end_time = "2017-08-08 00:00:00 UTC"
+    interval_minutes = 10
 
     asset_symbol, base_symbol = "QTUM", "ETH"
 
@@ -164,7 +172,8 @@ if __name__ == "__main__":
     # optimize_signal(SymmetricChannelSignal, series_generator, ((1., 250), ), 2000, plot=True)
 
     signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, RelativeStrengthIndexSignal]
+
     # one week: 1008 * 10 minutes, 8 * 120 min
-    optimal_parameter_development(signal_classes[0], 8, series_generator, plot=True)
+    optimal_parameter_development(signal_classes[1], 144, 20, ((1., 50), ), series_generator, plot=True)
     # consider value in plot. close to 1 doesnt mean much
 
