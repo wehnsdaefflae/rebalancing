@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import itertools
+import json
 from math import sin, cos, sqrt
 from typing import Callable, Sequence, Tuple, List
 
 from matplotlib import pyplot
 
-from source.data.data_generation import DEBUG_SERIES
+from source.data.data_generation import series_generator
 
 RANGE = Tuple[float, float]
 POINT = Tuple[float, ...]
@@ -84,7 +85,14 @@ class MyOptimizer:
 
 
 def main():
-    y_values = [_x[1] for _x in DEBUG_SERIES("EOS", config_path="../../../configs/config.json")]
+    with open("../../../configs/time_series.json", mode="r") as file:
+        config = json.load(file)
+
+    time_series = series_generator(config["data_dir"] + "QTUMETH.csv",
+                                   start_time=config["start_time"],
+                                   end_time=config["end_time"],
+                                   interval_minutes=config["interval_minutes"])
+    y_values = [_x[1] for _x in time_series]
     length = len(y_values)
     x_values = list(range(length))
     f = lambda _x: y_values[round(_x)]

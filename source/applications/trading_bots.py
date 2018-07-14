@@ -1,15 +1,14 @@
 import datetime
-import os
-from typing import Dict, Tuple, Generic, Callable, Any, List, Iterator, Collection, Sequence
+from typing import Dict, Tuple, Generic, Callable, List, Iterator, Sequence
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
 from source.data.data_generation import DEBUG_SERIES
-from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, RATE_INFO, SymmetricChannelSignal, \
-    RelativeStrengthIndexSignal
+from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, SymmetricChannelSignal
 
 PORTFOLIO_INFO = Dict[str, float]
+RATE_INFO = Dict[str, float]
 TECH_INFO = Tuple[RATE_INFO, PORTFOLIO_INFO]
 SIGNALS_OUTPUT = Dict[str, float]
 SIGNALS_INPUT = Dict[str, SIGNAL_INPUT]

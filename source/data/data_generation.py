@@ -1,5 +1,4 @@
 import datetime
-import json
 import random
 import numpy
 from dateutil import parser
@@ -26,10 +25,16 @@ def absolute_brownian(initial=1., factor=1., relative_bias=0.):  # constant equi
             a = max(a + rnd_value / 100., .0)
 
 
-def series_generator(file_path, range_start=None, range_end=None, interval_minutes=1):
+def series_generator(file_path: str, start_time: str = "", end_time: str = "", interval_minutes: int = 1):
     print("Reading time series from {:s}...".format(file_path))
-    start_timestamp = -1 if range_start is None else int(range_start.timestamp())
-    end_timestamp = -1 if range_end is None else int(range_end.timestamp())
+    start_timestamp, end_timestamp = -1, -1
+    if 0 < len(start_time):
+        start_date = parser.parse(start_time)
+        start_timestamp = start_date.timestamp()
+    if 0 < len(end_time):
+        end_date = parser.parse(end_time)
+        end_timestamp = end_date.timestamp()
+
     with open(file_path, mode="r") as file:
         row_ts = -1
         for i, line in enumerate(file):
@@ -42,7 +47,7 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
                     if i < 1:
                         first_date = datetime.datetime.fromtimestamp(row_ts, tz=tzutc())
                         msg = "Source {:s} starts after {:s} (at {:s})!"
-                        raise ValueError(msg.format(file_path, str(range_start), str(first_date)))
+                        raise ValueError(msg.format(file_path, start_time, str(first_date)))
                 elif row_ts < end_timestamp:
                     continue
 
@@ -55,21 +60,4 @@ def series_generator(file_path, range_start=None, range_end=None, interval_minut
         if row_ts < end_timestamp:
             last_date = datetime.datetime.fromtimestamp(row_ts, tz=tzutc())
             msg = "Source {:s} ends before {:s} (at {:s})!"
-            raise ValueError(msg.format(file_path, str(range_end), str(last_date)))
-
-
-def DEBUG_SERIES(cur_a, cur_b, data_dir, interval_minutes, start_time, end_time):
-    start_date = parser.parse(start_time)  # datetime.datetime.strptime(start_time, "%Y-%m-%d_%H:%M:%S_%Z")
-    end_date = parser.parse(end_time)  # datetime.datetime.strptime(end_time, "%Y-%m-%d_%H:%M:%S_%Z")
-
-    source_path = data_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
-    time_series = series_generator(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
-    return time_series
-
-
-def main():
-    print(len(list(DEBUG_SERIES("ADA"))))
-
-
-if __name__ == "__main__":
-    main()
+            raise ValueError(msg.format(file_path, end_time, str(last_date)))

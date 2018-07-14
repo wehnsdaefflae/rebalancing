@@ -10,8 +10,8 @@ from source.data.data_generation import series_generator
 def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, data_dir, result_dir=None):
     fp_a = data_dir + "{}.csv".format(cur_a)
     fp_b = data_dir + "{}.csv".format(cur_b)
-    a = list(series_generator(fp_a, range_start=start_date, range_end=end_date, interval_minutes=interval))
-    b = list(series_generator(fp_b, range_start=start_date, range_end=end_date, interval_minutes=interval))
+    a = list(series_generator(fp_a, start_time=start_date, end_time=end_date, interval_minutes=interval))
+    b = list(series_generator(fp_b, start_time=start_date, end_time=end_date, interval_minutes=interval))
     if len(a) != len(b):
         msg = "{:s} and {:s} from {:s} to {:s}: sample number different ({:d} vs. {:d})!"
         raise ValueError(msg.format(fp_a, fp_b, str(start_date), str(end_date), len(a), len(b)))
@@ -193,10 +193,10 @@ def test_dtw():
 
         output, target = (fp_b, fp_a) if delta < 0 else (fp_a, fp_b)
         output_series = series_generator(output,
-                                         range_start=output_start_date, range_end=end_date,
+                                         start_time=output_start_date, end_time=end_date,
                                          interval_minutes=interval_minutes)
         target_series = series_generator(target,
-                                         range_start=end_date, range_end=target_end_date,
+                                         start_time=end_date, end_time=target_end_date,
                                          interval_minutes=interval_minutes)
 
         prediction_error, _, _ = get_fit(output_series, target_series, a_desc, b_desc, result_dir=prediction_dir)

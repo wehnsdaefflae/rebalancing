@@ -24,7 +24,7 @@ def main():
 
     cur_a, cur_b = "ADA", "ETH"
     source_path = source_dir + "{:s}{:s}.csv".format(cur_a, cur_b)
-    time_series = series_generator(source_path, range_start=start_date, range_end=end_date, interval_minutes=interval_minutes)
+    time_series = series_generator(source_path, start_time=start_date, end_time=end_date, interval_minutes=interval_minutes)
     time_axis = [start_date + datetime.timedelta(minutes=interval_minutes * _x) for _x in range(len(time_series))]
 
     pyplot.clf()
