@@ -88,16 +88,18 @@ def evaluate_signal(signal: TradingSignal,
 
 def optimize_signal(signal_class: Type[TradingSignal],
                     time_series: TIME_SERIES,
-                    plot: bool = True) -> Tuple[PARAMETERS, float]:
+                    parameter_ranges: Tuple[Tuple[float, float], ...],
+                    samples: int,
+                    plot: bool = False) -> Tuple[PARAMETERS, float]:
+
+    sequence = list(time_series)
 
     def series_eval(parameter: float) -> float:
         signal = signal_class(round(parameter))
-        return evaluate_signal(signal, time_series)
+        return evaluate_signal(signal, sequence)
 
-    optimizer = MyOptimizer(series_eval, ((1., 1000.),))
+    optimizer = MyOptimizer(series_eval, parameter_ranges)
     axes = []
-
-    samples = 50
 
     for i in range(samples):
         if Timer.time_passed(2000):
@@ -117,21 +119,27 @@ def optimize_signal(signal_class: Type[TradingSignal],
     return optimizer.best_parameters, optimizer.best_value
 
 
-def optimal_parameter_development(signal_class: Type[TradingSignal], trail_length: int, time_series: TIME_SERIES):
+def optimal_parameter_development(signal_class: Type[TradingSignal],
+                                  trail_length: int,
+                                  time_series: TIME_SERIES,
+                                  plot: bool = False):
     sequence = list(time_series)
     if trail_length >= len(sequence):
         raise ValueError("Trail length is too long for time series")
 
+    sampling_frequency = 100
+    parameter_ranges = (1., 1000),
     time_axis = [_x[0] for _x in sequence]
-
     optimal_parameter_axis = []
     for i in range(len(sequence) - trail_length):
-        max_parameters, max_value = optimize_signal(signal_class, sequence[i:i+trail_length], plot=False)
+        trail = sequence[i:i+trail_length]
+        max_parameters, max_value = optimize_signal(signal_class, trail, parameter_ranges, sampling_frequency)
         optimal_parameter_axis.append(max_parameters[0])
         print("Finished {:d}/{:d} trails...".format(i, len(sequence) - trail_length))
 
-    pyplot.plot(time_axis[trail_length:], optimal_parameter_axis)
-    pyplot.show()
+    if plot:
+        pyplot.plot(time_axis[trail_length:], optimal_parameter_axis)
+        pyplot.show()
 
 
 if __name__ == "__main__":
@@ -152,14 +160,11 @@ if __name__ == "__main__":
                                         end_time=end_time,
                                         interval_minutes=interval_minutes)
 
-    evaluate_signal(SymmetricChannelSignal(50), series_generator, asset=asset_symbol, base=base_symbol, plot=True)
+    # evaluate_signal(SymmetricChannelSignal(50), series_generator, asset=asset_symbol, base=base_symbol, plot=True)
+    # optimize_signal(SymmetricChannelSignal, series_generator, ((1., 250), ), 2000, plot=True)
 
-    exit()
-
-    # signal = FakeSignal([_x[1] for _x in DEBUG_SERIES(cur, config_path="../../../configs/config.json")])
     signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, RelativeStrengthIndexSignal]
-
-    # optimize_signal(None, list(data_generator))
-    # evaluate_parameter(3250, data_generator, plot=True)
-    optimal_parameter_development(signal_classes[0], 8, list(series_generator))
     # one week: 1008 * 10 minutes, 8 * 120 min
+    optimal_parameter_development(signal_classes[0], 8, series_generator, plot=True)
+    # consider value in plot. close to 1 doesnt mean much
+
