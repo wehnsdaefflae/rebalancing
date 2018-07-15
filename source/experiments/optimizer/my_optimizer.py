@@ -24,15 +24,12 @@ class MyOptimizer:
         origin = tuple(min(_x) for _x in ranges)                                # type: POINT
         destination = tuple(max(_x) for _x in ranges)                           # type: POINT
         complete_region = origin, destination                                   # type: AREA
-        self.cache_list = [complete_region]                                     # type: List[AREA]
-        self.priority_list = []                                                 # type: List[PRIORITY_ELEMENT]
+        genesis_element = 0., self.__center(complete_region), complete_region   # type: PRIORITY_ELEMENT
+        self.priority_list = [genesis_element]                                  # type: List[PRIORITY_ELEMENT]
+        self.cache_list = []                                                    # type: List[AREA]
 
         self.best_value = 0.                                                    # type: float
         self.best_parameters = None                                             # type: Optional[POINT]
-
-    def __pop(self) -> Tuple[POINT, AREA]:
-        _, point, area = self.priority_list.pop(0)                              # type: float, POINT, AREA
-        return point, area
 
     def __enlist(self, value: float, center: POINT, region: AREA):
         no_values = len(self.priority_list)                                     # type: int
@@ -63,25 +60,25 @@ class MyOptimizer:
         return tuple((_x, center) for _x in itertools.product(*zip(*borders)))
 
     def next(self) -> SAMPLE:
-        region = self.cache_list.pop()                                          # type: AREA
-        center = self.__center(region)                                          # type: POINT
-        value = self.eval(*center)                                              # type: float
-
-        if self.best_value < value:
-            self.best_value = value                                             # type: float
-            self.best_parameters = center                                       # type: POINT
-
-        self.__enlist(value, center, region)
-
         if len(self.cache_list) < 1:
-            current_center, current_region = self.__pop()                       # type: POINT, AREA
-            regions = self._divide(current_region, current_center)              # type: Tuple[AREA, ...]
-            self.cache_list.extend(regions)
+            _, center, region = self.priority_list.pop(0)   # type: float, POINT, AREA
+            sub_regions = self._divide(region, center)      # type: Tuple[AREA, ...]
+            self.cache_list.extend(sub_regions)
+
+        current_region = self.cache_list.pop()              # type: AREA
+        current_center = self.__center(current_region)      # type: POINT
+        current_value = self.eval(*current_center)          # type: float
+
+        if self.best_value < current_value:
+            self.best_value = current_value                 # type: float
+            self.best_parameters = current_center           # type: POINT
+
+        self.__enlist(current_value, current_center, current_region)
 
         while 0 < self.limit < len(self.priority_list):
             self.priority_list.pop()
 
-        return center, value
+        return current_center, current_value
 
 
 def main():
@@ -107,7 +104,7 @@ def main():
     pyplot.plot(x_values, y_values)
 
     last_best = float("-inf")
-    for _i in range(2000):
+    for _i in range(200):
         c, v = o.next()
         pyplot.axvline(x=c[0], alpha=.1)
 
