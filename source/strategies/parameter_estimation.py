@@ -5,7 +5,7 @@ from typing import Iterable, Tuple, Type, Collection
 from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
-from source.experiments.heatmap_visualization.my_contour import heat_plot
+from source.experiments.heatmap_visualization.my_kringing import heat_plot
 from source.tools.optimizer import StatefulOptimizer, SAMPLE
 from source.experiments.timer import Timer
 from source.tactics.signals.signals import TradingSignal, RelativeStrengthIndexSignal, SymmetricChannelSignal, \
@@ -129,7 +129,8 @@ def optimal_parameter_development(signal_class: Type[TradingSignal],
     if trail_length >= len(sequence):
         raise ValueError("Trail length is too long for time series")
 
-    time_axis = [_x[0] for _x in sequence]
+    # time_axis = [_x[0] for _x in sequence]
+    time_axis = []
     parameter_axis = []
     value_axis = []
     for i in range(len(sequence) - trail_length):
@@ -138,10 +139,11 @@ def optimal_parameter_development(signal_class: Type[TradingSignal],
         for each_parameter, each_value in samples:
             parameter_axis.append(each_parameter[0])
             value_axis.append(each_value)
+            time_axis.append(i)
         print("Finished {:d}/{:d} trails...".format(i, len(sequence) - trail_length))
 
     if plot:
-        heat_plot(range(len(sequence) - trail_length), parameter_axis, value_axis)
+        heat_plot(time_axis, parameter_axis, value_axis)
         """
         max_value = max(_x[1] for _x in optimal_parameter_axis)
         for each_time, (each_parameter, each_value) in zip(time_axis[trail_length:], optimal_parameter_axis):
