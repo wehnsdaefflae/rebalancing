@@ -89,7 +89,7 @@ def evaluate_signal(signal: TradingSignal,
 def optimize_signal(signal_class: Type[TradingSignal],
                     time_series: TIME_SERIES,
                     parameter_ranges: Tuple[Tuple[float, float], ...],
-                    samples: int,
+                    no_samples: int,
                     plot: bool = False) -> Tuple[PARAMETERS, float]:
 
     sequence = list(time_series)
@@ -101,10 +101,10 @@ def optimize_signal(signal_class: Type[TradingSignal],
     optimizer = MyOptimizer(series_eval, parameter_ranges)
     axes = []
 
-    for i in range(samples):
+    for i in range(no_samples):
         if Timer.time_passed(2000):
-            print("Iteration {:d}/{:d}".format(i, samples))
-        c = optimizer.next()
+            print("Iteration {:d}/{:d}".format(i, no_samples))
+        samples = optimizer.next()
         each_value = series_eval(*c)
         point = c[0], each_value
         axes.append(point)

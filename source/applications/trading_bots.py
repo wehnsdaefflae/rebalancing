@@ -164,6 +164,9 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         dist_total = sum(distribution.values())
         return {_k: total_base_value * _v / (rates[_k] * dist_total) for _k, _v in distribution.items()}
 
+    def _train_signals(self, signal_inputs, signal_targets):
+        raise NotImplementedError()
+
     def run(self):
         while True:
             try:
@@ -189,6 +192,8 @@ class TradingBot(Generic[SIGNAL_INPUT]):
                 except Exception as e:
                     print(e)
                     continue
+
+                self._train_signals(signal_inputs, rates)
 
                 signals = self.__get_signals(signal_inputs)
                 distribution = self.__signal_portfolio(portfolio, signals, rates)
@@ -262,6 +267,9 @@ class Simulation(TradingBot[RATE_INFO]):
 
     def _get_signals_input(self) -> RATE_INFO:
         return self.rates
+
+    def _train_signals(self, signal_inputs, signal_targets):
+        pass
 
     def _transfer(self, source_value: float, source_asset: str, target_asset: str):
         if source_asset == target_asset or source_value == 0.:

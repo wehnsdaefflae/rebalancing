@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import itertools
 import json
-from math import sin, cos, sqrt
-from typing import Callable, Sequence, Tuple, List
+from math import sqrt
+from typing import Callable, Sequence, Tuple, List, Optional
 
 from matplotlib import pyplot
 
@@ -10,6 +10,7 @@ from source.data.data_generation import series_generator
 
 RANGE = Tuple[float, float]
 POINT = Tuple[float, ...]
+SAMPLE = Tuple[POINT, float]
 AREA = Tuple[POINT, POINT]
 PRIORITY_ELEMENT = Tuple[float, POINT, AREA]
 
@@ -23,21 +24,22 @@ class MyOptimizer:
         self.region = origin, destination                                       # type: AREA
         self.limit = limit                                                      # type: int
 
-        self.best_value, self.best_parameters = self.__evaluate(self.region)    # type: float, POINT
+        self.best_parameters, self.best_value = self.__evaluate(self.region)    # type: POINT, float
         first_elem = self.best_value, self.best_parameters, self.region         # type: PRIORITY_ELEMENT
-        self.region_values = [first_elem]                                       # type: List[PRIORITY_ELEMENT]
+        self.major_priority_list = [first_elem]                                 # type: List[PRIORITY_ELEMENT]
+        self.minor_priority_list = []                                           # type: List[PRIORITY_ELEMENT]
 
-    def __evaluate(self, region: AREA) -> Tuple[float, POINT]:
+    def __evaluate(self, region: AREA) -> SAMPLE:
         center = self.__center(region)                                          # type: POINT
-        return self.eval(*center), center
+        return center, self.eval(*center)
 
     def __enqueue(self, priority_element: PRIORITY_ELEMENT):
-        no_values = len(self.region_values)                                     # type: int
+        no_values = len(self.major_priority_list)                                     # type: int
         element_value = priority_element[0]                                     # type: float
         i = 0                                                                   # type: int
-        while i < no_values and element_value < self.region_values[i][0]:
+        while i < no_values and element_value < self.major_priority_list[i][0]:
             i += 1
-        self.region_values.insert(i, priority_element)
+        self.major_priority_list.insert(i, priority_element)
 
     def __check_edges(self, point_a: POINT, point_b: POINT):
         len_a, len_b = len(point_a), len(point_b)                               # type: int, int
@@ -58,30 +60,34 @@ class MyOptimizer:
     def _divide(borders: AREA, center: POINT) -> Tuple[AREA, ...]:
         return tuple((_x, center) for _x in itertools.product(*zip(*borders)))
 
-    def next(self) -> POINT:
-        current_value, current_center, current_region = self.region_values.pop(0)   # type: float, POINT, AREA
-        for each_sub_region in MyOptimizer._divide(current_region, current_center):
-            each_value, each_center = self.__evaluate(each_sub_region)              # type: float, POINT
-            if len(each_center) != self.dimensionality:
-                msg = "Expected {:d} dimensions, received {:d}."
-                raise ValueError(msg.format(self.dimensionality, len(each_center)))
-            if each_value < 0.:
-                raise ValueError("Evaluation cannot be negative.")
+    def _next_region(self, region: AREA) -> Optional[Tuple[POINT, float]]:
+        center, value = self.__evaluate(region)                 # type: POINT, float
+        if len(center) != self.dimensionality:
+            msg = "Expected {:d} dimensions, received {:d}."
+            raise ValueError(msg.format(self.dimensionality, len(center)))
+        if value < 0.:
+            raise ValueError("Evaluation cannot be negative.")
 
-            diagonal = self.__diagonal(each_sub_region)                             # type: float
-            if 0. >= diagonal:
-                continue
-            element = each_value * diagonal, each_center, each_sub_region           # type: PRIORITY_ELEMENT
-            self.__enqueue(element)
+        diagonal = self.__diagonal(region)                      # type: float
+        if 0. >= diagonal:
+            return None
+        element = value * diagonal, center, region              # type: PRIORITY_ELEMENT
+        self.__enqueue(element)
 
-            if self.best_value < each_value:
-                self.best_value = each_value                                        # type: float
-                self.best_parameters = each_center                                  # type: POINT
+        if self.best_value < value:
+            self.best_value = value                             # type: float
+            self.best_parameters = center                       # type: POINT
+        return center, value
 
-        while 0 < self.limit < len(self.region_values):
-            self.region_values.pop()
+    def next(self) -> Tuple[SAMPLE, ...]:
+        current_value, current_center, current_region = self.major_priority_list.pop(0)  # type: float, POINT, AREA
+        sub_regions = MyOptimizer._divide(current_region, current_center)                # type: Tuple[AREA, ...]
+        samples = tuple(self._next_region(each_region) for each_region in sub_regions)
 
-        return current_center
+        while 0 < self.limit < len(self.major_priority_list):
+            self.major_priority_list.pop()
+
+        return samples
 
 
 def main():
