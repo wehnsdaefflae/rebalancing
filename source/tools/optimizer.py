@@ -15,7 +15,7 @@ AREA = Tuple[POINT, POINT]
 PRIORITY_ELEMENT = Tuple[float, POINT, AREA]
 
 
-class MyOptimizer:
+class StatefulOptimizer:
     def __init__(self, evaluation_function: Callable[..., float], ranges: Sequence[RANGE], limit: int = 1000):
         self.eval = evaluation_function                                         # type: Callable[..., float]
         self.dimensionality = len(ranges)                                       # type: int
@@ -99,7 +99,7 @@ def main():
 
     max_value = max(y_values)
     parameter_ranges = (0., length),
-    o = MyOptimizer(f, parameter_ranges)
+    o = StatefulOptimizer(f, parameter_ranges)
 
     pyplot.plot(x_values, y_values)
 

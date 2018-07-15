@@ -1,11 +1,12 @@
 import datetime
 import json
-from typing import Iterable, Tuple, Type
+from typing import Iterable, Tuple, Type, Collection
 
 from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
-from source.experiments.optimizer.my_optimizer import MyOptimizer
+from source.experiments.heatmap_visualization.my_contour import heat_plot
+from source.tools.optimizer import StatefulOptimizer, SAMPLE
 from source.experiments.timer import Timer
 from source.tactics.signals.signals import TradingSignal, RelativeStrengthIndexSignal, SymmetricChannelSignal, \
     AsymmetricChannelSignal, HillValleySignal
@@ -86,11 +87,11 @@ def evaluate_signal(signal: TradingSignal,
     # return total_value[-1] / other_value[-1]  # against hodling
 
 
-def optimize_signal(signal_class: Type[TradingSignal],
-                    time_series: TIME_SERIES,
-                    parameter_ranges: Tuple[Tuple[float, float], ...],
-                    no_samples: int,
-                    plot: bool = False) -> Tuple[PARAMETERS, float]:
+def sample_signal(signal_class: Type[TradingSignal],
+                  time_series: TIME_SERIES,
+                  parameter_ranges: Tuple[Tuple[float, float], ...],
+                  no_samples: int,
+                  plot: bool = False) -> Collection[SAMPLE]:
 
     sequence = list(time_series)
 
@@ -98,25 +99,24 @@ def optimize_signal(signal_class: Type[TradingSignal],
         signal = signal_class(round(parameter))
         return evaluate_signal(signal, sequence)
 
-    optimizer = MyOptimizer(series_eval, parameter_ranges)
-    axes = []
+    optimizer = StatefulOptimizer(series_eval, parameter_ranges)
+    samples = set()
 
     for i in range(no_samples):
         if Timer.time_passed(2000):
             print("Iteration {:d}/{:d}".format(i, no_samples))
-        samples = optimizer.next()
-        each_value = series_eval(*c)
-        point = c[0], each_value
-        axes.append(point)
+        each_sample = optimizer.next()
+        samples.add(each_sample)
         if plot:
-            pyplot.plot(c, [each_value], "x")
+            pyplot.plot(each_sample[0], [each_sample[1]], "x")
 
     print("Best parameters: {:s} (value: {:.4f})".format(str(optimizer.best_parameters), optimizer.best_value))
     if plot:
-        axes = sorted(axes, key=lambda _x: _x[0])
+        axes = sorted(samples, key=lambda _x: _x[0])
         pyplot.plot(*zip(*axes))
         pyplot.show()
-    return optimizer.best_parameters, optimizer.best_value
+
+    return samples
 
 
 def optimal_parameter_development(signal_class: Type[TradingSignal],
@@ -130,14 +130,19 @@ def optimal_parameter_development(signal_class: Type[TradingSignal],
         raise ValueError("Trail length is too long for time series")
 
     time_axis = [_x[0] for _x in sequence]
-    optimal_parameter_axis = []
+    parameter_axis = []
+    value_axis = []
     for i in range(len(sequence) - trail_length):
         trail = sequence[i:i+trail_length]
-        max_parameters, max_value = optimize_signal(signal_class, trail, parameter_ranges, sampling_frequency)
-        optimal_parameter_axis.append((max_parameters[0], max_value))
+        samples = sample_signal(signal_class, trail, parameter_ranges, sampling_frequency)
+        for each_parameter, each_value in samples:
+            parameter_axis.append(each_parameter[0])
+            value_axis.append(each_value)
         print("Finished {:d}/{:d} trails...".format(i, len(sequence) - trail_length))
 
     if plot:
+        heat_plot(range(len(sequence) - trail_length), parameter_axis, value_axis)
+        """
         max_value = max(_x[1] for _x in optimal_parameter_axis)
         for each_time, (each_parameter, each_value) in zip(time_axis[trail_length:], optimal_parameter_axis):
             size = 100. * each_value / max_value
@@ -148,10 +153,11 @@ def optimal_parameter_development(signal_class: Type[TradingSignal],
         pyplot.plot(time_axis[trail_length:], optimal_parameter_axis)
         pyplot.legend()
         pyplot.show()
+        """
 
 
 if __name__ == "__main__":
-    with open("../../configs/config.json", mode="r") as file:
+    with open("../../configs/time_series.json", mode="r") as file:
         config = json.load(file)
 
     # start_time = "2017-07-27 00:03:00 UTC"
