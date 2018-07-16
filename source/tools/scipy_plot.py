@@ -25,6 +25,8 @@ class MidpointNormalize(colors.Normalize):
 
 
 def heat_plot(X_in, times, Y_in, values_in):
+    # https://stackoverflow.com/questions/45787354/remove-boxes-around-imshow-when-sharing-x-axis
+
     # https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.griddata.html
     _X = np.array(X_in)
     _Y = np.array(Y_in)
