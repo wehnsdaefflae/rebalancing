@@ -12,7 +12,7 @@ def heat_plot(x, y, z):
 
     xi = numpy.linspace(-2.1, 2.1, ngridx)
     yi = numpy.linspace(-2.1, 2.1, ngridy)
-    zi = mlab.griddata(numpy.ndarray(x), y, z, xi, yi, interp='linear')
+    zi = mlab.griddata(x, y, z, xi, yi, interp='linear')
 
     # tricontour.
     triang = tri.Triangulation(x, y)

@@ -5,7 +5,7 @@ from typing import Iterable, Tuple, Type, Collection
 from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
-from source.experiments.heatmap_visualization.my_kringing import heat_plot
+from source.experiments.heatmap_visualization.scipy_plot import heat_plot
 from source.tools.optimizer import StatefulOptimizer, SAMPLE
 from source.experiments.timer import Timer
 from source.tactics.signals.signals import TradingSignal, RelativeStrengthIndexSignal, SymmetricChannelSignal, \
@@ -182,6 +182,6 @@ if __name__ == "__main__":
     signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, RelativeStrengthIndexSignal]
 
     # one week: 1008 * 10 minutes, 8 * 120 min
-    optimal_parameter_development(signal_classes[1], 144, 20, ((1., 50), ), series_generator, plot=True)
+    optimal_parameter_development(signal_classes[1], 144, 50, ((1., 50), ), series_generator, plot=True)
     # consider value in plot. close to 1 doesnt mean much
 
