@@ -1,10 +1,11 @@
 import datetime
+import json
 from typing import Dict, Tuple, Generic, Callable, List, Iterator, Sequence
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
-from source.data.data_generation import DEBUG_SERIES
+from source.data.data_generation import series_generator
 from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, SymmetricChannelSignal
 
 PORTFOLIO_INFO = Dict[str, float]
@@ -295,9 +296,11 @@ class Simulation(TradingBot[RATE_INFO]):
 
 def main():
     portfolio = {"IOTA": 0., "ADA": 0., "LTC": 0., "ETH": 10.}
-    signals = {_k: SymmetricChannelSignal() for _k in portfolio if _k != "ETH"}
+    signals = {_k: SymmetricChannelSignal(400) for _k in portfolio if _k != "ETH"}
     # signals = {_k: RelativeStrengthIndexSignal(history_length=50) for _k in portfolio if _k != "ETH"}
-    data_sources = {_k: DEBUG_SERIES(_k) for _k in portfolio if _k != "ETH"}
+    with open("../../configs/time_series.json", mode="r") as file:
+        config = json.load(file)
+    data_sources = {_k: series_generator(config["data_dir"] + "{:s}ETH.csv", interval_minutes=config["interval_minutes"]) for _k in portfolio if _k != "ETH"}
     simulation = Simulation(portfolio, signals, data_sources, risk=.25)
     simulation.run()
 
