@@ -31,16 +31,16 @@ def heat_plot(X_in, Y_in, values_in):
     values = np.array(values_in)
 
     s = len(set(_X))
-    grid_x, grid_y = np.meshgrid(np.linspace(min(_X), max(_X), s), np.linspace(min(_Y), max(_Y), 100))
+    grid_x, grid_y = np.meshgrid(np.linspace(min(_X), max(_X), s), np.linspace(min(_Y), max(_Y), max(_Y) - min(_Y)))
 
     methods = ["nearest", "linear", "cubic"]
 
     _p = np.array(list(zip(_X, _Y)))
 
-    grid_z = griddata(_p, values, (grid_x, grid_y), method=methods[2])
+    grid_z = griddata(_p, values, (grid_x, grid_y), method=methods[1])
 
     plt.imshow(grid_z, origin='lower', extent=(0, s, min(_Y), max(_Y)), aspect="auto", cmap="Pastels",
-               norm=MidpointNormalize(midpoint=1., vmin=min(values), vmax=max(values)))
+               norm=MidpointNormalize(midpoint=1.00001, vmin=min(values), vmax=max(values)))
 
     #plt.contour(_X, _Y, values, 15, linewidths=0.5, colors='k')
     #plt.contourf(_X, _Y, values, 15)
@@ -52,10 +52,10 @@ def heat_plot(X_in, Y_in, values_in):
             max_values[each_x] = each_y, each_z
 
     max_x, max_y = zip(*[(k, v[0]) for k, v in max_values.items()])
-    plt.plot(max_x, max_y, color="black")
+    # plt.plot(max_x, max_y, color="black")
 
     plt.colorbar()
-    plt.plot(_X, _Y, 'k.', markersize=".5", alpha=.2)
+    #plt.plot(_X, _Y, 'k.', markersize=".5", alpha=.2)
     plt.tight_layout()
     plt.show()
 

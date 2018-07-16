@@ -5,11 +5,11 @@ from typing import Iterable, Tuple, Type, Collection
 from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
-from source.experiments.heatmap_visualization.scipy_plot import heat_plot
+from source.tools.scipy_plot import heat_plot
 from source.tools.optimizer import StatefulOptimizer, SAMPLE
 from source.tools.timer import Timer
 from source.tactics.signals.signals import TradingSignal, RelativeStrengthIndexSignal, SymmetricChannelSignal, \
-    AsymmetricChannelSignal, HillValleySignal
+    AsymmetricChannelSignal, HillValleySignal, InvAsymmetricChannelSignal
 
 TIME_SERIES = Iterable[Tuple[datetime.datetime, float]]
 PARAMETERS = Tuple[float, ...]
@@ -20,15 +20,16 @@ def evaluate_signal(signal: TradingSignal,
                     asset="asset", base="base",
                     plot: bool = False) -> float:
     time_axis = []
+    rate_axis = []
     signal_axis = []
+    total_value_axis = []
     value_base, value_asset = 1., 0.
 
     buys = []
     sells = []
-    total_base_value = []
-    all_asset_value = []
-    amount_asset = -1.
-    tolerance = .1
+
+    risk = .5
+    tolerance = .5
     trading_factor = .9975
     min_trading_volume_base = .02
 
@@ -36,54 +37,55 @@ def evaluate_signal(signal: TradingSignal,
         tendency = signal.get_tendency(each_rate)
         if tendency >= tolerance:
             if 0. < value_base:
-                amount = value_base
+                amount = value_base * risk
                 if amount >= min_trading_volume_base:
                     buys.append(each_date)
                     value_asset += trading_factor * amount / each_rate
-                    value_base = 0.
+                    value_base -= amount
         elif -tolerance >= tendency:
             if 0. < value_asset:
-                amount = value_asset * each_rate
+                amount = value_asset * risk
                 if amount >= min_trading_volume_base:
                     sells.append(each_date)
-                    value_base += trading_factor * amount
-                    value_asset = 0.
+                    value_base += trading_factor * amount * each_rate
+                    value_asset -= amount
 
-        if amount_asset < 0.:
-            # only on first iteration: change initial base asset into cur
-            amount_asset = 1. / each_rate
-
-        all_asset_value.append(amount_asset * each_rate)
         time_axis.append(each_date)
+        rate_axis.append(each_rate)
         signal_axis.append(tendency)
-        total_base_value.append(value_base + value_asset * each_rate)
+        total_value_axis.append(value_base + value_asset * each_rate)
 
     if plot:
         pyplot.clf()
         pyplot.close()
 
-        fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
-        signal.plot(time_axis, ax1, axis_label=asset)
-        ax2.plot(time_axis, signal_axis)
-        ax2.set_ylabel("signal")
-        ax3.plot(time_axis, all_asset_value, label="{:s} value".format(asset))
-        ax3.plot(time_axis, total_base_value, label="total value")
-        ax3.set_ylabel("total {:s} value".format(base))
+        fig, (ax1, ax3) = pyplot.subplots(2, sharex="all")
+        ax1.plot(time_axis, rate_axis, label="{:s} rate".format(asset))
+        ax1.set_ylabel("{:s} rate".format(asset))
+        ax1.legend()
+
+        ax2 = ax1.twinx()
+        ax2.plot(time_axis, total_value_axis, label="total {:s} value".format(base), color="orange")
+        ax2.set_ylabel("total {:s} value".format(base))
+        ax2.legend()
+
+        # signal.plot(time_axis, ax3, axis_label=asset)
+        ax3.plot(time_axis, signal_axis, label="{:s} {:s}".format(asset, signal.__class__.__name__))
+        ax3.set_ylabel("{:s} {:s}".format(asset, signal.__class__.__name__))
+        ax3.axhline(y=tolerance, color="red")
+        ax3.axhline(y=-tolerance, color="green")
+
         ax3.legend()
 
         for each_buy in buys:
-            ax1.axvline(x=each_buy, color="red", alpha=.2)
             ax2.axvline(x=each_buy, color="red", alpha=.2)
-            ax3.axvline(x=each_buy, color="red", alpha=.2)
         for each_sell in sells:
-            ax1.axvline(x=each_sell, color="green", alpha=.2)
             ax2.axvline(x=each_sell, color="green", alpha=.2)
-            ax3.axvline(x=each_sell, color="green", alpha=.2)
 
         pyplot.tight_layout()
         pyplot.show()
 
-    return total_base_value[-1]                      # against investment
+    return total_value_axis[-1]                     # against investment
     # return total_value[-1] / other_value[-1]  # against hodling
 
 
@@ -144,18 +146,6 @@ def optimal_parameter_development(signal_class: Type[TradingSignal],
 
     if plot:
         heat_plot(time_axis, parameter_axis, value_axis)
-        """
-        max_value = max(_x[1] for _x in optimal_parameter_axis)
-        for each_time, (each_parameter, each_value) in zip(time_axis[trail_length:], optimal_parameter_axis):
-            size = 100. * each_value / max_value
-            if each_value >= max_value:
-                pyplot.scatter(each_time, each_parameter, s=size, alpha=.5, label="{:.5}f".format(each_value))
-            else:
-                pyplot.scatter(each_time, each_parameter, s=size, alpha=.5)
-        pyplot.plot(time_axis[trail_length:], optimal_parameter_axis)
-        pyplot.legend()
-        pyplot.show()
-        """
 
 
 if __name__ == "__main__":
@@ -165,8 +155,8 @@ if __name__ == "__main__":
     # start_time = "2017-07-27 00:03:00 UTC"
     # end_time = "2018-06-22 23:52:00 UTC"
     start_time = "2017-08-01 00:00:00 UTC"
-    end_time = "2017-08-08 00:00:00 UTC"
-    interval_minutes = 10
+    end_time = "2017-09-01 00:00:00 UTC"
+    interval_minutes = 60
 
     asset_symbol, base_symbol = "QTUM", "ETH"
 
@@ -176,13 +166,15 @@ if __name__ == "__main__":
                                         end_time=end_time,
                                         interval_minutes=interval_minutes)
 
-    # evaluate_signal(SymmetricChannelSignal(50), series_generator, asset=asset_symbol, base=base_symbol, plot=True)
+    #evaluate_signal(RelativeStrengthIndexSignal(76), list(series_generator)[:-24*7], asset=asset_symbol, base=base_symbol, plot=True)
     # optimize_signal(SymmetricChannelSignal, series_generator, ((1., 250), ), 2000, plot=True)
 
-    signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, RelativeStrengthIndexSignal]
+    #exit()
+    signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, InvAsymmetricChannelSignal, RelativeStrengthIndexSignal]
 
     # one week: 1008 * 10 minutes, 8 * 120 min
     # one day: 144 * 10 minutes
-    optimal_parameter_development(signal_classes[3], 144, 50, ((1., 50), ), series_generator, plot=True)
+
+    optimal_parameter_development(signal_classes[4], 24 * 7, 50, ((1., 200.), ), series_generator, plot=True)
     # consider value in plot. close to 1 doesnt mean much
 

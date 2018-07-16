@@ -7,6 +7,7 @@ from matplotlib.axes import Axes
 
 from source.data.data_generation import series_generator
 from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, SymmetricChannelSignal
+from source.tools.timer import Timer
 
 PORTFOLIO_INFO = Dict[str, float]
 RATE_INFO = Dict[str, float]
@@ -166,6 +167,8 @@ class TradingBot(Generic[SIGNAL_INPUT]):
         return {_k: total_base_value * _v / (rates[_k] * dist_total) for _k, _v in distribution.items()}
 
     def _train_signals(self, signal_inputs, signal_targets):
+        # determine parameters
+        # select according to parameters consistency and/or value
         raise NotImplementedError()
 
     def run(self):
@@ -212,8 +215,8 @@ class TradingBot(Generic[SIGNAL_INPUT]):
                 except ValueError as e:
                     raise e
 
-            if self.iteration % 100 == 0:
-                print("Total value: {:s} {:.5f}".format(self.base_asset, total_base_value))
+            if Timer.time_passed(2000):
+                print("{:s}: total value is {:s} {:.5f}".format(time.strftime("%Y-%m-%d %H:%M"), self.base_asset, total_base_value))
             self._wait()
             self.iteration += 1
 
@@ -300,7 +303,7 @@ def main():
     # signals = {_k: RelativeStrengthIndexSignal(history_length=50) for _k in portfolio if _k != "ETH"}
     with open("../../configs/time_series.json", mode="r") as file:
         config = json.load(file)
-    data_sources = {_k: series_generator(config["data_dir"] + "{:s}ETH.csv", interval_minutes=config["interval_minutes"]) for _k in portfolio if _k != "ETH"}
+    data_sources = {_k: series_generator(config["data_dir"] + "{:s}ETH.csv".format(_k), interval_minutes=config["interval_minutes"]) for _k in portfolio if _k != "ETH"}
     simulation = Simulation(portfolio, signals, data_sources, risk=.25)
     simulation.run()
 

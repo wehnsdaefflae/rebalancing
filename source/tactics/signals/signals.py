@@ -196,6 +196,11 @@ class AsymmetricChannelSignal(StatelessMixin, TradingSignal[float]):
         axis.plot(time[self.initialization:], upper, label="upper bound")
 
 
+class InvAsymmetricChannelSignal(AsymmetricChannelSignal):
+    def __init__(self, *args, **kwargs):
+        super().__init__(invert=True, *args, **kwargs)
+
+
 class RelativeStrengthIndexSignal(StatelessMixin, TradingSignal[float]):
     def __init__(self, history_length: int):
         if history_length < 1:
