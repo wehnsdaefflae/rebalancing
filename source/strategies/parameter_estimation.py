@@ -155,8 +155,8 @@ if __name__ == "__main__":
     # start_time = "2017-07-27 00:03:00 UTC"
     # end_time = "2018-06-22 23:52:00 UTC"
     start_time = "2017-08-01 00:00:00 UTC"
-    end_time = "2017-09-01 00:00:00 UTC"
-    interval_minutes = 60
+    end_time = "2017-08-02 00:00:00 UTC"
+    interval_minutes = 1
 
     asset_symbol, base_symbol = "QTUM", "ETH"
 
@@ -175,6 +175,6 @@ if __name__ == "__main__":
     # one week: 1008 * 10 minutes, 8 * 120 min
     # one day: 144 * 10 minutes
 
-    optimal_parameter_development(signal_classes[4], 24 * 7, 50, ((1., 200.), ), series_generator, plot=True)
+    optimal_parameter_development(signal_classes[4], 120, 50, ((1., 120.), ), series_generator, plot=True)
     # consider value in plot. close to 1 doesnt mean much
 

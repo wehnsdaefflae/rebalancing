@@ -39,7 +39,7 @@ def heat_plot(X_in, times, Y_in, values_in):
 
     _p = np.array(list(zip(_X, _Y)))
 
-    grid_z = griddata(_p, values, (grid_x, grid_y), method=methods[1])
+    grid_z = griddata(_p, values, (grid_x, grid_y), method=methods[2])
 
     plt.imshow(grid_z, origin='lower', extent=(0, s, min(_Y), max(_Y)), aspect="auto", cmap="Pastels",
                norm=MidpointNormalize(midpoint=1.00001, vmin=min(values), vmax=max(values)))
@@ -54,7 +54,7 @@ def heat_plot(X_in, times, Y_in, values_in):
             max_values[each_x] = each_y, each_z
 
     max_x, max_y = zip(*[(k, v[0]) for k, v in max_values.items()])
-    # plt.plot(max_x, max_y, color="black")
+    # plt.plot(max_x, max_y, "k.", color="black")
 
     plt.colorbar()
     #plt.plot(_X, _Y, 'k.', markersize=".5", alpha=.2)
