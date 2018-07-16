@@ -145,7 +145,7 @@ def optimal_parameter_development(signal_class: Type[TradingSignal],
         print("Finished {:d}/{:d} trails...".format(i, len(sequence) - trail_length))
 
     if plot:
-        heat_plot(time_axis, parameter_axis, value_axis)
+        heat_plot(time_axis, [_x[0] for _x in sequence], parameter_axis, value_axis)
 
 
 if __name__ == "__main__":
