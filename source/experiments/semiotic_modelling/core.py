@@ -33,7 +33,7 @@ class Context(Hashable, Dict[CONDITION, Dict[CONSEQUENCE, int]]):
         return hash(self.__shape)
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, self.__class__) and self.__shape == other.__shape
+        return isinstance(other, self.__class__) and self.__shape == hash(other)
 
     def __lt__(self, other: Any) -> bool:
         return self.__shape < other.__shape
@@ -167,17 +167,28 @@ def main():
 
     source_path = config["data_dir"] + "{:s}{:s}.csv".format(asset_symbol, base_symbol)
     series_generator = series_generator(source_path, start_time=start_time, end_time=end_time, interval_minutes=interval_minutes)
-    text = "peter piper picked a peck of pickled peppers a peck of pickled peppers peter piper picked if peter piper picked a peck of pickled " \
-           "peppers wheres the peck of pickled peppers peter piper picked "
+    # text = "peter piper picked a peck of pickled peppers a peck of pickled peppers peter piper picked if peter piper picked a peck of pickled " \
+    #        "peppers wheres the peck of pickled peppers peter piper picked "
 
     model = []
     state = []
     success = 0
     iterations = 0
     next_elem = None
-    for each_time, each_elem in [(None, _x) for _x in text * 1000]:  # ]series_generator:
+
+    base_elements = set()
+
+    for each_time, each_elem in series_generator:
         success += int(each_elem == next_elem)
+
+        # either: voronoi tesselation
+        #   either:   adapt current representation to each_elem
+        #   or:       adapt last prediction to each_elem
+        # or: regression in base content
+        #   either:   adapt current representation to each_elem
+        #   or:       adapt last prediction to each_elem
         generate_model(0, model, state, None, each_elem, sig=0., h=2)
+
         next_elem = predict(model, state, None)
         iterations += 1
         if Timer.time_passed(2000):
