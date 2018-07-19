@@ -1,37 +1,49 @@
 import json
-from typing import Any, Tuple, Dict, Hashable, Optional, List, Set, Sequence
+from typing import Any, Tuple, Dict, Hashable, Optional, List, TypeVar, Union
 
 from source.tools.timer import Timer
 
-SHAPE_A = Hashable      # make it TypeVar, Hashable for making Content generic
-SHAPE_B = Hashable
-HISTORY = List[Optional[SHAPE_A]]  # change model generation to avoid nones
-CONDITION = Tuple[HISTORY, SHAPE_B]
+
+# https://blog.yuo.be/2016/05/08/python-3-5-getting-to-grips-with-type-hints/
+
+
+SHAPE_A = TypeVar("SHAPE_A", Hashable)
+SHAPE_B = TypeVar("SHAPE_B", Hashable)
+
+HISTORY = List[SHAPE_A]
+CONDITION = Tuple[Tuple[SHAPE_A, ...], "ACTION"]
+ACTION = Union[SHAPE_B, CONDITION]
 CONSEQUENCE = SHAPE_B
 
 
-class Content(Dict[CONDITION, Dict[CONSEQUENCE, int]]):
+class Context(Hashable, Dict[CONDITION, Dict[CONSEQUENCE, int]]):
     def __init__(self, shape: SHAPE_A, **kwargs):
         super().__init__(**kwargs)
-        self.shape = shape              # type: SHAPE_A
+        self.__shape = shape              # type: SHAPE_A
 
     def __repr__(self) -> str:
-        return str(self.shape)
+        return str(self.__shape)
 
     def __str__(self) -> str:
         return self.__repr__()
 
     def __hash__(self) -> int:
-        return hash(self.shape)
+        return hash(self.__shape)
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, self.__class__) and self.shape == other.shape
+        return isinstance(other, self.__class__) and self.__shape == other.__shape
 
     def __lt__(self, other: Any) -> bool:
-        return self.shape < other.shape
+        return self.__shape < other.__shape
 
 
-def probability(content: Content, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1., pseudo_count: float=1.) -> float:
+CONTENT = Union[SHAPE_A, Context]
+STATE = List[HISTORY]               # implemented as Dict[int, HISTORY]!
+LEVEL = Dict[SHAPE_A, CONTENT]
+MODEL = List[LEVEL]                 # implemented as Dict[int, LEVEL]!
+
+
+def probability(content: Context, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1., pseudo_count: float=1.) -> float:
     sub_dict = content.get(condition)                           # type: Dict[CONSEQUENCE, int]
     if sub_dict is None:
         return default
@@ -44,7 +56,7 @@ def probability(content: Content, condition: CONDITION, consequence: CONSEQUENCE
     return frequency / total_frequency
 
 
-def adapt(content: Content, condition: CONDITION, consequence: CONSEQUENCE):
+def adapt(content: Context, condition: CONDITION, consequence: CONSEQUENCE):
     sub_dict = content.get(condition)                           # type: Dict[CONSEQUENCE, int]
     if sub_dict is None:
         sub_dict = {consequence: 1}                             # type: Dict[CONSEQUENCE, int]
@@ -53,12 +65,7 @@ def adapt(content: Content, condition: CONDITION, consequence: CONSEQUENCE):
         sub_dict[consequence] = sub_dict.get(consequence, 0) + 1
 
 
-STATE = List[HISTORY]           # implemented as Dict[int, HISTORY]!
-LEVEL = Dict[SHAPE_A, Content]
-MODEL = List[LEVEL]             # implemented as Dict[int, LEVEL]!
-
-
-def _predict(content: Content, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:
+def _predict(content: Context, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:
     sub_dict = content.get(condition)                           # type: Dict[CONSEQUENCE, int]
     if sub_dict is None:
         return default
@@ -66,7 +73,7 @@ def _predict(content: Content, condition: CONDITION, default: Optional[CONSEQUEN
     return consequence
 
 
-def predict(state: STATE, action: Optional[SHAPE_B]) -> Optional[SHAPE_A]:
+def predict(model: MODEL, state: STATE, action: Optional[SHAPE_B]) -> Optional[SHAPE_A]:
     if 0 not in state:
         return None
     if 1 not in state:
@@ -75,58 +82,73 @@ def predict(state: STATE, action: Optional[SHAPE_B]) -> Optional[SHAPE_A]:
     base_history = state[0]                     # type: HISTORY
     condition = tuple(base_history), action     # type: CONDITION
     history = state[1]                          # type: HISTORY
-    return _predict(history[-1], condition)
+    layer = model[1]                            # type: LEVEL
+    shape = history[-1]                         # type: SHAPE_A
+    content = layer.get(shape)                  # type: Optional[Context]
+    if content is None:
+        return None
+    return _predict(content, condition)
 
 
-def generate_model(level: int, model, state: STATE, action: Optional[SHAPE_B], consequence: Content, sig: float = .1, alp: float = 1., h: int = 1):
+def generate_model(level: int, model, state: STATE, action: Optional[ACTION], consequence: SHAPE_A, sig: float = .1, alp: float = 1., h: int = 1):
     # consequence should be shape, or consequence must be optional
+
     if level < len(state):
-        layer = model[level]                        # type: LEVEL
-        layer[consequence.shape] = consequence      # type: CONSEQUENCE
-        condition = tuple(state[level]), action     # type: CONDITION
+        layer = model[level]                    # type: LEVEL
+        layer[hash(consequence)] = consequence  # type: CONSEQUENCE
+        history = state[level]                  # type: HISTORY
+        condition = tuple(history), action      # type: CONDITION
 
         if level + 1 < len(state):
             upper_layer = model[level + 1]          # type: LEVEL
-            upper_shape = state[level + 1][-1]      # type: SHAPE_A
-            content = upper_layer[upper_shape]      # type: Content
+            upper_history = state[level + 1]        # type: HISTORY
+            upper_shape = upper_history[-1]         # type: SHAPE_A
+            context = upper_layer[upper_shape]      # type: Context
 
-            if probability(content, condition, consequence, pseudo_count=alp) < sig:
+            if probability(context, condition, consequence, pseudo_count=alp) < sig:
                 if level + 2 < len(state):
                     uppest_layer = model[level + 2]                             # type: LEVEL
-                    uppest_shape = state[level + 2][-1]                         # type: SHAPE_A
-                    context = uppest_layer[uppest_shape]                        # type: Content
+                    uppest_history = state[level + 2]                           # type: HISTORY
+                    uppest_shape = uppest_history[-1]                           # type: SHAPE_A
+                    context = uppest_layer[uppest_shape]                        # type: Context
                     abstract_condition = tuple(state[level + 1]), condition     # type: CONDITION
-                    content = _predict(context, abstract_condition)              # type: Content
+                    context = _predict(context, abstract_condition)             # type: Context
 
-                    if content is None or probability(content, condition, consequence, pseudo_count=alp) < sig:
-                        content = max(upper_layer, key=lambda x: probability(x, condition, consequence, pseudo_count=alp))      # type: Content
+                    if context is None or probability(context, condition, consequence, pseudo_count=alp) < sig:
+                        context = max(upper_layer.values(), key=lambda _x: probability(_x, condition, consequence, pseudo_count=alp))  # type: Context
 
-                        if probability(content, condition, consequence, pseudo_count=alp) < sig:
-                            shape = len(model[level + 1])                       # type: SHAPE_A
-                            content = Content(shape)                            # type: Content
+                        if probability(context, condition, consequence, pseudo_count=alp) < sig:
+                            shape = len(upper_layer)                                # type: SHAPE_A
+                            context = Context(shape)                                # type: Context
 
                 else:
-                    shape = len(model[level + 1])                               # type: SHAPE_A
-                    content = Content(shape)                                    # type: Content
+                    shape = len(upper_layer)                                        # type: SHAPE_A
+                    context = Context(shape)                                        # type: Context
 
-                generate_model(level + 1, model, state, condition, content)
+                generate_model(level + 1, model, state, condition, hash(context))
 
         else:
-            content = Content(0)                                                            # type: Content
-            state[level + 1] = [None if b_i < h - 1 else content for b_i in range(h)]       # type: HISTORY
-            model[level + 1] = {content.shape: content}                                     # type: LEVEL
+            context = Context(0)                                                            # type: Context
+            upper_history = [context]                                                       # type: HISTORY
+            state.append(upper_history)
+            upper_layer = {hash(context): context}                                          # type: LEVEL
+            model.append(upper_layer)
 
-        # TODO: externalise to enable parallelisation. change this name to "change state" and perform adaptation afterwards from copy of old state + action to new state
-        adapt(content, condition, consequence)
+        # TODO: externalise to enable parallelisation. change this name to "change state"
+        # and perform adaptation afterwards from copy of old state + action to new state
+        adapt(context, condition, consequence)
 
     elif level == 0:
-        state[0] = [None] * h                                                               # type: HISTORY
-        model[0] = {consequence.shape: consequence}                                         # type: LEVEL  #  consequence can also be SHAPE_A!
+        history = []                                    # type: HISTORY
+        state.append(history)
+        layer = {hash(consequence): consequence}        # type: LEVEL  #  at level 0 consequence has no content (is SHAPE_A)!
 
-    history = state[level]                                              # type: HISTORY
+        model.append(layer)
+
+    history = state[level]
     history.append(consequence)
-    history.pop(0)
-
+    while h < len(history):
+        history.pop(0)
 
 
 def main():
@@ -154,12 +176,10 @@ def main():
     for each_time, each_elem in series_generator:
         success += int(each_elem == next_elem)
         generate_model(0, model, state, None, each_elem)
-        next_elem = predict(state, None)
+        next_elem = predict(model, state, None)
         iterations += 1
         if Timer.time_passed(2000):
             print("{:d} iterations, {:.5f} success".format(iterations, success / iterations))
-
-
 
 
 if __name__ == "__main__":
