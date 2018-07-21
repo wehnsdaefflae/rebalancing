@@ -1,14 +1,15 @@
 import json
-from typing import Optional
+from typing import Optional, Type
 
-from source.experiments.semiotic_modelling.content import LEVEL, Content, HISTORY, MODEL, STATE, ACTION, SHAPE_A, SymbolicContent
+from source.experiments.semiotic_modelling.content import LEVEL, Content, HISTORY, MODEL, STATE, ACTION, SHAPE_A, SymbolicContent, CONDITION, \
+    RationalContent
 from source.tools.timer import Timer
 
 
 # https://blog.yuo.be/2016/05/08/python-3-5-getting-to-grips-with-type-hints/
 
 
-def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTION], consequence: SHAPE_A,
+def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTION], consequence: SHAPE_A, content_class: Type[Content],
                    sig: float = .1, alp: float = 1., h: int = 1):
     if level < len(state):
         history = state[level]                  # type: HISTORY
@@ -18,17 +19,17 @@ def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTI
             upper_history = state[level + 1]            # type: HISTORY
             upper_shape = upper_history[-1]             # type: SHAPE_A
             upper_layer = model[level]                  # type: LEVEL
-            upper_content = upper_layer[upper_shape]    # type: SymbolicContent
+            upper_content = upper_layer[upper_shape]    # type: Content
 
             if upper_content.probability(condition, consequence) < sig:
                 if level + 2 < len(state):
                     uppest_layer = model[level + 1]                                                     # type: LEVEL
                     uppest_history = state[level + 2]                                                   # type: HISTORY
                     uppest_shape = uppest_history[-1]                                                   # type: SHAPE_A
-                    uppest_content = uppest_layer[uppest_shape]                                         # type: SymbolicContent
+                    uppest_content = uppest_layer[uppest_shape]                                         # type: Content
                     abstract_condition = tuple(upper_history), condition                                # type: CONDITION
-                    upper_shape = uppest_content.predict(abstract_condition, default=upper_shape)     # type: SHAPE_A
-                    upper_content = upper_layer[upper_shape]                                            # type: SymbolicContent
+                    upper_shape = uppest_content.predict(abstract_condition, default=upper_shape)       # type: SHAPE_A
+                    upper_content = upper_layer[upper_shape]                                            # type: Content
 
                     if upper_content is None or upper_content.probability(condition, consequence) < sig:
                         upper_content = max(upper_layer.values(), key=lambda _x: _x.probability(condition, consequence))  # type:
@@ -37,19 +38,19 @@ def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTI
 
                         if upper_content.probability(condition, consequence) < sig:
                             upper_shape = len(upper_layer)                                # type: SHAPE_A
-                            upper_content = SymbolicContent(upper_shape, alp)             # type: SymbolicContent
+                            upper_content = content_class(upper_shape, alp)             # type: Content
                             upper_layer[upper_shape] = upper_content
 
                 else:
                     upper_shape = len(upper_layer)                                        # type: SHAPE_A
-                    upper_content = SymbolicContent(upper_shape, alp)                     # type: SymbolicContent
+                    upper_content = content_class(upper_shape, alp)                     # type: Content
                     upper_layer[upper_shape] = upper_content
 
-                generate_model(level + 1, model, state, condition, upper_shape)
+                generate_model(level + 1, model, state, condition, upper_shape, SymbolicContent)
 
         else:
             upper_shape = 0                                     # type: SHAPE_A
-            upper_content = SymbolicContent(upper_shape, alp)   # type: SymbolicContent
+            upper_content = content_class(upper_shape, alp)     # type: Content
             upper_history = [upper_shape]                       # type: HISTORY
             state.append(upper_history)
             upper_layer = {upper_shape: upper_content}          # type: LEVEL
@@ -96,7 +97,7 @@ def main():
     for each_time, each_elem in series_generator:
         success += int(each_elem == next_elem)
 
-        generate_model(0, model, state, None, each_elem, sig=0.1, h=1)
+        generate_model(0, model, state, None, each_elem, RationalContent, sig=0.1, h=1)
 
         if len(state) >= 2:
             context_shape = state[1][-1]

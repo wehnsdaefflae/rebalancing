@@ -80,9 +80,8 @@ class SymbolicContent(Dict[Hashable, Dict[Hashable, int]], Content[Hashable, Has
 
 
 class RationalContent(Content[float, float]):
-    def __init__(self, shape: int, drag: int, *args, **kwargs):
-        super().__init__(shape, *args, **kwargs)
-        self.drag = drag
+    def __init__(self, shape: int, alpha: float, *args, **kwargs):
+        super().__init__(shape, alpha, *args, **kwargs)
         self.mean_x = 0.
         self.mean_y = 0.
         self.var_x = 0.
@@ -94,8 +93,8 @@ class RationalContent(Content[float, float]):
         dx = x - self.mean_x
         dy = y - self.mean_y
 
-        self.var_x = (self.drag * self.var_x + dx ** 2) / (self.drag + 1)
-        self.cov_xy = (self.drag * self.cov_xy + dx * dy) / (self.drag + 1)
+        self.var_x = (self.alpha * self.var_x + dx ** 2) / (self.alpha + 1)
+        self.cov_xy = (self.alpha * self.cov_xy + dx * dy) / (self.alpha + 1)
 
         if self.initial:
             self.mean_x = x
@@ -103,8 +102,8 @@ class RationalContent(Content[float, float]):
             self.initial = False
 
         else:
-            self.mean_x = (self.drag * self.mean_x + x) / (self.drag + 1)
-            self.mean_y = (self.drag * self.mean_y + y) / (self.drag + 1)
+            self.mean_x = (self.alpha * self.mean_x + x) / (self.alpha + 1)
+            self.mean_y = (self.alpha * self.mean_y + y) / (self.alpha + 1)
 
         self.iterations += 1
 
@@ -121,7 +120,7 @@ class RationalContent(Content[float, float]):
         a, t = self._get_parameters()
         output = condition * a + t
         true_probability = 1. / (1. + abs(consequence - output))
-        true_factor = self.iterations / (self.drag + self.iterations)
+        true_factor = self.iterations / (self.alpha + self.iterations)
         return true_probability * true_factor + (1. - true_factor)
 
 
