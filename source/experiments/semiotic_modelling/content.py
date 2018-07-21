@@ -1,5 +1,4 @@
-from typing import Hashable, Any, Dict, Union, List, Tuple, Generic, TypeVar, Optional
-
+from typing import Hashable, Any, Dict, Union, List, Tuple, Generic, TypeVar, Optional, Type
 
 SHAPE_A = TypeVar("A")
 SHAPE_B = TypeVar("B")
@@ -89,7 +88,10 @@ class RationalContent(Content[float, float]):
         self.initial = True
         self.iterations = 0
 
-    def adapt(self, x: float, y: float):
+    def adapt(self, x: CONDITION, y: CONSEQUENCE):
+        self._adapt(x[0][0], y)
+
+    def _adapt(self, x: float, y: float):
         dx = x - self.mean_x
         dy = y - self.mean_y
 
@@ -112,14 +114,20 @@ class RationalContent(Content[float, float]):
         t = self.mean_y - a * self.mean_x
         return a, t
 
-    def predict(self, condition: float, default: Optional[float] = None) -> float:
+    def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
+        return self._predict(condition[0][0])
+
+    def _predict(self, x: float) -> float:
         a, t = self._get_parameters()
-        return condition * a + t
+        return x * a + t
 
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
+        return self._probability(condition[0][0], consequence)
+
+    def _probability(self, x: float, y: float) -> float:
         a, t = self._get_parameters()
-        output = condition * a + t
-        true_probability = 1. / (1. + abs(consequence - output))
+        fx = x * a + t
+        true_probability = 1. / (1. + abs(y - fx))
         true_factor = self.iterations / (self.alpha + self.iterations)
         return true_probability * true_factor + (1. - true_factor)
 
