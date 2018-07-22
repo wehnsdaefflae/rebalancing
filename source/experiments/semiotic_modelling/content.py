@@ -10,8 +10,9 @@ CONSEQUENCE = SHAPE_B
 
 
 class Content(Hashable, Generic[SHAPE_A, SHAPE_B]):
-    def __init__(self, shape: int, alpha: float, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    # TODO:  remove wildcards
+    def __init__(self, shape: int, alpha: float):
+        super().__init__()
         self.__shape = shape              # type: int
         self.alpha = alpha
 
@@ -46,12 +47,13 @@ MODEL = List[LEVEL]
 STATE = List[HISTORY]
 
 
-class SymbolicContent(Dict[Hashable, Dict[Hashable, int]], Content[Hashable, Hashable]):
-    def __init__(self, shape: int, alpha: float, *args, **kwargs):
-        super().__init__(shape, alpha, *args, **kwargs)
+class SymbolicContent(Content[Hashable, Hashable]):
+    def __init__(self, shape: int, alpha: float):
+        super().__init__(shape, alpha)
+        self.table = dict()                         # type: Dict[Hashable, Dict[Hashable, int]]
 
     def probability(self, condition: CONDITION, consequence: Hashable, default: float = 1.) -> float:
-        sub_dict = self.get(condition)                           # type: Dict[CONSEQUENCE, int]
+        sub_dict = self.table.get(condition)                           # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
             return default
 
@@ -63,15 +65,15 @@ class SymbolicContent(Dict[Hashable, Dict[Hashable, int]], Content[Hashable, Has
         return frequency / total_frequency
 
     def adapt(self, condition: CONDITION, consequence: Hashable):
-        sub_dict = self.get(condition)                           # type: Dict[CONSEQUENCE, int]
+        sub_dict = self.table.get(condition)                           # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
             sub_dict = {consequence: 1}                             # type: Dict[CONSEQUENCE, int]
-            self[condition] = sub_dict
+            self.table[condition] = sub_dict
         else:
             sub_dict[consequence] = sub_dict.get(consequence, 0) + 1
 
     def predict(self, condition: CONDITION, default: Optional[Hashable] = None) -> CONSEQUENCE:
-        sub_dict = self.get(condition)                           # type: Dict[CONSEQUENCE, int]
+        sub_dict = self.table.get(condition)                           # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
             return default
         consequence, _ = max(sub_dict.items(), key=lambda _x: _x[1])  # type: CONSEQUENCE, int
@@ -79,8 +81,9 @@ class SymbolicContent(Dict[Hashable, Dict[Hashable, int]], Content[Hashable, Has
 
 
 class RationalContent(Content[float, float]):
-    def __init__(self, shape: int, alpha: float, *args, **kwargs):
-        super().__init__(shape, alpha, *args, **kwargs)
+    # pull out online regressor
+    def __init__(self, shape: int, alpha: float):
+        super().__init__(shape, alpha)
         self.mean_x = 0.
         self.mean_y = 0.
         self.var_x = 0.

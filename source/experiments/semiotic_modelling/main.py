@@ -90,14 +90,17 @@ def main():
 
     model = []
     state = []
-    success = 0
+    error = 0
     iterations = 0
+    predictions = 0
     last_elem, next_elem = None, None
 
     for each_time, each_elem in series_generator:
-        success += int(each_elem == next_elem)
+        if next_elem is not None:
+            predictions += 1
+            error += abs(each_elem - next_elem)
 
-        generate_model(0, model, state, None, each_elem, RationalContent, sig=0.1, h=1)
+        generate_model(0, model, state, None, each_elem, RationalContent, sig=1., h=1)
 
         if len(state) >= 2:
             context_shape = state[1][-1]
@@ -111,14 +114,15 @@ def main():
 
         iterations += 1
         if Timer.time_passed(2000):
-            print("{:d} iterations, {:.5f} success".format(iterations, success / iterations))
+            print("{:d} iterations, {:.5f} avrg error".format(iterations, error / iterations))
 
     print(iterations)
     print()
     print(len(model))
     print(len(state))
     print()
-    print(success / iterations)
+    print(error / iterations)
+    print(predictions)
 
 
 if __name__ == "__main__":
