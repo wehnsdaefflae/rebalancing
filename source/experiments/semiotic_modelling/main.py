@@ -1,6 +1,8 @@
 import json
 from typing import Optional, Type
 
+from matplotlib import pyplot
+
 from source.experiments.semiotic_modelling.content import LEVEL, Content, HISTORY, MODEL, STATE, ACTION, SHAPE_A, SymbolicContent, CONDITION, \
     RationalContent
 from source.tools.timer import Timer
@@ -95,12 +97,16 @@ def main():
     predictions = 0
     last_elem, next_elem = None, None
 
+    input_series = []
+    output_series = []
+
     for each_time, each_elem in series_generator:
         if next_elem is not None:
+            output_series.append((each_time, next_elem))
             predictions += 1
             error += abs(each_elem - next_elem)
 
-        generate_model(0, model, state, None, each_elem, RationalContent, sig=1., h=1)
+        generate_model(0, model, state, None, each_elem, RationalContent, sig=.99, h=1)
 
         if len(state) >= 2:
             context_shape = state[1][-1]
@@ -112,17 +118,25 @@ def main():
         else:
             next_elem = None
 
+        if each_elem is not None:
+            input_series.append((each_time, each_elem))
+
         iterations += 1
         if Timer.time_passed(2000):
             print("{:d} iterations, {:.5f} avrg error".format(iterations, error / iterations))
 
     print(iterations)
     print()
-    print(len(model))
+    print([len(_x) for _x in model])
     print(len(state))
     print()
     print(error / iterations)
     print(predictions)
+
+    pyplot.plot(*zip(*input_series), label="in")
+    pyplot.plot(*zip(*output_series), label="out")
+    pyplot.legend()
+    pyplot.show()
 
 
 if __name__ == "__main__":

@@ -96,7 +96,8 @@ class RationalContent(Content[float, float]):
 
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
         fx = self.regressor.output(condition[0][0])
-        true_probability = 1. / (1. + abs(consequence - fx))
+        y = consequence
+        true_probability = fx / y if fx < y else y / fx
         true_factor = self.iterations / (self.alpha + self.iterations)
         return true_probability * true_factor + (1. - true_factor)
 
