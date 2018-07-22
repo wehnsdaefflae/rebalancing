@@ -40,7 +40,7 @@ def series_generator(file_path: str, start_time: str = "", end_time: str = "", i
         for i, line in enumerate(file):
             if i % interval_minutes != 0:
                 continue
-            row = line[:-1].split("\t")
+            row = line.strip().split("\t")
             row_ts = int(row[0]) / 1000
             if -1 < start_timestamp:
                 if start_timestamp < row_ts:

@@ -1,4 +1,6 @@
-from typing import Hashable, Any, Dict, Union, List, Tuple, Generic, TypeVar, Optional, Type
+from typing import Hashable, Any, Dict, Union, List, Tuple, Generic, TypeVar, Optional
+
+from source.tools.regression import Regressor
 
 SHAPE_A = TypeVar("A")
 SHAPE_B = TypeVar("B")
@@ -10,7 +12,6 @@ CONSEQUENCE = SHAPE_B
 
 
 class Content(Hashable, Generic[SHAPE_A, SHAPE_B]):
-    # TODO:  remove wildcards
     def __init__(self, shape: int, alpha: float):
         super().__init__()
         self.__shape = shape              # type: int
@@ -81,56 +82,21 @@ class SymbolicContent(Content[Hashable, Hashable]):
 
 
 class RationalContent(Content[float, float]):
-    # pull out online regressor
     def __init__(self, shape: int, alpha: float):
         super().__init__(shape, alpha)
-        self.mean_x = 0.
-        self.mean_y = 0.
-        self.var_x = 0.
-        self.cov_xy = 0.
-        self.initial = True
+        self.regressor = Regressor(20)
         self.iterations = 0
 
-    def adapt(self, x: CONDITION, y: CONSEQUENCE):
-        self._adapt(x[0][0], y)
-
-    def _adapt(self, x: float, y: float):
-        dx = x - self.mean_x
-        dy = y - self.mean_y
-
-        self.var_x = (self.alpha * self.var_x + dx ** 2) / (self.alpha + 1)
-        self.cov_xy = (self.alpha * self.cov_xy + dx * dy) / (self.alpha + 1)
-
-        if self.initial:
-            self.mean_x = x
-            self.mean_y = y
-            self.initial = False
-
-        else:
-            self.mean_x = (self.alpha * self.mean_x + x) / (self.alpha + 1)
-            self.mean_y = (self.alpha * self.mean_y + y) / (self.alpha + 1)
-
+    def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
+        self.regressor.fit(condition[0][0], consequence)
         self.iterations += 1
 
-    def _get_parameters(self) -> Tuple[float, float]:
-        a = 0. if self.var_x == 0. else self.cov_xy / self.var_x
-        t = self.mean_y - a * self.mean_x
-        return a, t
-
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
-        return self._predict(condition[0][0])
-
-    def _predict(self, x: float) -> float:
-        a, t = self._get_parameters()
-        return x * a + t
+        return self.regressor.output(condition[0][0])
 
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        return self._probability(condition[0][0], consequence)
-
-    def _probability(self, x: float, y: float) -> float:
-        a, t = self._get_parameters()
-        fx = x * a + t
-        true_probability = 1. / (1. + abs(y - fx))
+        fx = self.regressor.output(condition[0][0])
+        true_probability = 1. / (1. + abs(consequence - fx))
         true_factor = self.iterations / (self.alpha + self.iterations)
         return true_probability * true_factor + (1. - true_factor)
 
