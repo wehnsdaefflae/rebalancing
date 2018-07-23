@@ -1,14 +1,16 @@
 import json
-from typing import Optional, Type
+from math import sin
+from typing import Optional, Type, Callable, List
 
 from matplotlib import pyplot
 
+from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import LEVEL, Content, HISTORY, MODEL, STATE, ACTION, SHAPE_A, SymbolicContent, CONDITION, \
     RationalContent
-from source.tools.timer import Timer
 
 
 # https://blog.yuo.be/2016/05/08/python-3-5-getting-to-grips-with-type-hints/
+from source.tools.timer import Timer
 
 
 def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTION], consequence: SHAPE_A, content_class: Type[Content],
@@ -75,68 +77,128 @@ def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTI
         history.pop(0)
 
 
-def main():
-    from source.data.data_generation import series_generator
+def debug_series():
+        with open("../../../configs/time_series.json", mode="r") as file:
+            config = json.load(file)
 
-    with open("../../../configs/time_series.json", mode="r") as file:
-        config = json.load(file)
+        start_time = "2017-07-27 00:02:00+00:00"
+        end_time = "2018-06-23 00:00:00+00:00"
+        interval_minutes = 1
 
-    start_time = "2017-08-01 00:00:00 UTC"
-    end_time = "2017-08-02 00:00:00 UTC"
-    interval_minutes = 1
+        asset_symbol, base_symbol = "EOS", "ETH"
 
-    asset_symbol, base_symbol = "QTUM", "ETH"
+        source_path = config["data_dir"] + "{:s}{:s}.csv".format(asset_symbol, base_symbol)
+        return series_generator(source_path, start_time=start_time, end_time=end_time, interval_minutes=interval_minutes)
 
-    source_path = config["data_dir"] + "{:s}{:s}.csv".format(asset_symbol, base_symbol)
-    series_generator = series_generator(source_path, start_time=start_time, end_time=end_time, interval_minutes=interval_minutes)
 
-    model = []
-    state = []
-    error = 0
-    iterations = 0
-    predictions = 0
-    last_elem, next_elem = None, None
+def sine_series():
+    def sine_generator():
+        _i = 0
+        while True:
+            yield _i, sin(_i / 100)
+            _i += 1
+    return sine_generator()
 
-    input_series = []
-    output_series = []
 
-    for each_time, each_elem in series_generator:
-        if next_elem is not None:
-            output_series.append((each_time, next_elem))
-            predictions += 1
-            error += abs(each_elem - next_elem)
+class TimeSeriesEvaluation:
+    def __init__(self, abort_at=-1):
+        # self.series = debug_series()
+        self.series = sine_series()
 
-        generate_model(0, model, state, None, each_elem, RationalContent, sig=.99, h=1)
+        self.error = 0.
+        self.baseline_error = 0.
 
+        self.time_axis = []
+        self.value_axis = []
+        self.prediction_axis = []
+        self.model_development = dict()
+        self.error_axis = []
+        self.baseline_error_axis = []
+        self.abort_at = abort_at
+
+    @staticmethod
+    def _predict(model: MODEL, state: STATE, default: float = 0.):
         if len(state) >= 2:
             context_shape = state[1][-1]
             layer = model[0]                                                        # type: LEVEL
             context = layer[context_shape]                                          # type: Content
             history = state[0]                                                      # type: HISTORY
 
-            next_elem = context.predict((tuple(history), None), default=each_elem)
-        else:
-            next_elem = None
+            return context.predict((tuple(history), None), default=default)
 
-        if each_elem is not None:
-            input_series.append((each_time, each_elem))
+        return default
 
-        iterations += 1
-        if Timer.time_passed(2000):
-            print("{:d} iterations, {:.5f} avrg error".format(iterations, error / iterations))
+    def _log(self, model, state, time, delta, baseline_delta):
+        for _i, _l in enumerate(model):
+            each_level_dev = self.model_development.get(_i)    # type: List[int]
+            if each_level_dev is None:
+                self.model_development[_i] = [len(model[_i])]
+            else:
+                each_level_dev.append(len(model[_i]))
 
-    print(iterations)
-    print()
-    print([len(_x) for _x in model])
-    print(len(state))
-    print()
-    print(error / iterations)
-    print(predictions)
+        self.error_axis.append(delta)
+        self.baseline_error_axis.append(baseline_delta)
+        self.time_axis.append(time)
 
-    pyplot.plot(*zip(*input_series), label="in")
-    pyplot.plot(*zip(*output_series), label="out")
-    pyplot.legend()
-    pyplot.show()
+    def plot(self):
+        fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
+        # max_l = max(len(x_) for x_ in self.model_development.values())
+        max_l = len(self.time_axis)
+        for each_i, each_dev in self.model_development.items():
+            self.model_development[each_i] = [0] * (max_l - len(each_dev)) + each_dev
+
+        if 0 < len(self.model_development):
+            ax1.stackplot(self.time_axis, *[self.model_development[_i] for _i in sorted(self.model_development.keys())])
+        ax2.plot(self.time_axis, self.error_axis, label="error")
+        ax2.plot(self.time_axis, self.baseline_error_axis, label="baseline error")
+        ax2.legend()
+        ax3.plot(self.time_axis, self.value_axis, label="time series")
+        ax3.plot(self.time_axis, self.prediction_axis, label="prediction")
+        ax3.legend()
+        pyplot.show()
+
+    def evaluate(self):
+        model = []
+        state = []
+
+        iterations = 0
+
+        last_element = 0.
+        predicted_element = 0.
+
+        for each_time, each_value in self.series:
+            if -1 < self.abort_at <= iterations:
+                break
+
+            self.value_axis.append(each_value)
+            self.prediction_axis.append(predicted_element)
+
+            delta = abs(predicted_element - each_value)
+            baseline_delta = abs(last_element - each_value)
+            self.error += delta
+            self.baseline_error += baseline_delta
+
+            generate_model(0, model, state, None, each_value, RationalContent, sig=.0, alp=1., h=1)
+
+            predicted_element = TimeSeriesEvaluation._predict(model, state, each_value)
+
+            last_element = each_value
+
+            self._log(model, state, each_time, delta, baseline_delta)
+            iterations += 1
+            if Timer.time_passed(2000):
+                print("{:d} iterations, {:.5f} avrg error".format(iterations, self.error / iterations))
+
+        print(iterations)
+        print(self.error)
+        print(self.baseline_error)
+        print([len(_x) for _x in model])
+
+
+def main():
+    tse = TimeSeriesEvaluation(abort_at=10000)
+    tse.evaluate()
+    tse.plot()
 
 
 if __name__ == "__main__":

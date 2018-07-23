@@ -56,6 +56,7 @@ def evaluate_signal(signal: TradingSignal,
         total_value_axis.append(value_base + value_asset * each_rate)
 
     if plot:
+        # TODO: align left and right y axis
         pyplot.clf()
         pyplot.close()
 
@@ -166,15 +167,15 @@ if __name__ == "__main__":
                                         end_time=end_time,
                                         interval_minutes=interval_minutes)
 
-    #evaluate_signal(RelativeStrengthIndexSignal(76), list(series_generator)[:-24*7], asset=asset_symbol, base=base_symbol, plot=True)
+    evaluate_signal(SymmetricChannelSignal(76), list(series_generator)[:-24*7], asset=asset_symbol, base=base_symbol, plot=True)
     # optimize_signal(SymmetricChannelSignal, series_generator, ((1., 250), ), 2000, plot=True)
 
     #exit()
-    signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, InvAsymmetricChannelSignal, RelativeStrengthIndexSignal]
+    #signal_classes = [HillValleySignal, SymmetricChannelSignal, AsymmetricChannelSignal, InvAsymmetricChannelSignal, RelativeStrengthIndexSignal]
 
     # one week: 1008 * 10 minutes, 8 * 120 min
     # one day: 144 * 10 minutes
 
-    optimal_parameter_development(signal_classes[4], 120, 50, ((1., 120.), ), series_generator, plot=True)
+    #optimal_parameter_development(signal_classes[4], 120, 50, ((1., 120.), ), series_generator, plot=True)
     # consider value in plot. close to 1 doesnt mean much
 
