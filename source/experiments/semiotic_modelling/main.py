@@ -14,7 +14,7 @@ from source.tools.timer import Timer
 
 
 def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTION], consequence: SHAPE_A, content_class: Type[Content],
-                   sig: float = .1, alp: float = 1., h: int = 1):
+                   sigma: float = .1, alpha: float = 1., h: int = 1):
     if level < len(state):
         history = state[level]                  # type: HISTORY
         condition = tuple(history), action      # type: CONDITION
@@ -25,7 +25,7 @@ def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTI
             upper_layer = model[level]                  # type: LEVEL
             upper_content = upper_layer[upper_shape]    # type: Content
 
-            if upper_content.probability(condition, consequence) < sig:
+            if upper_content.probability(condition, consequence) < sigma:
                 if level + 2 < len(state):
                     uppest_layer = model[level + 1]                                                     # type: LEVEL
                     uppest_history = state[level + 2]                                                   # type: HISTORY
@@ -35,26 +35,26 @@ def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTI
                     upper_shape = uppest_content.predict(abstract_condition, default=upper_shape)       # type: SHAPE_A
                     upper_content = upper_layer[upper_shape]                                            # type: Content
 
-                    if upper_content is None or upper_content.probability(condition, consequence) < sig:
+                    if upper_content is None or upper_content.probability(condition, consequence) < sigma:
                         upper_content = max(upper_layer.values(), key=lambda _x: _x.probability(condition, consequence))  # type:
                         # SymbolicContent
                         upper_shape = hash(upper_content)
 
-                        if upper_content.probability(condition, consequence) < sig:
+                        if upper_content.probability(condition, consequence) < sigma:
                             upper_shape = len(upper_layer)                                # type: SHAPE_A
-                            upper_content = content_class(upper_shape, alp)             # type: Content
+                            upper_content = content_class(upper_shape, alpha)             # type: Content
                             upper_layer[upper_shape] = upper_content
 
                 else:
                     upper_shape = len(upper_layer)                                        # type: SHAPE_A
-                    upper_content = content_class(upper_shape, alp)                     # type: Content
+                    upper_content = content_class(upper_shape, alpha)                     # type: Content
                     upper_layer[upper_shape] = upper_content
 
                 generate_model(level + 1, model, state, condition, upper_shape, SymbolicContent)
 
         else:
             upper_shape = 0                                     # type: SHAPE_A
-            upper_content = content_class(upper_shape, alp)     # type: Content
+            upper_content = content_class(upper_shape, alpha)     # type: Content
             upper_history = [upper_shape]                       # type: HISTORY
             state.append(upper_history)
             upper_layer = {upper_shape: upper_content}          # type: LEVEL
@@ -178,7 +178,7 @@ class TimeSeriesEvaluation:
             self.error += delta
             self.baseline_error += baseline_delta
 
-            generate_model(0, model, state, None, each_value, RationalContent, sig=.0, alp=1., h=1)
+            generate_model(0, model, state, None, each_value, RationalContent, sigma=.0, alpha=1., h=1)
 
             predicted_element = TimeSeriesEvaluation._predict(model, state, each_value)
 
