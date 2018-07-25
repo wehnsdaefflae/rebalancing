@@ -6,7 +6,7 @@ from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import LEVEL, Content, HISTORY, MODEL, STATE, ACTION, SHAPE_A, SymbolicContent, CONDITION, \
-    RationalContent
+    RationalContent, SHAPE_B
 
 # https://blog.yuo.be/2016/05/08/python-3-5-getting-to-grips-with-type-hints/
 from source.tools.regression import Regressor
@@ -75,6 +75,37 @@ def generate_model(level: int, model: MODEL, state: STATE, action: Optional[ACTI
     history.append(consequence)
     while h < len(history):
         history.pop(0)
+
+
+def adapt_model_to_state(old_state: STATE, base_action: SHAPE_B, new_state: STATE, model: MODEL, content_class: Type[Content]):
+    old_l = len(old_state)
+    new_l = len(new_state)
+    if old_l + 1 < new_l:
+        raise ValueError("length of new state must be equal or 1 + length of old state")
+
+    action = base_action
+    for _i in range(len(new_state) - 1):
+        new_history = new_state[_i]
+        consequence = new_history[-1]
+
+        old_history = old_state[_i]
+
+        upper_history = new_state[_i + 1]
+        shape = upper_history[-1]
+        if _i >= len(model):
+            content = content_class(shape)
+            layer = {shape: content}
+            model.append(layer)
+        else:
+            layer = model[_i]
+            content = layer.get(shape)
+            if content is None:
+                content = content_class(shape)
+                layer[shape] = content
+
+        condition = tuple(old_history), action
+        content.adapt(condition, consequence)
+        action = condition
 
 
 def debug_series():
