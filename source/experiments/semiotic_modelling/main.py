@@ -99,8 +99,8 @@ def sine_series():
 
 class TimeSeriesEvaluation:
     def __init__(self, abort_at=-1):
-        # self.series = debug_series()
-        self.series = sine_series()
+        self.series = debug_series()
+        # self.series = sine_series()
 
         self.error = 0.
         self.baseline_error = 0.
@@ -171,6 +171,8 @@ class TimeSeriesEvaluation:
         last_element = 0.
         predicted_element = 0.
 
+        s = lambda _x: .9999 if _x == 0 else .1
+
         for each_time, each_value in self.series:
             if -1 < self.abort_at <= iterations:
                 break
@@ -183,7 +185,8 @@ class TimeSeriesEvaluation:
             self.error += delta
             self.baseline_error += baseline_delta
 
-            generate_model(0, model, state, None, each_value, RationalContent, sigma=lambda _x: .99, alpha=50., h=1)
+            # TODO: separate state from value such that input and output can be different. after pulling out state modifications?
+            generate_model(0, model, state, None, each_value, RationalContent, sigma=s, alpha=10., h=1)
 
             predicted_element = TimeSeriesEvaluation._predict(model, state, each_value)
 
@@ -202,7 +205,7 @@ class TimeSeriesEvaluation:
 
 
 def main():
-    tse = TimeSeriesEvaluation(abort_at=100000)
+    tse = TimeSeriesEvaluation(abort_at=-1)
     tse.evaluate()
     tse.plot()
 

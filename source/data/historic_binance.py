@@ -24,12 +24,12 @@ from binance.client import Client
 
 # pair = "ETHBTC"
 
-start_date = "23 Jun, 2017"
-end_date = "23 Jun, 2018"
+start_date = "01 Jan, 2010"
+end_date = None
 interval = Client.KLINE_INTERVAL_1MINUTE
 
-encoded_dates = start_date.replace(" ", "").replace(",", "") + "-" + end_date.replace(" ", "").replace(",", "")
-data_dir = "../data/binance/" + encoded_dates + "-" + interval + "/"
+encoded_dates = start_date.replace(" ", "").replace(",", "") + "-"  # + end_date.replace(" ", "").replace(",", "")
+data_dir = "../../data/binance/" + encoded_dates + "-" + interval + "/"
 if not os.path.isdir(data_dir):
     os.mkdir(data_dir)
 
