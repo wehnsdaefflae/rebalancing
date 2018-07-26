@@ -1,6 +1,6 @@
 import json
 from math import sin, cos
-from typing import Optional, Type, Callable, List
+from typing import Optional, Type, Callable, List, Iterable, TypeVar, Tuple, Union, Hashable, Any, Dict
 
 from matplotlib import pyplot
 
