@@ -1,6 +1,7 @@
 from typing import Tuple
 
 
+# TODO: make multivariate (https://de.wikipedia.org/wiki/Multiple_lineare_Regression)
 class Regressor:
     def __init__(self, drag: int):
         self.drag = drag

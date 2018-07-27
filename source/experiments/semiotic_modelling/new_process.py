@@ -9,7 +9,7 @@ SHAPE = Union[INPUT, Hashable]
 HISTORY = Union[List[SHAPE], Tuple[SHAPE, ...]]
 
 MODEL = List[Dict[Hashable, Content]]
-SITUATION = List[Content]
+SITUATION = List[SHAPE]
 STATE = List[HISTORY]
 
 
@@ -59,7 +59,7 @@ def get_state(model: MODEL, state: STATE, situation: SITUATION) -> STATE:
     raise NotImplementedError()
 
 
-def adapt_model(model: MODEL, prev_state: STATE, current_state: STATE):
+def adapt_model(model: MODEL, state: STATE, situation: SITUATION):
     raise NotImplementedError()
 
 
@@ -68,7 +68,8 @@ def adapt_state(prev_state: STATE, situation: SITUATION):
 
 
 def simulation():
-    sl = SimulationLogger()                                                         # type: SimulationLogger
+    no_senses = 3
+    sl = SimulationLogger(no_senses)                                                # type: SimulationLogger
 
     source = []                                                                     # type: Iterable[List[Tuple[INPUT, TARGET]]]
 
@@ -78,19 +79,21 @@ def simulation():
     for t, examples in enumerate(source):
         output_values = []
         situations = []
-        next_states = []
 
         for _i, (input_value, target_value) in enumerate(examples):
-            this_state = current_states[_i]
+            this_state = current_states[_i]                                             #                   # abstract input?
+
             output_value = predict(model, this_state, input_value)                      # type: TARGET
             output_values.append(output_value)
 
-            situation = get_situation(model, this_state, input_value, target_value)     # type: SITUATION
-            situations.append(situation)
-            next_state = get_state(model, this_state, situation)                        # type: STATE
-            next_states.append(next_state)
+            # ===
 
-        adapt_model(model, current_states, next_states)  # 1st: generate new contents, 2nd: adapt contents. 1st can be done in above loop
+            situation = get_situation(model, this_state, input_value, target_value)     # type: SITUATION   # including shapes of new contents                                                                                                             # AND base shape (abstract target?)
+            situations.append(situation)
+
+            generate_contents(model, situation)                                         # create new content if shape returns none
+
+        adapt_model(model, current_states, situations)  # 1st: generate new contents, 2nd: adapt contents. 1st can be done in above loop
 
         for each_state, each_situation in zip(current_states, situations):
             adapt_state(each_state, each_situation)
