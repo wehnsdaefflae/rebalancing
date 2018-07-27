@@ -25,16 +25,17 @@ def main():
     config_path = "credentials.json"
 
     while True:
-        time.sleep(6)
+        time.sleep(60)
 
-        remote_config, local_config = load_config(config_path)
+        try:
+            remote_config, local_config = load_config(config_path)
+            with FTP(remote_config["url"]) as remote_ftp, FTP(local_config["url"]) as local_ftp:
+                login_server(remote_ftp, remote_config)
+                login_server(local_ftp, local_config)
+                move(remote_ftp, "", local_ftp, "")
 
-        Log.info("Opening remote server...")
-        with FTP(remote_config["url"]) as remote_ftp, FTP(local_config["url"]) as local_ftp:
-            login_server(remote_ftp, remote_config)
-            login_server(local_ftp, local_config)
-
-            move(remote_ftp, "", local_ftp, "")
+        except Exception as e:
+            Log.info(str(e))
 
 
 if __name__ == "__main__":
