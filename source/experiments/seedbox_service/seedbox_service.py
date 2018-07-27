@@ -20,7 +20,7 @@ def load_config(config_path: str) -> Tuple[Dict[str, str], Dict[str, str]]:
 
     return config["remote_ftp"], config["local_ftp"]
 
-
+# https://github.com/keepitsimple/pyFTPclient/blob/master/pyftpclient.py
 def main():
     config_path = "credentials.json"
 
@@ -29,7 +29,7 @@ def main():
 
         try:
             remote_config, local_config = load_config(config_path)
-            with FTP(remote_config["url"]) as remote_ftp, FTP(local_config["url"]) as local_ftp:
+            with FTP(remote_config["url"], timeout=3600) as remote_ftp, FTP(local_config["url"], timeout=3600) as local_ftp:
                 login_server(remote_ftp, remote_config)
                 login_server(local_ftp, local_config)
                 move(remote_ftp, "", local_ftp, "")
