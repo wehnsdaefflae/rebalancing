@@ -82,7 +82,7 @@ class StatefulOptimizer:
 
 
 def main():
-    with open("../../../configs/time_series.json", mode="r") as file:
+    with open("../../configs/time_series.json", mode="r") as file:
         config = json.load(file)
 
     time_series = series_generator(config["data_dir"] + "QTUMETH.csv",
@@ -104,7 +104,7 @@ def main():
     pyplot.plot(x_values, y_values)
 
     last_best = float("-inf")
-    for _i in range(200):
+    for _i in range(20):
         c, v = o.next()
         pyplot.axvline(x=c[0], alpha=.1)
 
