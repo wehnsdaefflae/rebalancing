@@ -62,7 +62,7 @@ def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> 
     content = base_layer.get(content_shape)
     if content is None:
         raise ValueError("content_shape {:s} not in base_layer".format(str(content_shape)))
-    return content.predict(input_value, default=None)
+    return content.predict(input_value, default=None)               # TODO: predict needs to take history
 
 
 def update_state(state: STATE, input_value: BASIC_SHAPE_IN, situation: SITUATION, history_length: int):
@@ -102,7 +102,7 @@ def adapt_content(model: MODEL, states: List[STATE], situations: List[SITUATION]
             if content is None:
                 raise ValueError("content_shape {:s} not in model layer {:d}".format(str(content_shape), _i))
             shape_out = each_situation[_i]
-            content.adapt(tuple(history), shape_out)
+            content.adapt(tuple(history), shape_out)            # TODO: adapt needs to take history _and_ input shape it failed on
 
 
 def generate_content(model: MODEL, situations: List[SITUATION], alpha: float):
@@ -125,33 +125,36 @@ def generate_content(model: MODEL, situations: List[SITUATION], alpha: float):
 
 
 def update_situation(situation: SITUATION, input_value: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: float):
-    level = 0
-    content_shape = situation[level]  # type: Content
-    layer = model[level]
-    content = layer[content_shape]
-    while content.probability(input_value, target_value) < sigma and level + 1 < len(model):
-        if level < len(situation):
-            context_shape = situation[level + 1]
-            upper_layer = model[level + 1]
-            context = upper_layer[context_shape]  # type: Content
-            history = tuple(state[level])
-            condition = history, input_value
-            content_shape = context.predict(condition)
-            if content_shape is not None:
-                content = layer[content_shape]
+    level = 0                                                                                                   # type: int
+    content_shape = situation[level]                                                                            # type: Content
+    layer = model[level]                                                                                        # type: LEVEL
+    content = layer[content_shape]                                                                              # type: Content
+
+    while content.probability(input_value, target_value) < sigma:
+        context_shape = situation[level + 1]                                                                    # type: APPEARANCE
+        upper_layer = model[level + 1]                                                                          # type: LEVEL
+        context = upper_layer[context_shape]                                                                    # type: Content
+        history = tuple(state[level])                                                                           # type: HISTORY
+        condition = history, input_value
+
+        input_value = context.predict(condition)        # THAT's fine
+
+        if input_value is not None:
+            content = layer[input_value]
+            if content.probability(input_value, target_value) < sigma:
+                content = max(layer.values(), key=lambda _x: _x.probability(input_value, target_value))
+                input_value = hash(content)
                 if content.probability(input_value, target_value) < sigma:
-                    content = max(layer.values(), key=lambda _x: _x.probability(input_value, target_value))
-                    content_shape = hash(content)
-                    if content.probability(input_value, target_value) < sigma:
-                        content_shape = -1
-            situation[level] = content_shape
+                    input_value = -1
 
+        level += 1
 
-    # add level as parameter and return new shape for this level. don't return anything if no change
-    # return [input_value] + new abstract shapes
-    # return missing content shapes as -1
-    # this is where core functionality is
-    raise NotImplementedError()
+        situation[level] = input_value
+        layer = upper_layer
+        content = context
+
+    for _ in range(level, len(situation)):
+        situation.pop()
 
 
 def simulation():
@@ -172,7 +175,6 @@ def simulation():
             raise ValueError("not true: len(examples) = {:d} == no_senses = {:d}".format(len(examples), no_senses))
 
         output_values = []                                                              # type: List[BASIC_SHAPE_OUT]
-
         for _i, (input_value, target_value) in enumerate(examples):
             output_value = predict(model, situations[_i], input_value)                  # type: BASIC_SHAPE_OUT
             output_values.append(output_value)
@@ -182,11 +184,10 @@ def simulation():
         generate_content(model, situations, alpha)                                      # create new content if shape returns none
         adapt_content(model, states, situations)                                        # adapt contents
 
-        for _i, (input_value, _) in enumerate(examples):                                # is the order of adapt_content and update states okay?
+        for _i, (input_value, _) in enumerate(examples):
             update_state(states[_i], input_value, situations[_i], history_length)
 
         sl.log(examples, output_values, model, states)
 
     sl.save(model, states, "")
     sl.plot()
-
