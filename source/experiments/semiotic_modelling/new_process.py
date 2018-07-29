@@ -9,7 +9,8 @@ ABSTRACT_SHAPE = int                                        # TODO: make it gene
 APPEARANCE = Union[BASIC_SHAPE_IN, BASIC_SHAPE_OUT, ABSTRACT_SHAPE]
 HISTORY = Union[List[APPEARANCE], Tuple[APPEARANCE, ...]]
 
-MODEL = List[Dict[APPEARANCE, Content]]
+LEVEL = Dict[APPEARANCE, Content]
+MODEL = List[LEVEL]
 SITUATION = List[APPEARANCE]
 STATE = List[HISTORY]
 
@@ -64,28 +65,24 @@ def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> 
     return content.predict(input_value, default=None)
 
 
-def _update_state(state: STATE, situation: SITUATION, history_length: int):
+def update_state(state: STATE, input_value: BASIC_SHAPE_IN, situation: SITUATION, history_length: int):
     len_state, len_situation = len(state), len(situation)
     if not len_situation < len_state:
         raise ValueError("not true: len(situation) = {:d} < len(state) = {:d}".format(len_situation, len_state))
 
+    each_state = state[0]
+    each_state.append(input_value)
+    while len(each_state) >= history_length:
+        each_state.pop(0)
+
     for _i, each_shape in enumerate(situation):
-        each_state = state[_i]
+        each_state = state[_i + 1]
         each_state.append(each_shape)
         while len(each_state) >= history_length:
             each_state.pop(0)
 
 
-def update_states(states: List[STATE], situations: List[SITUATION], history_length: int):
-    len_states, len_situations = len(states), len(situations)
-    if not len_states == len_situations:
-        raise ValueError("not true: len(states) = {:d} == len(situations) = {:d}".format(len_states, len_situations))
-
-    for each_state, each_situation in zip(states, situations):
-        _update_state(each_state, each_situation, history_length)
-
-
-def adapt_contents(model: MODEL, states: List[STATE], situations: List[SITUATION]):
+def adapt_content(model: MODEL, states: List[STATE], situations: List[SITUATION]):
     len_states, len_situations = len(states), len(situations)
     if not len_states == len_situations:
         raise ValueError("not true: len(states) = {:d} == len(situations) = {:d}".format(len_states, len_situations))
@@ -108,7 +105,7 @@ def adapt_contents(model: MODEL, states: List[STATE], situations: List[SITUATION
             content.adapt(tuple(history), shape_out)
 
 
-def generate_contents(model: MODEL, situations: List[SITUATION], alpha: float):
+def generate_content(model: MODEL, situations: List[SITUATION], alpha: float):
     len_model = len(model)
     for _i, each_layer in enumerate(model):
         new_shape = len(each_layer)                                             # type: ABSTRACT_SHAPE
@@ -127,14 +124,7 @@ def generate_contents(model: MODEL, situations: List[SITUATION], alpha: float):
                 content_created = True                                          # type: bool
 
 
-def _generate_model(level: int, model: MODEL, state: STATE, situation: SITUATION) -> APPEARANCE:
-    raise NotImplementedError()
-
-
-def update_situation(model: MODEL, state: STATE, situation: SITUATION, input_value: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT,
-                     sigma: float) -> SITUATION:
-    # TODO: change len_situation checks to _not_ include base level, model does _not_, only state _does_
-
+def update_situation(situation: SITUATION, input_value: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: float):
     level = 0
     content_shape = situation[level]  # type: Content
     layer = model[level]
@@ -154,7 +144,7 @@ def update_situation(model: MODEL, state: STATE, situation: SITUATION, input_val
                     content_shape = hash(content)
                     if content.probability(input_value, target_value) < sigma:
                         content_shape = -1
-
+            situation[level] = content_shape
 
 
     # add level as parameter and return new shape for this level. don't return anything if no change
@@ -165,35 +155,38 @@ def update_situation(model: MODEL, state: STATE, situation: SITUATION, input_val
 
 
 def simulation():
-    sigma = .1
-    alpha = 10.
-    history_length = 1                                                                   # type: int
-    no_senses = 3                                                                        # type: int
-    sl = SimulationStats(no_senses)                                                      # type: SimulationStats
+    sigma = .1                                                                          # type: float
+    alpha = 10.                                                                         # type: float
+    history_length = 1                                                                  # type: int
+    no_senses = 3                                                                       # type: int
+    sl = SimulationStats(no_senses)                                                     # type: SimulationStats
 
-    source = []                                                                          # type: Iterable[List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]]]
+    source = []                                                                         # type: Iterable[List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]]]
 
-    model = []                                                                           # type: MODEL
-    current_states = [[] for _ in range(no_senses)]                                      # type: List[STATE]
-    situations = [[] for _ in range(no_senses)]                                          # type: List[SITUATION]
+    model = []                                                                          # type: MODEL
+    states = tuple([] for _ in range(no_senses))                                        # type: List[STATE]
+    situations = tuple([] for _ in range(no_senses))                                    # type: List[SITUATION]
 
     for t, examples in enumerate(source):
-        output_values = []                                                               # type: List[BASIC_SHAPE_OUT]
+        if not len(examples) == no_senses:
+            raise ValueError("not true: len(examples) = {:d} == no_senses = {:d}".format(len(examples), no_senses))
+
+        output_values = []                                                              # type: List[BASIC_SHAPE_OUT]
 
         for _i, (input_value, target_value) in enumerate(examples):
-            this_state = current_states[_i]                                              # type: STATE
-            output_value = predict(model, situations[_i], input_value)                   # type: BASIC_SHAPE_OUT
+            output_value = predict(model, situations[_i], input_value)                  # type: BASIC_SHAPE_OUT
             output_values.append(output_value)
 
-            update_situation(model, this_state, situations[_i], input_value, target_value, sigma)
-            # including shapes of new contents as -1 but NO base shape (abstract target?)
+            update_situation(situations[_i], input_value, target_value, states[_i], model, sigma)
 
-        generate_contents(model, situations, alpha)                                      # create new content if shape returns none
-        adapt_contents(model, current_states, situations)                                # adapt contents
-        update_states(current_states, situations, history_length)
+        generate_content(model, situations, alpha)                                      # create new content if shape returns none
+        adapt_content(model, states, situations)                                        # adapt contents
 
-        sl.log(examples, output_values, model, current_states)
+        for _i, (input_value, _) in enumerate(examples):                                # is the order of adapt_content and update states okay?
+            update_state(states[_i], input_value, situations[_i], history_length)
 
-    sl.save(model, current_states, "")
+        sl.log(examples, output_values, model, states)
+
+    sl.save(model, states, "")
     sl.plot()
 
