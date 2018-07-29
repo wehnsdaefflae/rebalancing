@@ -1,4 +1,4 @@
-from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Hashable
+from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional
 
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent
 
@@ -24,7 +24,7 @@ class SimulationStats:
         self.output_values = tuple([] for _ in range(dim))           # type:
 
         self.contexts = tuple([] for _ in range(dim))                # type: List[List[Tuple[int, ...]]]
-        self.model_structures = []                              # type: List[Tuple[int, ...]]
+        self.model_structures = []                                   # type: List[Tuple[int, ...]]
 
         self.cumulative_errors = tuple([] for _ in range(dim))
 
@@ -199,7 +199,7 @@ def simulation():
         generate_content(model, situations, alpha)                                      # create new content if shape returns none
         adapt_content(model, states, situations)
         for _i, (input_value, target_value) in enumerate(examples):
-            base_content = get_content(model, situations[_i], 0)
+            base_content = get_content(model, situations[_i], 0)                        # type: Content
             base_content.adapt(input_value, target_value)
             update_state(states[_i], situations[_i], history_length)
 
