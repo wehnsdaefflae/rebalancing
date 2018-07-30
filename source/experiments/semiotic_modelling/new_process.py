@@ -53,8 +53,7 @@ class SimulationStats:
 
 def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> Optional[BASIC_SHAPE_OUT]:
     len_model, len_situation = len(model), len(situation)
-    if not len_model >= len_situation:
-        raise ValueError("not true: len(model) = {:d} >= len(situation) = {:d}".format(len_model, len_situation))
+    assert len_model >= len_situation
     if len_situation < 1:
         return None
     content_shape = situation[0]
@@ -62,15 +61,13 @@ def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> 
         return None
     base_layer = model[0]
     content = base_layer.get(content_shape)
-    if content is None:
-        raise ValueError("content_shape {:s} not in base_layer".format(str(content_shape)))
+    assert content is not None
     return content.predict(input_value, default=None)
 
 
 def update_state(state: STATE, situation: SITUATION, history_length: int):
     len_state, len_situation = len(state), len(situation)
-    if not len_state >= len_situation:
-        raise ValueError("not true: len(state) = {:d} >= len(situation) = {:d}".format(len_state, len_situation))
+    assert len_state >= len_situation
 
     for each_shape, each_state in zip(situation, state):
         each_state.append(each_shape)
@@ -80,15 +77,12 @@ def update_state(state: STATE, situation: SITUATION, history_length: int):
 
 def adapt_content(model: MODEL, states: List[STATE], situations: List[SITUATION]):
     len_states, len_situations = len(states), len(situations)
-    if not len_states == len_situations:
-        raise ValueError("not true: len(states) = {:d} == len(situations) = {:d}".format(len_states, len_situations))
+    assert len_states == len_situations
 
     len_model = len(model)
     for each_state, each_situation in zip(states, situations):
         len_state, len_situation = len(each_state), len(each_situation)
-        if not(len_situation < len_state == len_model):
-            msg = "not true: len(situation) = {:d} < len(state) = {:d} == len(model) = {:d}"
-            raise ValueError(msg.format(len_situation, len_state, len_model))
+        assert len_situation < len_state == len_model
 
         for _i in range(len_situation - 1):
             content = get_content(model, each_situation, _i + 1)
@@ -104,8 +98,7 @@ def generate_content(model: MODEL, situations: List[SITUATION], alpha: float):
         content_created = False                                                 # type: bool
         for each_situation in situations:
             len_situation = len(each_situation)
-            if not len_model >= len_situation:   # TODO: thats wrong. use oversized situation for layer introduction, remove _i dependency
-                raise ValueError("not true: len(model) = {:d} >= len(situation) = {:d}".format(len_model, len_situation))
+            assert len_model >= len_situation
             if _i >= len(each_situation):
                 continue
             if each_situation[_i] == -1:
@@ -117,17 +110,14 @@ def generate_content(model: MODEL, situations: List[SITUATION], alpha: float):
 
 
 def get_content(model: MODEL, situation: SITUATION, level: int) -> Content:
-    if not level < len(model):
-        raise ValueError("not true: level = {:d} < len(model) = {:d}".format(level, len(model)))
+    assert level < len(model)
     layer = model[level]        # type: LEVEL
 
-    if not level < len(situation):
-        raise ValueError("not true: level = {:d} < len(situation) = {:d}".format(level, len(situation)))
+    assert level < len(situation)
     shape = situation[level]    # type: APPEARANCE
 
     content = layer.get(shape)  # type: Content
-    if content is None:
-        raise ValueError("no content with shape {:s} at level {:d}".format(str(shape), level))
+    assert content is not None
     return content
 
 
@@ -176,7 +166,7 @@ def simulation():
     sigma = .1                                                                          # type: float
     alpha = 10.                                                                         # type: float
     history_length = 1                                                                  # type: int
-    no_senses = 3                                                                       # type: int
+    no_senses = 1                                                                       # type: int
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
 
     source = []                                                                         # type: Iterable[List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]]]
@@ -186,8 +176,7 @@ def simulation():
     situations = tuple([] for _ in range(no_senses))                                    # type: List[SITUATION]
 
     for t, examples in enumerate(source):
-        if not len(examples) == no_senses:
-            raise ValueError("not true: len(examples) = {:d} == no_senses = {:d}".format(len(examples), no_senses))
+        assert len(examples) == no_senses
 
         # test
         output_values = []                                                              # type: List[BASIC_SHAPE_OUT]
@@ -199,8 +188,8 @@ def simulation():
             update_situation(situations[_i], input_value, target_value, states[_i], model, sigma)
 
         # train
-        generate_content(model, situations, alpha)                                      # create new content if shape returns none
         generate_layer(model, situations)
+        generate_content(model, situations, alpha)                                      # create new content if shape returns none
         adapt_content(model, states, situations)
         for _i, (input_value, target_value) in enumerate(examples):
             base_content = get_content(model, situations[_i], 0)                        # type: Content
