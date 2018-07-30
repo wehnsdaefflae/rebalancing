@@ -159,14 +159,17 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         layer = upper_layer                                                                                     # type: LEVEL
         content = context                                                                                       # type: Content
 
-    # TODO: is that okay?
-    if situation[-1] == -1 and len(model[-1]) == 1:
-        situation.append(-1)
-        model.append(dict())
-        level += 1
-
     for _ in range(level, len(situation)):
         situation.pop()
+
+
+def generate_layer(model: MODEL, situations: List[SITUATION]):
+    len_model = len(model)
+    for each_situation in situations:
+        if len(each_situation) == len_model and each_situation[-1] == -1 and len(model[-1]) == 1:
+            each_situation.append(-1)
+            model.append(dict())
+            return
 
 
 def simulation():
@@ -197,6 +200,7 @@ def simulation():
 
         # train
         generate_content(model, situations, alpha)                                      # create new content if shape returns none
+        generate_layer(model, situations)
         adapt_content(model, states, situations)
         for _i, (input_value, target_value) in enumerate(examples):
             base_content = get_content(model, situations[_i], 0)                        # type: Content
