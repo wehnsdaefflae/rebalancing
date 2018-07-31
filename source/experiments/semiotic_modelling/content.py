@@ -101,4 +101,15 @@ class RationalContent(Content[float, float]):
 
 
 class MLPRationalContent(Content[Tuple[float, ...], float]):
-    raise NotImplementedError()
+    def __init__(self, shape: int, alpha: float):
+        super().__init__(shape, alpha)
+        raise NotImplementedError()
+
+    def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
+        raise NotImplementedError()
+
+    def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
+        raise NotImplementedError()
+
+    def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:
+        raise NotImplementedError()

@@ -1,5 +1,5 @@
+import datetime
 import json
-from math import sin, cos
 from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence
 
 from source.data.data_generation import series_generator
@@ -172,21 +172,32 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]]]:
     with open("../../../configs/time_series.json", mode="r") as file:
         config = json.load(file)
 
-    interval_minutes = 1
-    asset_symbol, base_symbol = "EOS", "ETH"
+    base_symbol = "ETH"
+    asset_symbols = "EOS", "SNT", "QTUM", "BNT"
 
-    source_path = config["data_dir"] + "{:s}{:s}.csv".format(asset_symbol, base_symbol)
-    return series_generator(source_path, interval_minutes=interval_minutes)
+    source_paths = (config["data_dir"] + "{:s}{:s}.csv".format(_x, base_symbol) for _x in asset_symbols)
 
+    start = datetime.datetime.utcfromtimestamp(1501113780000)  # maybe divide by 1000?
+    end = datetime.datetime.utcfromtimestamp(1529712000000)
+    start_str, end_str = str(start), str(end)
 
-def sine_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]]]:
-    def sine_generator():
-        _i = 0
-        while True:
-            yield _i, sin(_i / 10) + 1.1 + cos(_i / 21) * 3 + 3.5
-            _i += 1
+    generators = [series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _x in source_paths]
+    time_stamps = set()
+    examples = []
+    last_values = [0. for _ in asset_symbols]
+    for _i, each_generator in enumerate(generators):
+        try:
+            t, f = next(each_generator)
+        except StopIteration as e:
+            raise e
+        time_stamps.add(t)
+        each_example = last_values[_i], f
+        examples.append(each_example)
 
-    return sine_generator()
+    assert len(time_stamps) == 1
+    t, = time_stamps
+
+    yield t, examples
 
 
 def simulation():
