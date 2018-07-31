@@ -36,7 +36,7 @@ class SimulationStats:
 
         self.cumulative_errors = tuple([] for _ in range(dim))
 
-    def log(self, examples: List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]], output_values: List[BASIC_SHAPE_OUT], model: MODEL, states: List[STATE]):
+    def log(self, examples: List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]], output_values: List[BASIC_SHAPE_OUT], model: MODEL, states: Tuple[STATE]):
         for _i, ((input_value, target_value), output_value, situation) in enumerate(zip(examples, output_values, states)):
             self.input_values[_i].append(input_value)
             self.target_values[_i].append(target_value)
@@ -52,7 +52,7 @@ class SimulationStats:
         model_structure = tuple(len(_x) for _x in model)        # type: Tuple[int, ...]
         self.model_structures.append(model_structure)
 
-    def save(self, model: MODEL, states: List[STATE], file_path: str):
+    def save(self, model: MODEL, states: Tuple[STATE], file_path: str):
         raise NotImplementedError()
 
     def plot(self):
@@ -83,7 +83,7 @@ def update_state(state: STATE, situation: SITUATION, history_length: int):
             each_state.pop(0)
 
 
-def adapt_content(model: MODEL, states: List[STATE], situations: List[SITUATION]):
+def adapt_content(model: MODEL, states: Tuple[STATE], situations: Tuple[SITUATION]):
     len_states, len_situations = len(states), len(situations)
     assert len_states == len_situations
 
@@ -99,7 +99,7 @@ def adapt_content(model: MODEL, states: List[STATE], situations: List[SITUATION]
             content.adapt(tuple(history), shape_out)
 
 
-def generate_content(model: MODEL, situations: List[SITUATION], alpha: float):
+def generate_content(model: MODEL, situations: Tuple[SITUATION], alpha: float):
     len_model = len(model)
     for _i, each_layer in enumerate(model):
         new_shape = len(each_layer)                                             # type: ABSTRACT_SHAPE
@@ -161,7 +161,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         situation.pop()
 
 
-def generate_layer(model: MODEL, situations: List[SITUATION]):
+def generate_layer(model: MODEL, situations: Tuple[SITUATION]):
     len_model = len(model)
     for each_situation in situations:
         if len(each_situation) == len_model and each_situation[-1] == -1 and len(model[-1]) == 1:
@@ -213,8 +213,8 @@ def simulation():
     # source = sine_series()                                                            # type: Iterable[List[EXAMPLES]]
 
     model = [{0: RationalContent(0, .1)}]                                               # type: MODEL
-    states = tuple([] for _ in range(no_senses))                                        # type: List[STATE]
-    situations = tuple([0] for _ in range(no_senses))                                   # type: List[SITUATION]
+    states = tuple([0 for _ in range(history_length)] for _ in range(no_senses))        # type: Tuple[STATE]
+    situations = tuple([0] for _ in range(no_senses))                                   # type: Tuple[SITUATION]
 
     for t, examples in source:
         assert len(examples) == no_senses

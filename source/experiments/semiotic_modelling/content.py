@@ -2,16 +2,11 @@ from typing import Hashable, Any, Dict, Union, List, Tuple, Generic, TypeVar, Op
 
 from source.tools.regression import Regressor
 
-SHAPE_A = TypeVar("A")
-SHAPE_B = TypeVar("B")
-
-HISTORY = List[SHAPE_A]
-ACTION = Union[SHAPE_B, "CONDITION"]
-CONDITION = Tuple[Tuple[SHAPE_A, ...], ACTION]
-CONSEQUENCE = SHAPE_B
+CONDITION = TypeVar("CONDITION")
+CONSEQUENCE = TypeVar("CONSEQUENCE")
 
 
-class Content(Hashable, Generic[SHAPE_A, SHAPE_B]):
+class Content(Hashable, Generic[CONDITION, CONSEQUENCE]):
     def __init__(self, shape: int, alpha: float):
         super().__init__()
         self.__shape = shape              # type: int
@@ -42,36 +37,30 @@ class Content(Hashable, Generic[SHAPE_A, SHAPE_B]):
         raise NotImplementedError
 
 
-CONTENT = Union[SHAPE_A, Content]
-LEVEL = Dict[SHAPE_A, CONTENT]
-MODEL = List[LEVEL]
-STATE = List[HISTORY]
-
-
 class SymbolicContent(Content[Hashable, Hashable]):
     def __init__(self, shape: int, alpha: float):
         super().__init__(shape, alpha)
-        self.table = dict()                         # type: Dict[Hashable, Dict[Hashable, int]]
+        self.table = dict()                                             # type: Dict[Hashable, Dict[Hashable, int]]
 
     def probability(self, condition: CONDITION, consequence: Hashable, default: float = 1.) -> float:
-        sub_dict = self.table.get(condition)                           # type: Dict[CONSEQUENCE, int]
+        sub_dict = self.table.get(condition)                            # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
             return default
 
-        total_frequency = self.alpha                        # type: int
+        total_frequency = self.alpha                                    # type: int
         for each_consequence, each_frequency in sub_dict.items():
             total_frequency += each_frequency + self.alpha
 
-        frequency = sub_dict.get(consequence, 0.) + self.alpha     # type: float
+        frequency = sub_dict.get(consequence, 0.) + self.alpha          # type: float
         return frequency / total_frequency
 
     def adapt(self, condition: CONDITION, consequence: Hashable):
-        sub_dict = self.table.get(condition)                           # type: Dict[CONSEQUENCE, int]
+        sub_dict = self.table.get(condition)                            # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
-            sub_dict = {consequence: 1}                             # type: Dict[CONSEQUENCE, int]
-            self.table[condition] = sub_dict
+            sub_dict = {consequence: 1}                                 # type: Dict[CONSEQUENCE, int]
+            self.table[condition] = sub_dict                            # type: Dict[CONSEQUENCE, int]
         else:
-            sub_dict[consequence] = sub_dict.get(consequence, 0) + 1
+            sub_dict[consequence] = sub_dict.get(consequence, 0) + 1    # type: int
 
     def predict(self, condition: CONDITION, default: Optional[Hashable] = None) -> CONSEQUENCE:
         sub_dict = self.table.get(condition)                           # type: Dict[CONSEQUENCE, int]
@@ -92,10 +81,10 @@ class RationalContent(Content[float, float]):
         self.iterations += 1
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
-        return self.regressor.output(condition[0][0])
+        return self.regressor.output(condition)
 
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        fx = self.regressor.output(condition[0][0])
+        fx = self.regressor.output(condition)
         y = consequence
         return 1. / (1. + abs(fx - y))
 
