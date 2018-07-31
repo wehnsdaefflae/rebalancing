@@ -208,7 +208,8 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def simulation():
-    sigma = .1                                                                          # type: float
+    # TODO: at sigma >= 1., new contents must develop
+    sigma = 1.                                                                          # type: float
     alpha = 10.                                                                         # type: float
     history_length = 1                                                                  # type: int
     no_senses = 1                                                                       # type: int
@@ -242,11 +243,11 @@ def simulation():
             base_content.adapt(input_value, target_value)
             update_state(states[_i], situations[_i], history_length)
 
-        if Timer.time_passed(2000):
-            print("At time stamp {:s}".format(str(t)))
-
         sl.log(examples, output_values, model, states)
+        if Timer.time_passed(2000):
+            print("At time stamp {:s}: {:s}".format(str(t), str(sl.model_structures[-1])))
 
+    print(sl.model_structures[-1])
     sl.save(model, states, "")
     sl.plot()
 
