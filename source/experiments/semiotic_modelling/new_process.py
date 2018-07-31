@@ -2,8 +2,10 @@ import datetime
 import json
 from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence
 
+from dateutil.tz import tzutc
+
 from source.data.data_generation import series_generator
-from source.experiments.semiotic_modelling.content import Content, SymbolicContent
+from source.experiments.semiotic_modelling.content import Content, SymbolicContent, RationalContent
 
 TIME = TypeVar("TIME")
 
@@ -168,17 +170,17 @@ def generate_layer(model: MODEL, situations: List[SITUATION]):
             return
 
 
-def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]]]:
+def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
     with open("../../../configs/time_series.json", mode="r") as file:
         config = json.load(file)
 
     base_symbol = "ETH"
-    asset_symbols = "EOS", "SNT", "QTUM", "BNT"
+    asset_symbols = "EOS",  #  "SNT", "QTUM", "BNT"
 
     source_paths = (config["data_dir"] + "{:s}{:s}.csv".format(_x, base_symbol) for _x in asset_symbols)
 
-    start = datetime.datetime.utcfromtimestamp(1501113780000)  # maybe divide by 1000?
-    end = datetime.datetime.utcfromtimestamp(1529712000000)
+    start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())  # maybe divide by 1000?
+    end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
     start_str, end_str = str(start), str(end)
 
     generators = [series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _x in source_paths]
@@ -210,11 +212,11 @@ def simulation():
     source = debug_series()                                                             # type: Iterable[List[EXAMPLE]]
     # source = sine_series()                                                            # type: Iterable[List[EXAMPLES]]
 
-    model = []                                                                          # type: MODEL
+    model = [{0: RationalContent(0, .1)}]                                               # type: MODEL
     states = tuple([] for _ in range(no_senses))                                        # type: List[STATE]
-    situations = tuple([] for _ in range(no_senses))                                    # type: List[SITUATION]
+    situations = tuple([0] for _ in range(no_senses))                                   # type: List[SITUATION]
 
-    for t, examples in enumerate(source):
+    for t, examples in source:
         assert len(examples) == no_senses
 
         # test
@@ -225,6 +227,8 @@ def simulation():
             output_values.append(output_value)
 
             update_situation(situations[_i], input_value, target_value, states[_i], model, sigma)
+
+        # TODO: predict one target from several inputs together or each?!
 
         # train
         generate_layer(model, situations)
@@ -239,3 +243,7 @@ def simulation():
 
     sl.save(model, states, "")
     sl.plot()
+
+
+if __name__ == "__main__":
+    simulation()
