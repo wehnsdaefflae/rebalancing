@@ -228,7 +228,8 @@ def simulation():
 
             update_situation(situations[_i], input_value, target_value, states[_i], model, sigma)
 
-        # TODO: predict one target from several inputs together or each?!
+        # predict from several inputs one target each
+        # to predict one target from several inputs: multiple linear regression or symbolic "history"
 
         # train
         generate_layer(model, situations)
