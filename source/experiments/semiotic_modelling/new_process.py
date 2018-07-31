@@ -6,6 +6,7 @@ from dateutil.tz import tzutc
 
 from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent, RationalContent
+from source.tools.timer import Timer
 
 TIME = TypeVar("TIME")
 
@@ -53,10 +54,12 @@ class SimulationStats:
         self.model_structures.append(model_structure)
 
     def save(self, model: MODEL, states: Tuple[STATE], file_path: str):
-        raise NotImplementedError()
+        pass
+        # raise NotImplementedError()
 
     def plot(self):
-        raise NotImplementedError()
+        pass
+        # raise NotImplementedError()
 
 
 def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> Optional[BASIC_SHAPE_OUT]:
@@ -77,10 +80,10 @@ def update_state(state: STATE, situation: SITUATION, history_length: int):
     len_state, len_situation = len(state), len(situation)
     assert len_state >= len_situation
 
-    for each_shape, each_state in zip(situation, state):
-        each_state.append(each_shape)
-        while len(each_state) >= history_length:
-            each_state.pop(0)
+    for each_shape in situation:
+        state.append(each_shape)
+        while history_length < len(state):
+            state.pop(0)
 
 
 def adapt_content(model: MODEL, states: Tuple[STATE], situations: Tuple[SITUATION]):
@@ -90,7 +93,7 @@ def adapt_content(model: MODEL, states: Tuple[STATE], situations: Tuple[SITUATIO
     len_model = len(model)
     for each_state, each_situation in zip(states, situations):
         len_state, len_situation = len(each_state), len(each_situation)
-        assert len_situation < len_state == len_model
+        assert len_model == len_state >= len_situation
 
         for _i in range(len_situation - 1):
             content = get_content(model, each_situation, _i + 1)
@@ -157,7 +160,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         layer = upper_layer                                                                                     # type: LEVEL
         content = context                                                                                       # type: Content
 
-    for _ in range(level, len(situation)):
+    for _ in range(level + 1, len(situation)):
         situation.pop()
 
 
@@ -184,22 +187,24 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
     start_str, end_str = str(start), str(end)
 
     generators = [series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _x in source_paths]
-    time_stamps = set()
-    examples = []
     last_values = [0. for _ in asset_symbols]
-    for _i, each_generator in enumerate(generators):
-        try:
-            t, f = next(each_generator)
-        except StopIteration as e:
-            raise e
-        time_stamps.add(t)
-        each_example = last_values[_i], f
-        examples.append(each_example)
+    while True:
+        time_stamps = set()
+        examples = []
+        for _i, each_generator in enumerate(generators):
+            try:
+                t, f = next(each_generator)
+            except StopIteration as e:
+                raise e
+            time_stamps.add(t)
+            each_example = last_values[_i], f
+            examples.append(each_example)
+            last_values[_i] = f
 
-    assert len(time_stamps) == 1
-    t, = time_stamps
+        assert len(time_stamps) == 1
+        t, = time_stamps
 
-    yield t, examples
+        yield t, examples
 
 
 def simulation():
@@ -228,9 +233,6 @@ def simulation():
 
             update_situation(situations[_i], input_value, target_value, states[_i], model, sigma)
 
-        # predict from several inputs one target each
-        # to predict one target from several inputs: multiple linear regression or symbolic "history"
-
         # train
         generate_layer(model, situations)
         generate_content(model, situations, alpha)                                      # create new content if shape returns none
@@ -240,6 +242,9 @@ def simulation():
             base_content.adapt(input_value, target_value)
             update_state(states[_i], situations[_i], history_length)
 
+        if Timer.time_passed(2000):
+            print("At time stamp {:s}".format(str(t)))
+
         sl.log(examples, output_values, model, states)
 
     sl.save(model, states, "")
@@ -248,3 +253,5 @@ def simulation():
 
 if __name__ == "__main__":
     simulation()
+    # predict from several inputs one target each
+    # to predict one target from several inputs: multiple linear regression or symbolic "history"

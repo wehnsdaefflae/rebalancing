@@ -77,7 +77,7 @@ class RationalContent(Content[float, float]):
         self.iterations = 0
 
     def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
-        self.regressor.fit(condition[0][0], consequence)
+        self.regressor.fit(condition, consequence)
         self.iterations += 1
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
