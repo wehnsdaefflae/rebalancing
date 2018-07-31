@@ -100,15 +100,5 @@ class RationalContent(Content[float, float]):
         return 1. / (1. + abs(fx - y))
 
 
-# rational base layer
-#   either: voronoi tesselation
-#       either:   adapt current representation to each_elem
-#       or:       adapt last prediction to each_elem
-#   or: regression in base content
-#       either:   adapt current representation to each_elem
-#       or:       adapt last prediction to each_elem
-# multidimensional
-#   make adapt external (from old state to new state)
-#   generate_model returns new state with dummies for new representations
-#   final adapt generates representations
-#   concurrency?
+class MLPRationalContent(Content[Tuple[float, ...], float]):
+    raise NotImplementedError()

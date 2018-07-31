@@ -1,9 +1,15 @@
-from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional
+import json
+from math import sin, cos
+from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence
 
+from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent
+
+TIME = TypeVar("TIME")
 
 BASIC_SHAPE_IN = TypeVar("BASIC_SHAPE_IN")
 BASIC_SHAPE_OUT = TypeVar("BASIC_SHAPE_OUT")
+EXAMPLE = Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]
 
 ABSTRACT_SHAPE = int                                        # TODO: make it generic hashable
 
@@ -162,6 +168,27 @@ def generate_layer(model: MODEL, situations: List[SITUATION]):
             return
 
 
+def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]]]:
+    with open("../../../configs/time_series.json", mode="r") as file:
+        config = json.load(file)
+
+    interval_minutes = 1
+    asset_symbol, base_symbol = "EOS", "ETH"
+
+    source_path = config["data_dir"] + "{:s}{:s}.csv".format(asset_symbol, base_symbol)
+    return series_generator(source_path, interval_minutes=interval_minutes)
+
+
+def sine_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]]]:
+    def sine_generator():
+        _i = 0
+        while True:
+            yield _i, sin(_i / 10) + 1.1 + cos(_i / 21) * 3 + 3.5
+            _i += 1
+
+    return sine_generator()
+
+
 def simulation():
     sigma = .1                                                                          # type: float
     alpha = 10.                                                                         # type: float
@@ -169,7 +196,8 @@ def simulation():
     no_senses = 1                                                                       # type: int
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
 
-    source = []                                                                         # type: Iterable[List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]]]
+    source = debug_series()                                                             # type: Iterable[List[EXAMPLE]]
+    # source = sine_series()                                                            # type: Iterable[List[EXAMPLES]]
 
     model = []                                                                          # type: MODEL
     states = tuple([] for _ in range(no_senses))                                        # type: List[STATE]
