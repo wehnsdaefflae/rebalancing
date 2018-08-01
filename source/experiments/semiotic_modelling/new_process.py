@@ -1,7 +1,6 @@
 import datetime
 import json
 from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence
-from webbrowser import get
 
 from dateutil.tz import tzutc
 
@@ -9,13 +8,12 @@ from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent, RationalContent
 from source.tools.timer import Timer
 
-TIME = TypeVar("TIME")
 
 BASIC_SHAPE_IN = TypeVar("BASIC_SHAPE_IN")
 BASIC_SHAPE_OUT = TypeVar("BASIC_SHAPE_OUT")
 EXAMPLE = Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]
 
-ABSTRACT_SHAPE = int                                        # TODO: make it generic hashable
+ABSTRACT_SHAPE = int                                        # TODO: make generic hashable
 
 APPEARANCE = Union[BASIC_SHAPE_IN, BASIC_SHAPE_OUT, ABSTRACT_SHAPE]
 HISTORY = Union[List[APPEARANCE], Tuple[APPEARANCE, ...]]
@@ -25,6 +23,8 @@ LEVEL = Dict[APPEARANCE, Content]
 MODEL = List[LEVEL]
 SITUATION = List[APPEARANCE]
 STATE = List[HISTORY]
+
+TIME = TypeVar("TIME")
 
 
 class SimulationStats:
@@ -138,6 +138,32 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
     content_shape = situation[level]                                                                            # type: Content
     layer = model[level]                                                                                        # type: LEVEL
     content = layer[content_shape]                                                                              # type: Content
+    while True:
+        if content.probability(shape, target_value) >= sigma:
+            while level < len(situation):
+                situation.pop()
+            break
+        if level + 1 < len(situation):
+            context = get_content(model, situation, level + 1)
+            content_shape = context.predict(state[level])
+            content = layer[content_shape]
+
+        level += 1
+        content_shape = situation[level]                                                                            # type: Content
+        layer = model[level]                                                                                        # type: LEVEL
+        content = layer[content_shape]                                                                              # type: Content
+
+        if len(situation) < level + 1:
+            situation.append(-1)
+            break
+
+
+
+
+    level = 0                                                                                                   # type: int
+    content_shape = situation[level]                                                                            # type: Content
+    layer = model[level]                                                                                        # type: LEVEL
+    content = layer[content_shape]                                                                              # type: Content
 
     # content = get_content(model, situation, 0)
 
@@ -222,7 +248,6 @@ def simulation():
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
 
     source = debug_series()                                                             # type: Iterable[List[EXAMPLE]]
-    # source = sine_series()                                                            # type: Iterable[List[EXAMPLES]]
 
     model = [{0: RationalContent(0, .1)}]                                               # type: MODEL
     states = tuple([0 for _ in range(history_length)] for _ in range(no_senses))        # type: Tuple[STATE]
