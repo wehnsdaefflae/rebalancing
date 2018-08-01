@@ -17,11 +17,15 @@ class Regressor:
         # https://stackoverflow.com/questions/23762178/normalized-distance-between-3d-2d-points#23763851
         # https://en.wikipedia.org/wiki/Mahalanobis_distance
         # dev = sqrt(var)  (https://en.wikipedia.org/wiki/Standard_deviation)
-        if 0. >= self.var_y:
-            return 0.
         fx = self.output(x)
         d = (fx - y) ** 2
-        return min(1., sqrt(d / self.var_y))
+        if 0. >= d:
+            return 0.
+
+        if d < self.var_y:
+            return d / self.var_y
+
+        return self.var_y / d
 
     def fit(self, x: float, y: float):
         dx = x - self.mean_x

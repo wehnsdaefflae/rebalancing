@@ -138,7 +138,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
     layer = model[level]                                                                                        # type: LEVEL
     content = layer[content_shape]                                                                              # type: Content
 
-    while content.probability(shape, target_value) < sigma and level + 1 < len(situation):
+    while content.probability(shape, target_value) < sigma and level + 1 < len(situation):  # second condition is problematic
         context_shape = situation[level + 1]                                                                    # type: APPEARANCE
         upper_layer = model[level + 1]                                                                          # type: LEVEL
         context = upper_layer[context_shape]                                                                    # type: Content

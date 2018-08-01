@@ -84,8 +84,8 @@ class RationalContent(Content[float, float]):
         return self.regressor.output(condition)
 
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        # transition from 1. to true value, relative to self.iteratios
-        return self.regressor.sim(condition, consequence)
+        factor = self.alpha / (self.alpha + self.iterations)
+        return factor + (1. - factor) * self.regressor.sim(condition, consequence)
 
 
 class MLPRationalContent(Content[Tuple[float, ...], float]):
