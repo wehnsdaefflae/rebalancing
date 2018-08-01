@@ -1,3 +1,4 @@
+from math import sqrt
 from typing import Tuple
 
 
@@ -8,14 +9,26 @@ class Regressor:
         self.mean_x = 0.
         self.mean_y = 0.
         self.var_x = 0.
+        self.var_y = 0.
         self.cov_xy = 0.
         self.initial = True
+
+    def sim(self, x: float, y: float) -> float:
+        # https://stackoverflow.com/questions/23762178/normalized-distance-between-3d-2d-points#23763851
+        # https://en.wikipedia.org/wiki/Mahalanobis_distance
+        # dev = sqrt(var)  (https://en.wikipedia.org/wiki/Standard_deviation)
+        if 0. >= self.var_y:
+            return 0.
+        fx = self.output(x)
+        d = (fx - y) ** 2
+        return min(1., sqrt(d / self.var_y))
 
     def fit(self, x: float, y: float):
         dx = x - self.mean_x
         dy = y - self.mean_y
 
         self.var_x = (self.drag * self.var_x + dx ** 2) / (self.drag + 1)
+        self.var_y = (self.drag * self.var_y + dy ** 2) / (self.drag + 1)
         self.cov_xy = (self.drag * self.cov_xy + dx * dy) / (self.drag + 1)
 
         if self.initial:
