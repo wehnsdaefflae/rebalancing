@@ -248,12 +248,13 @@ def simulation():
         # test
         output_values = []                                                              # type: List[BASIC_SHAPE_OUT]
         for _i, (input_value, target_value) in enumerate(examples):
-            base_content = get_content(model, situations[_i], 0)                        # type: Content
+            each_situation = situations[_i]
+            base_content = get_content(model, each_situation, 0)                        # type: Content
             output_value = base_content.predict(input_value)                            # type: BASIC_SHAPE_OUT
             output_values.append(output_value)
 
-            situations[_i].clear()
-            situations[_i].extend(get_situation(situations[_i], input_value, target_value, states[_i], model, sigma))
+            each_situation.clear()
+            each_situation.extend(get_situation(each_situation, input_value, target_value, states[_i], model, sigma))
 
         # train
         # generate_layer(model, situations)
