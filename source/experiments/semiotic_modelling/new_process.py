@@ -135,41 +135,16 @@ def get_content(model: MODEL, situation: SITUATION, level: int) -> Content:
 
 def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: float):
     level = 0                                                                                                   # type: int
-    content_shape = situation[level]                                                                            # type: Content
-    layer = model[level]                                                                                        # type: LEVEL
-    content = layer[content_shape]                                                                              # type: Content
-    while True:
-        if content.probability(shape, target_value) >= sigma:
-            while level < len(situation):
-                situation.pop()
-            break
-        if level + 1 < len(situation):
-            context = get_content(model, situation, level + 1)
-            content_shape = context.predict(state[level])
-            content = layer[content_shape]
 
-        level += 1
+    while True:
+        if level + 1 >= len(situation):
+            situation.append(-1)
+
         content_shape = situation[level]                                                                            # type: Content
         layer = model[level]                                                                                        # type: LEVEL
         content = layer[content_shape]                                                                              # type: Content
-
-        if len(situation) < level + 1:
-            situation.append(-1)
+        if content.probability(shape, target_value) >= sigma:
             break
-
-
-
-
-    level = 0                                                                                                   # type: int
-    content_shape = situation[level]                                                                            # type: Content
-    layer = model[level]                                                                                        # type: LEVEL
-    content = layer[content_shape]                                                                              # type: Content
-
-    # content = get_content(model, situation, 0)
-
-    while content.probability(shape, target_value) < sigma:  # second condition is problematic
-        if level + 1 >= len(situation):
-            situation.append(-1)
 
         context_shape = situation[level + 1]                                                                    # type: APPEARANCE
         upper_layer = model[level + 1]                                                                          # type: LEVEL
@@ -180,19 +155,23 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         shape = context.predict(condition)                                                                      # type: APPEARANCE
         if shape is not None:
             content = layer[shape]                                                                              # type: Content
-            if content.probability(shape, target_value) < sigma:
-                content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
-                shape = hash(content)                                                                           # type: APPEARANCE
-                if content.probability(shape, target_value) < sigma:
-                    shape = -1                                                                                  # type: APPEARANCE
+            if content.probability(shape, target_value) >= sigma:
+                situation[level] = shape
+                level += 1
+                continue
 
-        level += 1                                                                                              # type: int
+        content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
+        shape = hash(content)                                                                           # type: APPEARANCE
+        if content.probability(shape, target_value) >= sigma:
+            situation[level] = shape
+            level += 1
+            continue
 
-        situation[level] = shape                                                                                # type: APPEARANCE
-        layer = upper_layer                                                                                     # type: LEVEL
-        content = context                                                                                       # type: Content
+        shape = -1                                                                                  # type: APPEARANCE
+        situation[level] = shape
+        level += 1
 
-    for _ in range(level + 1, len(situation)):
+    while level + 1 >= len(situation):
         situation.pop()
 
 
