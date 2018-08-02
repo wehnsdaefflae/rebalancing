@@ -110,15 +110,22 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION], alpha: float):
         content_created = False                                                 # type: bool
         for each_situation in situations:
             len_situation = len(each_situation)
-            assert len_model >= len_situation
+            assert len_model + 1 >= len_situation
             if _i >= len(each_situation):
                 continue
             if each_situation[_i] == -1:
+                if len_model + 1 == len_situation:
+                    each_layer = dict()
+                    model.append(each_layer)
+                    new_shape = 0
+                    len_model += 1
                 each_situation[_i] = new_shape                                  # type: ABSTRACT_SHAPE
                 if content_created:
                     continue
                 each_layer[new_shape] = SymbolicContent(new_shape, alpha)       # type: Content
                 content_created = True                                          # type: bool
+
+
 
 
 def get_content(model: MODEL, situation: SITUATION, level: int) -> Content:
@@ -133,17 +140,17 @@ def get_content(model: MODEL, situation: SITUATION, level: int) -> Content:
     return content
 
 
-def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: float):
+def get_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: float) -> SITUATION:
+    new_situation = []                  # type: SITUATION
     level = 0                                                                                                   # type: int
 
     while True:
-        if level + 1 >= len(situation):
-            situation.append(-1)
-
         content_shape = situation[level]                                                                            # type: Content
         layer = model[level]                                                                                        # type: LEVEL
         content = layer[content_shape]                                                                              # type: Content
         if content.probability(shape, target_value) >= sigma:
+            if 0 < level:
+                new_situation.append(shape)
             break
 
         context_shape = situation[level + 1]                                                                    # type: APPEARANCE
@@ -171,17 +178,21 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         situation[level] = shape
         level += 1
 
-    while level + 1 >= len(situation):
-        situation.pop()
+    return new_situation
 
 
 def generate_layer(model: MODEL, situations: Tuple[SITUATION]):
     len_model = len(model)
     for each_situation in situations:
-        if len(each_situation) == len_model and each_situation[-1] == -1 and len(model[-1]) == 1:
-            each_situation.append(-1)
+        assert len_model + 1 >= len(each_situation)
+        if len(each_situation) == len_model + 1:
+            assert each_situation[-1] == -1
             model.append(dict())
             return
+        #if len(each_situation) == len_model and each_situation[-1] == -1 and len(model[-1]) == 1:
+        #    each_situation.append(-1)
+        #    model.append(dict())
+        #    return
 
 
 def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
@@ -219,7 +230,6 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def simulation():
-    # TODO: at sigma >= 1., new contents must develop
     sigma = 1.                                                                          # type: float
     alpha = 10.                                                                         # type: float
     history_length = 1                                                                  # type: int
@@ -242,10 +252,11 @@ def simulation():
             output_value = base_content.predict(input_value)                            # type: BASIC_SHAPE_OUT
             output_values.append(output_value)
 
-            update_situation(situations[_i], input_value, target_value, states[_i], model, sigma)
+            situations[_i].clear()
+            situations[_i].extend(get_situation(situations[_i], input_value, target_value, states[_i], model, sigma))
 
         # train
-        generate_layer(model, situations)
+        # generate_layer(model, situations)
         generate_content(model, situations, alpha)                                      # create new content if shape returns none
         adapt_content(model, states, situations)
         for _i, (input_value, target_value) in enumerate(examples):
