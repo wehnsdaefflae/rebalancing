@@ -150,10 +150,14 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
     len_model = len(model)
     level = 0                                                                                                   # type: int
 
+    # for each_shape in situation:
     while level < len_model:
         content = get_content(model, situation, level)                                                          # type: Content
         if content.probability(shape, target_value) >= sigma:
             break
+
+        if 0 < level:
+            pass
 
         layer = model[level]
         if level + 1 < len_model:
@@ -171,7 +175,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
 
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
         _shape = hash(content)                                                                           # type: APPEARANCE
-        if content.probability(_shape, target_value) >= sigma:
+        if content.probability(shape, target_value) >= sigma:
             situation[level] = _shape
             shape = _shape
             level += 1
@@ -180,6 +184,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         shape = -1                                                                                  # type: APPEARANCE
         situation[level] = shape
         level += 1
+        # new layer here and refresh len_model
 
 
 def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
