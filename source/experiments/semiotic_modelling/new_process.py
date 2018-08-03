@@ -1,6 +1,6 @@
 import datetime
 import json
-from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence, Type
+from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence, Type, Callable
 
 from dateutil.tz import tzutc
 
@@ -149,7 +149,8 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_conte
             each_situation.append(new_shape)
 
 
-def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: float):
+def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: Callable[[int],
+                                                                                                                                             float]):
     len_model = len(model)
     level = 0                                                                                                   # type: int
 
@@ -157,8 +158,9 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
     while level < len_model:
         if level >= 1:
             pass
+        s = sigma(len(model[level]))
         content = get_content(model, situation, level)                                                          # type: Content
-        if content.probability(shape, target_value) >= sigma:
+        if content.probability(shape, target_value) >= s:
             break
 
         if 0 < level:
@@ -172,22 +174,25 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
             _shape = context.predict(history)                                                                      # type: APPEARANCE
             if _shape is not None:
                 content = layer[_shape]                                                                              # type: Content
-                if content.probability(shape, target_value) >= sigma:
+                if content.probability(shape, target_value) >= s:
                     situation[level] = _shape
-                    shape = _shape
+                    target_value = _shape
+                    shape = history
                     level += 1
                     continue
 
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
         _shape = hash(content)                                                                           # type: APPEARANCE
-        if content.probability(shape, target_value) >= sigma:
+        if content.probability(shape, target_value) >= s:
             situation[level] = _shape
-            shape = _shape
+            target_value = _shape
+            shape = tuple(state[level])                                                                           # type: HISTORY
             level += 1
             continue
 
-        shape = -1                                                                                  # type: APPEARANCE
-        situation[level] = shape
+        situation[level] = -1                                                                           # type: APPEARANCE
+
+
         level += 1
 
 
@@ -226,7 +231,7 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def simulation():
-    sigma = .1                                                                          # type: float
+    sigma = lambda _x: .1                                                               # type: Callable[[int], float]
     alpha = 10.                                                                         # type: float
     history_length = 1                                                                  # type: int
     no_senses = 1                                                                       # type: int
