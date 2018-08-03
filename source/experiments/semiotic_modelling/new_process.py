@@ -145,7 +145,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
     len_model = len(model)
     level = 0                                                                                                   # type: int
 
-    while True:
+    while level < len_model:
         content = get_content(model, situation, level)                                                          # type: Content
         if content.probability(shape, target_value) >= sigma:
             break
@@ -241,7 +241,16 @@ def simulation():
             update_situation(each_situation, input_value, target_value, states[_i], model, sigma)
 
         # train
-        generate_content(model, situations, alpha)                                      # create new content if shape returns none
+        generate_content(model, situations, alpha)
+        len_model = len(model)
+        for each_state in states:
+            len_state = len(each_state)
+            if len_state == len_model - 1:
+                each_state.append([0 for _ in range(history_length)])
+            elif len_state == len_model:
+                pass
+            else:
+                assert False
         adapt_content(model, states, situations)
 
         for _i, (input_value, target_value) in enumerate(examples):
