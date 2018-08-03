@@ -77,7 +77,7 @@ def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> 
     return content.predict(input_value, default=None)
 
 
-def update_states(states: Tuple[STATE], situations: Tuple[SITUATION], history_length: int):
+def update_states(states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...], history_length: int):
     assert len(states) == len(situations)
 
     for each_state, each_situation in zip(states, situations):
@@ -85,13 +85,13 @@ def update_states(states: Tuple[STATE], situations: Tuple[SITUATION], history_le
         assert len_state >= len_situation
 
         for _i, each_shape in enumerate(each_situation):
-            each_layer = each_state[_i]
+            each_layer = each_state[_i]                     # type: HISTORY
             each_layer.append(each_shape)
             while history_length < len(each_layer):
                 each_layer.pop(0)
 
 
-def adapt_content(model: MODEL, states: Tuple[STATE], situations: Tuple[SITUATION]):
+def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...]):
     len_states, len_situations = len(states), len(situations)
     assert len_states == len_situations
 
@@ -107,7 +107,7 @@ def adapt_content(model: MODEL, states: Tuple[STATE], situations: Tuple[SITUATIO
             content.adapt(tuple(history), shape_out)
 
 
-def generate_content(model: MODEL, situations: Tuple[SITUATION], alpha: float):
+def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], alpha: float):
     len_model = len(model)
     for _i, each_layer in enumerate(model):
         new_shape = len(each_layer)                                             # type: ABSTRACT_SHAPE
@@ -176,7 +176,7 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         situation[level] = shape
         level += 1
 
-    while len(situation) >= level:
+    while level + 1 < len(situation):
         situation.pop()
 
 
@@ -224,8 +224,8 @@ def simulation():
     source = debug_series()                                                             # type: Iterable[List[EXAMPLE]]
 
     model = [{0: RationalContent(0, .1)}]                                               # type: MODEL
-    states = tuple([0 for _ in range(history_length)] for _ in range(no_senses))        # type: Tuple[STATE]
-    situations = tuple([0] for _ in range(no_senses))                                   # type: Tuple[SITUATION]
+    states = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))      # type: Tuple[STATE, ...]
+    situations = tuple([0] for _ in range(no_senses))                                   # type: Tuple[SITUATION, ...]
 
     for t, examples in source:
         assert len(examples) == no_senses
@@ -250,13 +250,13 @@ def simulation():
 
         update_states(states, situations, history_length)
 
-        sl.log(examples, output_values, model, states)
+        # sl.log(examples, output_values, model, states)
         if Timer.time_passed(2000):
             print("At time stamp {:s}: {:s}".format(str(t), str(sl.model_structures[-1])))
 
     print(sl.model_structures[-1])
-    sl.save(model, states, "")
-    sl.plot()
+    # sl.save(model, states, "")
+    # sl.plot()
 
 
 if __name__ == "__main__":
