@@ -38,7 +38,11 @@ class SimulationStats:
 
         self.cumulative_errors = tuple([] for _ in range(dim))
 
-    def log(self, examples: List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]], output_values: List[BASIC_SHAPE_OUT], model: MODEL, states: Tuple[STATE]):
+    def log(self, model: MODEL):
+        model_structure = tuple(len(_x) for _x in model)        # type: Tuple[int, ...]
+        self.model_structures.append(model_structure)
+
+    def _log(self, examples: List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]], output_values: List[BASIC_SHAPE_OUT], model: MODEL, states: Tuple[STATE]):
         for _i, ((input_value, target_value), output_value, situation) in enumerate(zip(examples, output_values, states)):
             self.input_values[_i].append(input_value)
             self.target_values[_i].append(target_value)
@@ -51,8 +55,7 @@ class SimulationStats:
             cumulative_error = error + (self.cumulative_errors[_i][-1] if 0 < len(self.cumulative_errors[_i]) else 0.)
             self.cumulative_errors[_i].append(cumulative_error)
 
-        model_structure = tuple(len(_x) for _x in model)        # type: Tuple[int, ...]
-        self.model_structures.append(model_structure)
+        self.log(model)
 
     def save(self, model: MODEL, states: Tuple[STATE], file_path: str):
         pass
@@ -82,10 +85,9 @@ def update_states(states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...], 
 
     for each_state, each_situation in zip(states, situations):
         len_state, len_situation = len(each_state), len(each_situation)
-        assert len_state >= len_situation
+        assert len_state == len_situation
 
-        for _i, each_shape in enumerate(each_situation):
-            each_layer = each_state[_i]                     # type: HISTORY
+        for each_shape, each_layer in zip(each_situation, each_state):
             each_layer.append(each_shape)
             while history_length < len(each_layer):
                 each_layer.pop(0)
@@ -98,7 +100,7 @@ def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SIT
     len_model = len(model)
     for each_state, each_situation in zip(states, situations):
         len_state, len_situation = len(each_state), len(each_situation)
-        assert len_model == len_state >= len_situation
+        assert len_model == len_state == len_situation
 
         for _i in range(len_situation - 1):
             content = get_content(model, each_situation, _i + 1)
@@ -114,7 +116,7 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], alpha: flo
         content_created = False                                                 # type: bool
         for each_situation in situations:
             len_situation = len(each_situation)
-            assert len_model >= len_situation
+            assert len_model == len_situation
             if _i >= len_situation:
                 continue
             if each_situation[_i] == -1:
@@ -125,8 +127,11 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], alpha: flo
                 content_created = True                                          # type: bool
 
     if 1 < len(model[-1]):
-        content = SymbolicContent(0, alpha)
-        model.append({0: content})
+        new_shape = 0
+        content = SymbolicContent(new_shape, alpha)
+        model.append({new_shape: content})
+        for each_situation in situations:
+            each_situation.append(new_shape)
 
 
 def get_content(model: MODEL, situation: SITUATION, level: int) -> Content:
@@ -175,9 +180,6 @@ def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: 
         shape = -1                                                                                  # type: APPEARANCE
         situation[level] = shape
         level += 1
-
-    while level + 1 < len(situation):
-        situation.pop()
 
 
 def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
@@ -251,6 +253,7 @@ def simulation():
                 pass
             else:
                 assert False
+
         adapt_content(model, states, situations)
 
         for _i, (input_value, target_value) in enumerate(examples):
@@ -260,6 +263,7 @@ def simulation():
         update_states(states, situations, history_length)
 
         # sl.log(examples, output_values, model, states)
+        sl.log(model)
         if Timer.time_passed(2000):
             print("At time stamp {:s}: {:s}".format(str(t), str(sl.model_structures[-1])))
 
