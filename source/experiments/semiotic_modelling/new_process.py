@@ -9,13 +9,13 @@ from source.experiments.semiotic_modelling.content import Content, SymbolicConte
 from source.tools.timer import Timer
 
 
-BASIC_SHAPE_IN = TypeVar("BASIC_SHAPE_IN")
-BASIC_SHAPE_OUT = TypeVar("BASIC_SHAPE_OUT")
-EXAMPLE = Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]
+BASIC_IN = TypeVar("BASIC_SHAPE_IN")
+BASIC_OUT = TypeVar("BASIC_SHAPE_OUT")
+EXAMPLE = Tuple[BASIC_IN, BASIC_OUT]
 
 ABSTRACT_SHAPE = int                                        # TODO: make generic hashable
 
-APPEARANCE = Union[BASIC_SHAPE_IN, BASIC_SHAPE_OUT, ABSTRACT_SHAPE]
+APPEARANCE = Union[BASIC_IN, BASIC_OUT, ABSTRACT_SHAPE]
 HISTORY = Union[List[APPEARANCE], Tuple[APPEARANCE, ...]]
 
 
@@ -42,7 +42,7 @@ class SimulationStats:
         model_structure = tuple(len(_x) for _x in model)        # type: Tuple[int, ...]
         self.model_structures.append(model_structure)
 
-    def _log(self, examples: List[Tuple[BASIC_SHAPE_IN, BASIC_SHAPE_OUT]], output_values: List[BASIC_SHAPE_OUT], model: MODEL, states: Tuple[STATE]):
+    def _log(self, examples: List[Tuple[BASIC_IN, BASIC_OUT]], output_values: List[BASIC_OUT], model: MODEL, states: Tuple[STATE]):
         for _i, ((input_value, target_value), output_value, situation) in enumerate(zip(examples, output_values, states)):
             self.input_values[_i].append(input_value)
             self.target_values[_i].append(target_value)
@@ -66,7 +66,7 @@ class SimulationStats:
         # raise NotImplementedError()
 
 
-def predict(model: MODEL, situation: SITUATION, input_value: BASIC_SHAPE_IN) -> Optional[BASIC_SHAPE_OUT]:
+def predict(model: MODEL, situation: SITUATION, input_value: BASIC_IN) -> Optional[BASIC_OUT]:
     len_model, len_situation = len(model), len(situation)
     assert len_model >= len_situation
     if len_situation < 1:
@@ -124,76 +124,73 @@ def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SIT
 
 def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_content: Type[Content], alpha: float):
     len_model = len(model)
-    for _i, each_layer in enumerate(model):
-        new_shape = len(each_layer)                                             # type: ABSTRACT_SHAPE
-        content_created = False                                                 # type: bool
-        for each_situation in situations:
-            len_situation = len(each_situation)
-            assert len_model == len_situation
-            if _i >= len_situation:
-                continue
-            if each_situation[_i] == -1:
-                each_situation[_i] = new_shape                                  # type: ABSTRACT_SHAPE
-                if content_created:
-                    continue
-                if _i < 1:
-                    each_layer[new_shape] = base_content(new_shape, alpha)      # type: Content
-                else:
-                    each_layer[new_shape] = SymbolicContent(new_shape, alpha)   # type: SymbolicContent
-                content_created = True                                          # type: bool
-
-    if 1 < len(model[-1]):
-        new_shape = 0
-        model.append({new_shape: SymbolicContent(new_shape, alpha)})
-        for each_situation in situations:
-            each_situation.append(new_shape)
+    len_set = set(len(_x) for _x in situations)
+    assert len(len_set) == 1
+    len_situation, = len_set
+    assert len_situation == len_model or len_situation == len_model + 1
+    for _i in range(len_situation):
+        situations_with_new_content = [_j for _j, each_situation in enumerate(situations) if each_situation[_i] == -1]
+        if 0 < len(situations_with_new_content):
+            if _i == len_model:
+                each_layer = dict()
+                model.append(each_layer)
+            else:
+                each_layer = model[_i]
+            new_shape = len(each_layer)
+            each_layer[new_shape] = base_content(new_shape, alpha) if _i < 1 else SymbolicContent(new_shape, alpha)
+            for each_index in situations_with_new_content:
+                each_situation = situations[each_index]
+                each_situation[_i] = new_shape
 
 
-def update_situation(situation: SITUATION, shape: BASIC_SHAPE_IN, target_value: BASIC_SHAPE_OUT, state: STATE, model: MODEL, sigma: Callable[[int],
-                                                                                                                                             float]):
+def update_situation(situation: SITUATION, shape: BASIC_IN, target_value: BASIC_OUT, state: STATE, model: MODEL, sigma: Callable[[int, int], float]):
     len_model = len(model)
     level = 0                                                                                                   # type: int
 
     # for each_shape in situation:
     while level < len_model:
-        if level >= 1:
-            pass
-        s = sigma(len(model[level]))
+        s = sigma(level, len(model[level]))
         content = get_content(model, situation, level)                                                          # type: Content
         if content.probability(shape, target_value) >= s:
             break
 
-        if 0 < level:
-            pass
-
         layer = model[level]
+        abstract_shape = tuple(state[level])
         if level + 1 < len_model:
             context = get_content(model, situation, level + 1)                                                      # type: Content
-            history = tuple(state[level])                                                                           # type: HISTORY
             # symbolic content transitions at level >= 2 with conditions from history and symbolic content from level == 1
-            _shape = context.predict(history)                                                                      # type: APPEARANCE
-            if _shape is not None:
-                content = layer[_shape]                                                                              # type: Content
+            abstract_target = context.predict(abstract_shape)                                                                      # type: APPEARANCE
+            if abstract_target is not None:
+                content = layer[abstract_target]                                                                              # type: Content
                 if content.probability(shape, target_value) >= s:
-                    situation[level] = _shape
-                    target_value = _shape
-                    shape = history
+                    situation[level] = abstract_target
+                    target_value = abstract_target
+                    shape = abstract_shape
                     level += 1
                     continue
 
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
-        _shape = hash(content)                                                                           # type: APPEARANCE
+        abstract_target = hash(content)                                                                           # type: APPEARANCE
         if content.probability(shape, target_value) >= s:
-            situation[level] = _shape
-            target_value = _shape
-            shape = tuple(state[level])                                                                           # type: HISTORY
+            situation[level] = abstract_target
+            target_value = abstract_target
+            shape = abstract_shape                                                                           # type: HISTORY
             level += 1
             continue
 
         situation[level] = -1                                                                           # type: APPEARANCE
-
-
         level += 1
+
+
+def generate_layer(model: MODEL, situations: Tuple[SITUATION, ...]):
+    len_set = {len(each_situation) for each_situation in situations}
+    assert len(len_set) == 1
+    len_situation, = len_set
+    assert len_situation == len(model)
+    
+    if -1 in {each_situation[-1] for each_situation in situations} and len(model[-1]) == 2:
+        for each_situation in situations:
+            each_situation.append(-1)
 
 
 def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
@@ -231,7 +228,7 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def simulation():
-    sigma = lambda _x: .1                                                               # type: Callable[[int], float]
+    sigma = lambda _x, _y: .01 if _x < 1 else .5                                        # type: Callable[[int], float]
     alpha = 10.                                                                         # type: float
     history_length = 1                                                                  # type: int
     no_senses = 1                                                                       # type: int
@@ -247,16 +244,17 @@ def simulation():
         assert len(examples) == no_senses
 
         # test
-        output_values = []                                                              # type: List[BASIC_SHAPE_OUT]
+        output_values = []                                                              # type: List[BASIC_OUT]
         for _i, (input_value, target_value) in enumerate(examples):
             each_situation = situations[_i]
             base_content = get_content(model, each_situation, 0)                        # type: Content
-            output_value = base_content.predict(input_value)                            # type: BASIC_SHAPE_OUT
+            output_value = base_content.predict(input_value)                            # type: BASIC_OUT
             output_values.append(output_value)
 
             update_situation(each_situation, input_value, target_value, states[_i], model, sigma)
 
         # train
+        generate_layer(model, situations)
         generate_content(model, situations, RationalContent, alpha)
         len_model = len(model)
         for each_state in states:
