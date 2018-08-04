@@ -1,5 +1,6 @@
 import datetime
 import json
+from math import sin, cos
 from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence, Type, Callable
 
 from dateutil.tz import tzutc
@@ -72,8 +73,10 @@ class SimulationStats:
     def plot(self):
         fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
 
-        for _i, each_target_list in enumerate(self.target_values):
-            ax1.plot(self.time_axis, each_target_list, label="target index {:d}".format(_i))
+        for _i, (each_input_list, each_target_list, each_output_list) in enumerate(zip(self.input_values, self.target_values, self.output_values)):
+            ax1.plot(self.time_axis, each_input_list, label="input {:d}".format(_i))
+            ax1.plot(self.time_axis, each_target_list, label="target {:d}".format(_i))
+            ax1.plot(self.time_axis, each_output_list, label="output {:d}".format(_i))
         ax1.legend()
 
         len_last_structure = len(self.model_structures[-1])
@@ -81,11 +84,10 @@ class SimulationStats:
             while len(each_structure) < len_last_structure:
                 each_structure.append(0)
         transposed = list(zip(*self.model_structures))
-        ax2.stackplot(self.time_axis, *transposed, labels=["level {:d}".format(_i) for _i in range(len(transposed))])
-        ax2.legend()
+        ax2.stackplot(self.time_axis, *transposed)
 
         for _i, each_cumulative_error in enumerate(self.cumulative_errors):
-            ax3.plot(self.time_axis, each_cumulative_error, label="cumulative error index {:d}".format(_i))
+            ax3.plot(self.time_axis, each_cumulative_error, label="cumulative error {:d}".format(_i))
         ax3.legend()
         pyplot.show()
 
@@ -221,8 +223,8 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
     with open("../../../configs/time_series.json", mode="r") as file:
         config = json.load(file)
 
-    base_symbol = "ETH"
-    asset_symbols = "EOS",  #  "SNT", "QTUM", "BNT"
+    base_symbol = "ETH"                                         # type: str
+    asset_symbols = ("EOS", "SNT", "QTUM", "BNT")[:1]           # type: Tuple[str, ...]
 
     source_paths = (config["data_dir"] + "{:s}{:s}.csv".format(_x, base_symbol) for _x in asset_symbols)
 
@@ -252,15 +254,25 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
         yield t, examples
 
 
+def debug_trig() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
+    for t in range(100000):
+        examples = [(sin(t / 10.), cos(t / 10.))]
+        yield t, examples
+
+
 def simulation():
-    # sigma = lambda _x, _y: .01 if _x < 1 else .03                                     # type: Callable[[int], float]
-    sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                            # type: Callable[[int], float]
+    sigma = lambda _x, _y: .02 if _x < 1 else .03                                     # type: Callable[[int], float]
+    # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                          # type: Callable[[int], float]
+    # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)                      # type: Callable[[int], float]
+    # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                      # type: Callable[[int], float]
+
     alpha = 100.                                                                        # type: float
     history_length = 1                                                                  # type: int
     no_senses = 1                                                                       # type: int
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
 
-    source = debug_series()                                                             # type: Iterable[List[EXAMPLE]]
+    # source = debug_series()                                                           # type: Iterable[List[EXAMPLE]]
+    source = debug_trig()                                                               # type: Iterable[List[EXAMPLE]]
 
     model = [{0: RationalContent(0, alpha)}]                                            # type: MODEL
     states = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))      # type: Tuple[STATE, ...]
@@ -311,5 +323,7 @@ def simulation():
 
 if __name__ == "__main__":
     simulation()
+    # plot_trig()
+
     # predict from several inputs one target each
     # to predict one target from several inputs: multiple linear regression or symbolic "history"
