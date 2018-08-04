@@ -1,4 +1,4 @@
-from typing import Hashable, Any, Dict, Union, List, Tuple, Generic, TypeVar, Optional
+from typing import Hashable, Any, Dict, Tuple, Generic, TypeVar, Optional
 
 from source.tools.regression import Regressor
 
@@ -88,6 +88,7 @@ class RationalContent(Content[float, float]):
         return factor + (1. - factor) * self.regressor.sim(condition, consequence)
 
 
+# TODO: integrate unidimensional RationalContent into this (BASIC_IN can be a Tuple)
 class MLPRationalContent(Content[Tuple[float, ...], float]):
     def __init__(self, shape: int, alpha: float):
         super().__init__(shape, alpha)

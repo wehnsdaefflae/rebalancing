@@ -3,6 +3,7 @@ import json
 from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Generator, Sequence, Type, Callable
 
 from dateutil.tz import tzutc
+from matplotlib import pyplot
 
 from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent, RationalContent
@@ -29,41 +30,64 @@ TIME = TypeVar("TIME")
 
 class SimulationStats:
     def __init__(self, dim: int):
-        self.input_values = tuple([] for _ in range(dim))
-        self.target_values = tuple([] for _ in range(dim))
-        self.output_values = tuple([] for _ in range(dim))           # type:
+        self.input_values = tuple([] for _ in range(dim))               # type: Tuple[List[float], ...]
+        self.target_values = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
+        self.output_values = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
 
-        self.contexts = tuple([] for _ in range(dim))                # type: List[List[Tuple[int, ...]]]
-        self.model_structures = []                                   # type: List[Tuple[int, ...]]
+        self.contexts = tuple([] for _ in range(dim))                   # type: Tuple[List[Tuple[int, ...]]]
+        self.model_structures = []                                      # type: List[List[int, ...]]
 
-        self.cumulative_errors = tuple([] for _ in range(dim))
+        self.cumulative_errors = tuple([] for _ in range(dim))          # type: Tuple[List[float], ...]
 
-    def log(self, model: MODEL):
-        model_structure = tuple(len(_x) for _x in model)        # type: Tuple[int, ...]
-        self.model_structures.append(model_structure)
+        self.time_axis = []
 
-    def _log(self, examples: List[Tuple[BASIC_IN, BASIC_OUT]], output_values: List[BASIC_OUT], model: MODEL, states: Tuple[STATE]):
-        for _i, ((input_value, target_value), output_value, situation) in enumerate(zip(examples, output_values, states)):
-            self.input_values[_i].append(input_value)
-            self.target_values[_i].append(target_value)
-            self.output_values[_i].append(output_value)
+    def log(self, time: TIME, examples: List[EXAMPLE], output_values: List[BASIC_OUT], model: MODEL, situations: Tuple[SITUATION, ...]):
+        self.time_axis.append(time)
 
-            context = tuple(hash(x_) for x_ in situation)       # type: Tuple[int, ...]
-            self.contexts[_i].append(context)
+        for _i, (each_example, output_value) in enumerate(zip(examples, output_values)):
+            input_value, target_value = each_example                # type: float, float
 
-            error = (output_value - target_value) ** 2
+            input_list = self.input_values[_i]                      # type: List[float]
+            input_list.append(input_value)
+            target_list = self.target_values[_i]                    # type: List[float]
+            target_list.append(target_value)
+
+            output_list = self.output_values[_i]                    # type: List[float]
+            output_list.append(output_value)                        # type: List[float]
+
+            error = (output_value - target_value) ** 2.
             cumulative_error = error + (self.cumulative_errors[_i][-1] if 0 < len(self.cumulative_errors[_i]) else 0.)
             self.cumulative_errors[_i].append(cumulative_error)
 
-        self.log(model)
+        for _i, each_situation in enumerate(situations):
+            situation_list = self.contexts[_i]                      # type: List[Tuple[int, ...]]
+            situation_list.append(tuple(each_situation))
+
+        self.model_structures.append([len(_x) for _x in model])
 
     def save(self, model: MODEL, states: Tuple[STATE], file_path: str):
         pass
         # raise NotImplementedError()
 
     def plot(self):
-        pass
-        # raise NotImplementedError()
+        fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
+
+        for _i, each_target_list in enumerate(self.target_values):
+            ax1.plot(self.time_axis, each_target_list, label="target index {:d}".format(_i))
+        ax1.legend()
+
+        len_last_structure = len(self.model_structures[-1])
+        for each_structure in self.model_structures:
+            while len(each_structure) < len_last_structure:
+                each_structure.append(0)
+        transposed = list(zip(*self.model_structures))
+        ax2.stackplot(self.time_axis, *transposed, labels=["level {:d}".format(_i) for _i in range(len(transposed))])
+        ax2.legend()
+
+        for _i, each_cumulative_error in enumerate(self.cumulative_errors):
+            ax3.plot(self.time_axis, each_cumulative_error, label="cumulative error index {:d}".format(_i))
+        ax3.legend()
+        pyplot.show()
 
 
 def predict(model: MODEL, situation: SITUATION, input_value: BASIC_IN) -> Optional[BASIC_OUT]:
@@ -105,23 +129,6 @@ def update_states(states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...], 
                 each_layer.pop(0)
 
 
-def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...]):
-    len_states, len_situations = len(states), len(situations)
-    assert len_states == len_situations
-
-    len_model = len(model)
-    for each_state, each_situation in zip(states, situations):
-        len_state, len_situation = len(each_state), len(each_situation)
-        assert len_model == len_state == len_situation
-
-        for _i in range(len_situation - 1):
-            content = get_content(model, each_situation, _i + 1)
-            shape_out = each_situation[_i]
-            history = each_state[_i]
-            # at level >= 2 add symbolic shape from level == 1 to condition
-            content.adapt(tuple(history), shape_out)
-
-
 def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_content: Type[Content], alpha: float):
     len_model = len(model)
     len_set = set(len(_x) for _x in situations)
@@ -141,6 +148,23 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_conte
             for each_index in situations_with_new_content:
                 each_situation = situations[each_index]
                 each_situation[_i] = new_shape
+
+
+def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...]):
+    len_states, len_situations = len(states), len(situations)
+    assert len_states == len_situations
+
+    len_model = len(model)
+    for each_state, each_situation in zip(states, situations):
+        len_state, len_situation = len(each_state), len(each_situation)
+        assert len_model == len_state == len_situation
+
+        for _i in range(len_situation - 1):
+            content = get_content(model, each_situation, _i + 1)
+            shape_out = each_situation[_i]
+            history = each_state[_i]
+            # at level >= 2 add symbolic shape from situation level == 1 to condition
+            content.adapt(tuple(history), shape_out)
 
 
 def update_situation(situation: SITUATION, shape: BASIC_IN, target_value: BASIC_OUT, state: STATE, model: MODEL, sigma: Callable[[int, int], float]):
@@ -203,7 +227,8 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
     source_paths = (config["data_dir"] + "{:s}{:s}.csv".format(_x, base_symbol) for _x in asset_symbols)
 
     start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())  # maybe divide by 1000?
-    end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
+    end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
+    # end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
     start_str, end_str = str(start), str(end)
 
     generators = [series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _x in source_paths]
@@ -228,8 +253,9 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def simulation():
-    sigma = lambda _x, _y: .01 if _x < 1 else .5                                        # type: Callable[[int], float]
-    alpha = 10.                                                                         # type: float
+    # sigma = lambda _x, _y: .01 if _x < 1 else .03                                     # type: Callable[[int], float]
+    sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                            # type: Callable[[int], float]
+    alpha = 100.                                                                        # type: float
     history_length = 1                                                                  # type: int
     no_senses = 1                                                                       # type: int
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
@@ -274,14 +300,13 @@ def simulation():
 
         update_states(states, situations, history_length)
 
-        # sl.log(examples, output_values, model, states)
-        sl.log(model)
+        sl.log(t, examples, output_values, model, situations)
         if Timer.time_passed(2000):
             print("At time stamp {:s}: {:s}".format(str(t), str(sl.model_structures[-1])))
 
     print(sl.model_structures[-1])
     # sl.save(model, states, "")
-    # sl.plot()
+    sl.plot()
 
 
 if __name__ == "__main__":
