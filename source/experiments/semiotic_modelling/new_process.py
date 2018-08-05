@@ -5,9 +5,11 @@ from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Genera
 
 from dateutil.tz import tzutc
 from matplotlib import pyplot
+from matplotlib.colors import hsv_to_rgb
 
 from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent, RationalContent
+from source.tools.helper_functions import distribute_circular
 from source.tools.timer import Timer
 
 
@@ -70,8 +72,45 @@ class SimulationStats:
         pass
         # raise NotImplementedError()
 
+    @staticmethod
+    def _get_segments(time_axis: Sequence[TIME], contexts: List[Tuple[int, ...]]) -> Tuple[Sequence[Tuple[int, TIME]], ...]:
+        assert(len(time_axis) == len(contexts))
+        max_level = max(len(_x) for _x in contexts)
+        levels = tuple([] for _ in range(max_level))
+
+        for _j, (each_time, each_context) in enumerate(zip(time_axis, contexts)):
+            for _i, each_level in enumerate(levels):
+                each_shape = each_context[_i] if _i < len(each_context) else -1
+
+                if 0 < len(each_level):
+                    _, last_shape = each_level[-1]
+                else:
+                    last_shape = -1
+
+                if each_shape != last_shape:
+                    data_point = each_time, each_shape
+                    each_level.append(data_point)
+
+            if Timer.time_passed(2000):
+                print("Finished {:5.2f}% of segmenting...".format(100. * _j / len(time_axis)))
+
+        return levels
+
+    @staticmethod
+    def _plot_h_stacked_bars(axis: pyplot.Axes.axes, segmentations: Sequence[Sequence[Tuple[TIME, float]]]):
+        for _i, each_level in enumerate(segmentations):
+            for _x in range(len(each_level) - 1):
+                each_left, each_shape = each_level[_x]
+                each_right, _ = each_level[_x + 1]
+                each_width = each_right - each_left
+                hsv = distribute_circular(each_shape), .5, .5
+                axis.barh(_i, each_width, left=each_left, color=hsv_to_rgb(hsv))
+
+                if Timer.time_passed(2000):
+                    print("Finished {:5.2f}% of plotting level {:d}/{:d}...".format(100. * _x / (len(each_level) - 1), _i, len(segmentations)))
+
     def plot(self):
-        fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
+        fig, (ax1, ax2, ax3, ax4) = pyplot.subplots(4, sharex="all")
 
         for _i, (each_input_list, each_target_list, each_output_list) in enumerate(zip(self.input_values, self.target_values, self.output_values)):
             ax1.plot(self.time_axis, each_input_list, label="input {:d}".format(_i))
@@ -79,16 +118,21 @@ class SimulationStats:
             ax1.plot(self.time_axis, each_output_list, label="output {:d}".format(_i))
         ax1.legend()
 
+        for _i, each_context in enumerate(self.contexts):
+            segmentations = SimulationStats._get_segments(self.time_axis, each_context)
+            SimulationStats._plot_h_stacked_bars(ax2, segmentations)
+        # ax2.legend()
+
         len_last_structure = len(self.model_structures[-1])
         for each_structure in self.model_structures:
             while len(each_structure) < len_last_structure:
                 each_structure.append(0)
         transposed = list(zip(*self.model_structures))
-        ax2.stackplot(self.time_axis, *transposed)
+        ax3.stackplot(self.time_axis, *transposed)
 
         for _i, each_cumulative_error in enumerate(self.cumulative_errors):
-            ax3.plot(self.time_axis, each_cumulative_error, label="cumulative error {:d}".format(_i))
-        ax3.legend()
+            ax4.plot(self.time_axis, each_cumulative_error, label="cumulative error {:d}".format(_i))
+        ax4.legend()
         pyplot.show()
 
 
@@ -255,7 +299,7 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def debug_trig() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
-    for t in range(100000):
+    for t in range(10000):
         examples = [(sin(t / 10.), cos(t / 10.))]
         yield t, examples
 
@@ -266,7 +310,7 @@ def simulation():
     # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)                      # type: Callable[[int], float]
     # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                      # type: Callable[[int], float]
 
-    alpha = 100.                                                                        # type: float
+    alpha = 10.                                                                        # type: float
     history_length = 1                                                                  # type: int
     no_senses = 1                                                                       # type: int
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
@@ -323,7 +367,6 @@ def simulation():
 
 if __name__ == "__main__":
     simulation()
-    # plot_trig()
 
     # predict from several inputs one target each
     # to predict one target from several inputs: multiple linear regression or symbolic "history"
