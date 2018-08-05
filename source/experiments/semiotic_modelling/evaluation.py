@@ -123,9 +123,9 @@ class SimulationStats:
         ax1.callbacks.connect("ylim_changed", reset_y)
 
         for _i, (each_input_list, each_target_list, each_output_list) in enumerate(zip(self.input_values, self.target_values, self.output_values)):
-            ax11.plot(self.time_axis, each_input_list, label="input {:d}".format(_i))
-            ax11.plot(self.time_axis, each_target_list, label="target {:d}".format(_i))
-            ax11.plot(self.time_axis, each_output_list, label="output {:d}".format(_i))
+            ax11.plot(self.time_axis, each_input_list, label="input {:d}".format(_i), alpha=.75)
+            ax11.plot(self.time_axis, each_output_list, label="output {:d}".format(_i), alpha=.75)
+            ax11.plot(self.time_axis, each_target_list, label="target {:d}".format(_i), alpha=.75)
         ax11.set_ylabel("values")
         ax11.legend()
 

@@ -73,7 +73,7 @@ class SymbolicContent(Content[Hashable, Hashable]):
 class RationalContent(Content[float, float]):
     def __init__(self, shape: int, alpha: float):
         super().__init__(shape, alpha)
-        self.regressor = Regressor(20)
+        self.regressor = Regressor(100)
         self.iterations = 0
 
     def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):

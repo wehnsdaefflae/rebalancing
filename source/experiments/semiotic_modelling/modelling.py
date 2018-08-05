@@ -55,7 +55,7 @@ def update_states(states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...], 
                 each_layer.pop(0)
 
 
-def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_content: Type[Content], alpha: float):
+def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_content: Type[Content], alpha: Callable[[int, int], float]):
     len_model = len(model)
     len_set = set(len(_x) for _x in situations)
     assert len(len_set) == 1
@@ -70,10 +70,14 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_conte
             else:
                 each_layer = model[_i]
             new_shape = len(each_layer)
-            each_layer[new_shape] = base_content(new_shape, alpha) if _i < 1 else SymbolicContent(new_shape, alpha)
+            alpha_value = alpha(_i, new_shape)
+            each_layer[new_shape] = base_content(new_shape, alpha_value) if _i < 1 else SymbolicContent(new_shape, alpha_value)
             for each_index in situations_with_new_content:
                 each_situation = situations[each_index]
                 each_situation[_i] = new_shape
+
+
+simple = False
 
 
 def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...]):
@@ -88,27 +92,37 @@ def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SIT
         for _i in range(len_situation - 1):
             content = get_content(model, each_situation, _i + 1)
             shape_out = each_situation[_i]
-            history = each_state[_i]
-            # at level >= 2 add symbolic shape from situation level == 1 to condition
-            content.adapt(tuple(history), shape_out)
+
+            if _i == 0 or simple:
+                abstract_shape = tuple(each_state[_i])
+            else:
+                abstract_shape = tuple(each_state[_i]), tuple(each_state[_i - 1])          # TODO: keep shape of content? see below
+
+            content.adapt(abstract_shape, shape_out)
 
 
-def update_situation(situation: SITUATION, shape: BASIC_IN, target_value: BASIC_OUT, state: STATE, model: MODEL, sigma: Callable[[int, int], float]):
+def update_situation(shape: BASIC_IN, target_value: BASIC_OUT,
+                     model: MODEL, state: STATE, situation: SITUATION,
+                     sigma: Callable[[int, int], float], fix_at: Callable[[int], int]):
     len_model = len(model)
     level = 0                                                                                                   # type: int
 
-    # for each_shape in situation:
+    # for level, each_shape in enumerate(situation):
     while level < len_model:
-        s = sigma(level, len(model[level]))
+        layer = model[level]
+        len_layer = len(layer)
+
+        s = sigma(level, len_layer)
         content = get_content(model, situation, level)                                                          # type: Content
         if content.probability(shape, target_value) >= s:
             break
 
-        layer = model[level]
-        abstract_shape = tuple(state[level])
+        if level == 0 or simple:
+            abstract_shape = tuple(state[level])
+        else:
+            abstract_shape = tuple(state[level]), shape                     # TODO: keep shape of content? see above
         if level + 1 < len_model:
             context = get_content(model, situation, level + 1)                                                      # type: Content
-            # symbolic content transitions at level >= 2 with conditions from history and symbolic content from level == 1
             abstract_target = context.predict(abstract_shape)                                                                      # type: APPEARANCE
             if abstract_target is not None:
                 content = layer[abstract_target]                                                                              # type: Content
@@ -121,7 +135,7 @@ def update_situation(situation: SITUATION, shape: BASIC_IN, target_value: BASIC_
 
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
         abstract_target = hash(content)                                                                           # type: APPEARANCE
-        if content.probability(shape, target_value) >= s:
+        if content.probability(shape, target_value) >= s or len_layer >= fix_at(level):
             situation[level] = abstract_target
             target_value = abstract_target
             shape = abstract_shape                                                                           # type: HISTORY
@@ -138,6 +152,6 @@ def generate_layer(model: MODEL, situations: Tuple[SITUATION, ...]):
     len_situation, = len_set
     assert len_situation == len(model)
 
-    if -1 in {each_situation[-1] for each_situation in situations} and len(model[-1]) == 2:
+    if -1 in {each_situation[-1] for each_situation in situations} and len(model[-1]) == 1:
         for each_situation in situations:
             each_situation.append(-1)
