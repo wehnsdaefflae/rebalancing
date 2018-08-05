@@ -90,12 +90,12 @@ def continuous_erratic_sequence_prediction():
 
 
 def generate_trace_layer(history_length: int, model: MODEL, states: Tuple[STATE]):
-    len_model = len(model)  # type: int
+    no_model_layers = len(model)  # type: int
     for each_state in states:
-        len_state = len(each_state)  # type: int
-        if len_state == len_model - 1:
+        no_state_layers = len(each_state)  # type: int
+        if no_state_layers == no_model_layers - 1:
             each_state.append([0 for _ in range(history_length)])
-        elif len_state == len_model:
+        elif no_state_layers == no_model_layers:
             pass
         else:
             assert False
