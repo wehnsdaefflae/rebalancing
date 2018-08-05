@@ -1,10 +1,10 @@
 from typing import List, Tuple, Iterable, Callable
 
 from source.experiments.semiotic_modelling.content import Content, RationalContent
-from source.experiments.semiotic_modelling.data_generators import debug_trig
+from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_series
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_states, generate_content, adapt_content, \
-    update_situation, generate_layer
+    update_situation, generate_layer, MODEL, STATE, SITUATION, BASIC_OUT
 from source.tools.timer import Timer
 
 
@@ -19,8 +19,8 @@ def simulation():
     no_senses = 1                                                                       # type: int
     sl = SimulationStats(no_senses)                                                     # type: SimulationStats
 
-    # source = debug_series()                                                           # type: Iterable[List[EXAMPLE]]
-    source = debug_trig()                                                               # type: Iterable[List[EXAMPLE]]
+    source = debug_series()                                                           # type: Iterable[List[EXAMPLE]]
+    # source = debug_trig()                                                               # type: Iterable[List[EXAMPLE]]
 
     model = [{0: RationalContent(0, alpha)}]                                            # type: MODEL
     states = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))      # type: Tuple[STATE, ...]
@@ -71,7 +71,7 @@ def simulation():
 
 def main():
     simulation()
-
+    date2num
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,9 @@
+import datetime
 from typing import List, Tuple, Sequence
 
 from matplotlib import pyplot
 from matplotlib.colors import hsv_to_rgb
+from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
 from source.experiments.semiotic_modelling.modelling import BASIC_OUT, EXAMPLE, MODEL, SITUATION, STATE, TIME
@@ -88,6 +90,16 @@ class SimulationStats:
                     print("Finished {:5.2f}% of plotting level {:d}/{:d}...".format(100. * _x / (len(each_level) - 1), _i, len(segmentations)))
 
     def plot(self):
+        type_set = {type(_x) for _x in self.time_axis}
+        assert len(type_set) == 1
+        time_type, = type_set
+        if time_type == datetime.datetime:
+            is_datetime = True
+            for _i, each_datetime in enumerate(self.time_axis):
+                self.time_axis[_i] = date2num(each_datetime)
+        else:
+            is_datetime = False
+
         fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
 
         ax11 = ax1.twinx()
@@ -130,4 +142,10 @@ class SimulationStats:
         ax3.set_ylabel("error")
         ax3.legend()
         pyplot.tight_layout()
+
+        if is_datetime:
+            ax1.xaxis_date()
+            ax11.xaxis_date()
+            ax2.xaxis_date()
+            ax3.xaxis_date()
         pyplot.show()
