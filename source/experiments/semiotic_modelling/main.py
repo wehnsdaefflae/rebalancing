@@ -1,30 +1,54 @@
-from typing import List, Tuple, Iterable, Callable
+from typing import List, Tuple, Iterable, Callable, Sequence
 
 from source.experiments.semiotic_modelling.content import Content, RationalContent
 from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_series
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_states, generate_content, adapt_content, \
-    update_situation, generate_layer, MODEL, STATE, SITUATION, BASIC_OUT
+    update_situation, generate_layer, MODEL, STATE, SITUATION, BASIC_OUT, BASIC_IN
 from source.tools.timer import Timer
 
 
+# sigma = lambda _level, _size: .01 if _level < 1 else .03                                    # type: Callable[[int, int], float]
+# sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
+# sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
+# sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
+sigma = lambda _level, _size: .01                                                            # type: Callable[[[int, int], float]
+
+# alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
+alpha = lambda _level, _size: 50.                                                           # type: Callable[[[int, int], float]
+
+
+def fix_level_at_size(_level: int) -> int:
+    return 1000
+    if _level == 0:
+        return 2
+    if _level == 1:
+        return 1
+    return 0
+
+
+def get_outputs(inputs: Sequence[BASIC_IN], model: MODEL, situations: Sequence[SITUATION]) -> List[BASIC_OUT]:
+    output_values = []                                                                          # type: List[BASIC_OUT]
+    for _i, input_value in enumerate(inputs):
+        each_situation = situations[_i]                                                         # type: SITUATION
+        base_content = get_content(model, each_situation, 0)                                    # type: Content
+        output_value = base_content.predict(input_value)                                        # type: BASIC_OUT
+        output_values.append(output_value)
+    return output_values
+
+
+def update_situations(examples: Sequence[EXAMPLE], model: MODEL, states: Sequence[STATE], situations: Sequence[SITUATION]):
+    for _i, (input_value, target_value) in enumerate(examples):
+        update_situation(input_value, target_value, model, states[_i], situations[_i], sigma, fix_level_at_size)
+
+
+def adapt_base_contents(examples, model, situations):
+    for _i, (input_value, target_value) in enumerate(examples):
+        base_content = get_content(model, situations[_i], 0)  # type: Content
+        base_content.adapt(input_value, target_value)
+
+
 def continuous_erratic_sequence_prediction():
-    # sigma = lambda _level, _size: .01 if _level < 1 else .03                                    # type: Callable[[int, int], float]
-    # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
-    # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
-    # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
-    sigma = lambda _level, _size: .5                                                            # type: Callable[[[int, int], float]
-
-    # alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
-    alpha = lambda _level, _size: 100.                                                           # type: Callable[[[int, int], float]
-
-    def fix_level_at_size(_level: int):
-        if _level == 0:
-            return 2
-        if _level == 1:
-            return 1
-        return 0
-
     history_length = 1                                                                          # type: int
     no_senses = 1                                                                               # type: int
     sl = SimulationStats(no_senses)                                                             # type: SimulationStats
@@ -40,18 +64,14 @@ def continuous_erratic_sequence_prediction():
         assert len(examples) == no_senses
 
         # test
-        output_values = []                                                                      # type: List[BASIC_OUT]
-        for _i, (input_value, target_value) in enumerate(examples):
-            each_situation = situations[_i]                                                     # type: SITUATION
-            base_content = get_content(model, each_situation, 0)                                # type: Content
-            output_value = base_content.predict(input_value)                                    # type: BASIC_OUT
-            output_values.append(output_value)
-
-            update_situation(input_value, target_value, model, states[_i], each_situation, sigma, fix_level_at_size)
+        inputs = [input_value for input_value, _ in examples]
+        output_values = get_outputs(inputs, model, situations)
 
         # train
+        update_situations(examples, model, states, situations)
         generate_layer(model, situations)
         generate_content(model, situations, RationalContent, alpha)
+
         len_model = len(model)                                                                  # type: int
         for each_state in states:
             len_state = len(each_state)                                                         # type: int
@@ -63,11 +83,7 @@ def continuous_erratic_sequence_prediction():
                 assert False
 
         adapt_content(model, states, situations)
-
-        for _i, (input_value, target_value) in enumerate(examples):
-            base_content = get_content(model, situations[_i], 0)                        # type: Content
-            base_content.adapt(input_value, target_value)
-
+        adapt_base_contents(examples, model, situations)
         update_states(states, situations, history_length)
 
         sl.log(t, examples, output_values, model, situations)
@@ -77,6 +93,7 @@ def continuous_erratic_sequence_prediction():
     print(sl.model_structures[-1])
     # sl.save(model, states, "")
     sl.plot()
+
 
 
 def main():

@@ -77,7 +77,7 @@ def generate_content(model: MODEL, situations: Tuple[SITUATION, ...], base_conte
                 each_situation[_i] = new_shape
 
 
-simple = False
+simple = True
 
 
 def adapt_content(model: MODEL, states: Tuple[STATE, ...], situations: Tuple[SITUATION, ...]):
