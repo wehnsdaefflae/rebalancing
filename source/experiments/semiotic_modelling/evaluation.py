@@ -6,7 +6,7 @@ from matplotlib.colors import hsv_to_rgb
 from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
-from source.experiments.semiotic_modelling.modelling import BASIC_OUT, EXAMPLE, MODEL, SITUATION, STATE, TIME
+from source.experiments.semiotic_modelling.modelling import BASIC_OUT, EXAMPLE, MODEL, STATE, TRACE, TIME
 from source.tools.helper_functions import distribute_circular
 from source.tools.timer import Timer
 
@@ -24,7 +24,7 @@ class SimulationStats:
 
         self.time_axis = []
 
-    def log(self, time: TIME, examples: List[EXAMPLE], output_values: List[BASIC_OUT], model: MODEL, situations: Tuple[SITUATION, ...]):
+    def log(self, time: TIME, examples: List[EXAMPLE], output_values: List[BASIC_OUT], model: MODEL, situations: Tuple[STATE, ...]):
         self.time_axis.append(time)
 
         for _i, (each_example, output_value) in enumerate(zip(examples, output_values)):
@@ -48,7 +48,7 @@ class SimulationStats:
 
         self.model_structures.append([len(_x) for _x in model])
 
-    def save(self, model: MODEL, states: Tuple[STATE], file_path: str):
+    def save(self, model: MODEL, states: Tuple[TRACE], file_path: str):
         pass
         # raise NotImplementedError()
 

@@ -3,8 +3,8 @@ from typing import List, Tuple, Iterable, Callable, Sequence
 from source.experiments.semiotic_modelling.content import Content, RationalContent
 from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_series
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
-from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_states, generate_content, adapt_content, \
-    update_situation, generate_layer, MODEL, STATE, SITUATION, BASIC_OUT, BASIC_IN
+from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_traces, generate_content, adapt_abstract_content, \
+    update_situation, generate_situation_layer, MODEL, TRACE, STATE, BASIC_OUT, BASIC_IN
 from source.tools.timer import Timer
 
 
@@ -27,24 +27,24 @@ def fix_level_at_size(_level: int) -> int:
     return 0
 
 
-def get_outputs(inputs: Sequence[BASIC_IN], model: MODEL, situations: Sequence[SITUATION]) -> List[BASIC_OUT]:
+def get_outputs(inputs: Iterable[BASIC_IN], model: MODEL, states: Tuple[STATE, ...]) -> List[BASIC_OUT]:
     output_values = []                                                                          # type: List[BASIC_OUT]
     for _i, input_value in enumerate(inputs):
-        each_situation = situations[_i]                                                         # type: SITUATION
+        each_situation = states[_i]                                                         # type: STATE
         base_content = get_content(model, each_situation, 0)                                    # type: Content
         output_value = base_content.predict(input_value)                                        # type: BASIC_OUT
         output_values.append(output_value)
     return output_values
 
 
-def update_situations(examples: Sequence[EXAMPLE], model: MODEL, states: Sequence[STATE], situations: Sequence[SITUATION]):
+def update_situations(examples: Iterable[EXAMPLE], model: MODEL, traces: Tuple[TRACE, ...], states: Tuple[STATE, ...]):
     for _i, (input_value, target_value) in enumerate(examples):
-        update_situation(input_value, target_value, model, states[_i], situations[_i], sigma, fix_level_at_size)
+        update_situation(input_value, target_value, model, traces[_i], states[_i], sigma, fix_level_at_size)
 
 
-def adapt_base_contents(examples, model, situations):
+def adapt_base_contents(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[STATE, ...]):
     for _i, (input_value, target_value) in enumerate(examples):
-        base_content = get_content(model, situations[_i], 0)  # type: Content
+        base_content = get_content(model, states[_i], 0)  # type: Content
         base_content.adapt(input_value, target_value)
 
 
@@ -57,43 +57,48 @@ def continuous_erratic_sequence_prediction():
     source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
 
     model = [{0: RationalContent(0, alpha(0, 0))}]                                              # type: MODEL
-    states = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))              # type: Tuple[STATE, ...]
-    situations = tuple([0] for _ in range(no_senses))                                           # type: Tuple[SITUATION, ...]
+    traces = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))              # type: Tuple[TRACE, ...]
+    situations = tuple([0] for _ in range(no_senses))                                           # type: Tuple[STATE, ...]
 
     for t, examples in source:
         assert len(examples) == no_senses
 
         # test
-        inputs = [input_value for input_value, _ in examples]
-        output_values = get_outputs(inputs, model, situations)
+        input_values = [input_value for input_value, _ in examples]
+        output_values = get_outputs(input_values, model, situations)
 
         # train
-        update_situations(examples, model, states, situations)
-        generate_layer(model, situations)
+        update_situations(examples, model, traces, situations)
+        generate_situation_layer(model, situations)
+
         generate_content(model, situations, RationalContent, alpha)
 
-        len_model = len(model)                                                                  # type: int
-        for each_state in states:
-            len_state = len(each_state)                                                         # type: int
-            if len_state == len_model - 1:
-                each_state.append([0 for _ in range(history_length)])
-            elif len_state == len_model:
-                pass
-            else:
-                assert False
+        generate_trace_layer(history_length, model, traces)
 
-        adapt_content(model, states, situations)
+        adapt_abstract_content(model, traces, situations)
         adapt_base_contents(examples, model, situations)
-        update_states(states, situations, history_length)
+
+        update_traces(traces, situations, history_length)
 
         sl.log(t, examples, output_values, model, situations)
         if Timer.time_passed(2000):
             print("At time stamp {:s}: {:s}".format(str(t), str(sl.model_structures[-1])))
 
     print(sl.model_structures[-1])
-    # sl.save(model, states, "")
+    # sl.save(model, traces, "")
     sl.plot()
 
+
+def generate_trace_layer(history_length: int, model: MODEL, states: Tuple[STATE]):
+    len_model = len(model)  # type: int
+    for each_state in states:
+        len_state = len(each_state)  # type: int
+        if len_state == len_model - 1:
+            each_state.append([0 for _ in range(history_length)])
+        elif len_state == len_model:
+            pass
+        else:
+            assert False
 
 
 def main():
