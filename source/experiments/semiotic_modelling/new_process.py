@@ -6,6 +6,7 @@ from typing import Union, TypeVar, List, Tuple, Iterable, Dict, Optional, Genera
 from dateutil.tz import tzutc
 from matplotlib import pyplot
 from matplotlib.colors import hsv_to_rgb
+from matplotlib.patches import Rectangle
 
 from source.data.data_generation import series_generator
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent, RationalContent
@@ -103,36 +104,46 @@ class SimulationStats:
                 each_left, each_shape = each_level[_x]
                 each_right, _ = each_level[_x + 1]
                 each_width = each_right - each_left
-                hsv = distribute_circular(each_shape), .5, .5
-                axis.barh(_i, each_width, left=each_left, color=hsv_to_rgb(hsv))
+                hsv = distribute_circular(each_shape), .2, 1.
+                axis.barh(_i, each_width, height=1., align="edge", left=each_left, color=hsv_to_rgb(hsv))
 
                 if Timer.time_passed(2000):
                     print("Finished {:5.2f}% of plotting level {:d}/{:d}...".format(100. * _x / (len(each_level) - 1), _i, len(segmentations)))
 
     def plot(self):
-        fig, (ax1, ax2, ax3, ax4) = pyplot.subplots(4, sharex="all")
-
-        for _i, (each_input_list, each_target_list, each_output_list) in enumerate(zip(self.input_values, self.target_values, self.output_values)):
-            ax1.plot(self.time_axis, each_input_list, label="input {:d}".format(_i))
-            ax1.plot(self.time_axis, each_target_list, label="target {:d}".format(_i))
-            ax1.plot(self.time_axis, each_output_list, label="output {:d}".format(_i))
-        ax1.legend()
+        fig, (ax1, ax2, ax3) = pyplot.subplots(3, sharex="all")
 
         for _i, each_context in enumerate(self.contexts):
             segmentations = SimulationStats._get_segments(self.time_axis, each_context)
-            SimulationStats._plot_h_stacked_bars(ax2, segmentations)
-        # ax2.legend()
+            SimulationStats._plot_h_stacked_bars(ax1, segmentations)
+
+        ax11 = ax1.twinx()
+        max_levels = max(len(_x) for _x in self.model_structures)
+        ax1.set_ylim(0., max_levels)
+
+        class UpdatingRect(Rectangle):
+            def __call__(self, ax: pyplot.Axes.axes):
+                ax.set_ylim(0., max_levels)
+
+        reset_y = UpdatingRect([0, 0], 0, 0, facecolor="None", edgecolor="black", linewidth=1.)
+        ax1.callbacks.connect("ylim_changed", reset_y)
+
+        for _i, (each_input_list, each_target_list, each_output_list) in enumerate(zip(self.input_values, self.target_values, self.output_values)):
+            ax11.plot(self.time_axis, each_input_list, label="input {:d}".format(_i))
+            ax11.plot(self.time_axis, each_target_list, label="target {:d}".format(_i))
+            ax11.plot(self.time_axis, each_output_list, label="output {:d}".format(_i))
+        ax11.legend()
 
         len_last_structure = len(self.model_structures[-1])
         for each_structure in self.model_structures:
             while len(each_structure) < len_last_structure:
                 each_structure.append(0)
         transposed = list(zip(*self.model_structures))
-        ax3.stackplot(self.time_axis, *transposed)
+        ax2.stackplot(self.time_axis, *transposed)
 
         for _i, each_cumulative_error in enumerate(self.cumulative_errors):
-            ax4.plot(self.time_axis, each_cumulative_error, label="cumulative error {:d}".format(_i))
-        ax4.legend()
+            ax3.plot(self.time_axis, each_cumulative_error, label="cumulative error {:d}".format(_i))
+        ax3.legend()
         pyplot.show()
 
 
