@@ -12,14 +12,13 @@ from source.tools.timer import Timer
 # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
-sigma = lambda _level, _size: .01                                                            # type: Callable[[[int, int], float]
+sigma = lambda _level, _size: .05                                                            # type: Callable[[[int, int], float]
 
 # alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
 alpha = lambda _level, _size: 50.                                                           # type: Callable[[[int, int], float]
 
 
 def fix_level_at_size(_level: int) -> int:
-    return 1000
     if _level == 0:
         return 2
     if _level == 1:
@@ -48,6 +47,13 @@ def adapt_base_contents(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple
         base_content.adapt(input_value, target_value)
 
 
+def get_probabilities(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[STATE, ...]) -> Tuple[float, ...]:
+    base_shapes = tuple(each_state[0] for each_state in states)
+    base_layer = model[0]
+    base_contents = tuple(base_layer[each_shape] for each_shape in base_shapes)
+    return tuple(content.probability(*example) for (content, example) in zip(base_contents, examples))
+
+
 def continuous_erratic_sequence_prediction():
     history_length = 1                                                                          # type: int
     no_senses = 1                                                                               # type: int
@@ -58,44 +64,46 @@ def continuous_erratic_sequence_prediction():
 
     model = [{0: RationalContent(0, alpha(0, 0))}]                                              # type: MODEL
     traces = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))              # type: Tuple[TRACE, ...]
-    situations = tuple([0] for _ in range(no_senses))                                           # type: Tuple[STATE, ...]
+    states = tuple([0] for _ in range(no_senses))                                               # type: Tuple[STATE, ...]
 
-    for t, examples in source:
+    for time_point, examples in source:
         assert len(examples) == no_senses
 
         # test
         input_values = [input_value for input_value, _ in examples]
-        output_values = get_outputs(input_values, model, situations)
+        output_values = get_outputs(input_values, model, states)
+
+        probabilities = get_probabilities(examples, model, states)                              # type: Tuple[float, ...]
 
         # train
-        update_situations(examples, model, traces, situations)
-        generate_situation_layer(model, situations)
+        update_situations(examples, model, traces, states)
+        generate_situation_layer(model, states)
 
-        generate_content(model, situations, RationalContent, alpha)
+        generate_content(model, states, RationalContent, alpha)
 
         generate_trace_layer(history_length, model, traces)
 
-        adapt_abstract_content(model, traces, situations)
-        adapt_base_contents(examples, model, situations)
+        adapt_abstract_content(model, traces, states)
+        adapt_base_contents(examples, model, states)
 
-        update_traces(traces, situations, history_length)
+        update_traces(traces, states, history_length)
 
-        sl.log(t, examples, output_values, model, situations)
+        sl.log(time_point, examples, output_values, probabilities, model, states)
         if Timer.time_passed(2000):
-            print("At time stamp {:s}: {:s}".format(str(t), str(sl.model_structures[-1])))
+            print("At time stamp {:s}: {:s}".format(str(time_point), str(sl.model_structures[-1])))
 
     print(sl.model_structures[-1])
     # sl.save(model, traces, "")
     sl.plot()
 
 
-def generate_trace_layer(history_length: int, model: MODEL, states: Tuple[STATE]):
+def generate_trace_layer(history_length: int, model: MODEL, traces: Tuple[TRACE]):
     no_model_layers = len(model)  # type: int
-    for each_state in states:
-        no_state_layers = len(each_state)  # type: int
-        if no_state_layers == no_model_layers - 1:
-            each_state.append([0 for _ in range(history_length)])
-        elif no_state_layers == no_model_layers:
+    for each_trace in traces:
+        no_trace_layers = len(each_trace)  # type: int
+        if no_trace_layers == no_model_layers - 1:
+            each_trace.append([0 for _ in range(history_length)])
+        elif no_trace_layers == no_model_layers:
             pass
         else:
             assert False

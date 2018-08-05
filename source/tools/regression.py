@@ -1,8 +1,12 @@
+import random
 from math import sqrt
 from typing import Tuple
 
 
 # TODO: make multivariate (https://de.wikipedia.org/wiki/Multiple_lineare_Regression)
+from matplotlib import pyplot
+
+
 class Regressor:
     def __init__(self, drag: int):
         self.drag = drag
@@ -20,12 +24,12 @@ class Regressor:
         fx = self.output(x)
         d = (fx - y) ** 2
         if 0. >= d:
+            return 1.
+
+        if self.var_x == 0.:
             return 0.
 
-        if d < self.var_y:
-            return d / self.var_y
-
-        return self.var_y / d
+        return 1. - min(1., d / self.var_y)
 
     def fit(self, x: float, y: float):
         dx = x - self.mean_x
@@ -52,3 +56,23 @@ class Regressor:
     def output(self, x: float) -> float:
         a, t = self._get_parameters()
         return x * a + t
+
+
+if __name__ == "__main__":
+    f = lambda _x: .3 * _x - 7.
+    x = range(20)
+    y = [f(_x) + (random.random() - .5) * 2. for _x in x]
+    pyplot.plot(x, y, label="original")
+
+    regressor = Regressor(10)
+    for _x, _y in zip(x, y):
+        regressor.fit(_x, _y)
+
+    in_value = 1.
+    o = regressor.output(in_value)
+    s = regressor.sim(in_value, o*.9)
+
+    pyplot.plot(x, [regressor.output(_x) for _x in x], label="fitted")
+
+    pyplot.legend()
+    pyplot.show()

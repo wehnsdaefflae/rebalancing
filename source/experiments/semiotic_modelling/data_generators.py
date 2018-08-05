@@ -45,6 +45,6 @@ def debug_series() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 def debug_trig() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
-    for t in range(50000):
+    for t in range(10000):
         examples = [(sin(t / 10.), cos(t / 10.))]
         yield t, examples
