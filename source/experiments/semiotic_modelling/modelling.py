@@ -55,7 +55,7 @@ def update_traces(traces: Tuple[TRACE, ...], states: Tuple[STATE, ...], history_
                 each_trace_layer.pop(0)
 
 
-def generate_content(model: MODEL, states: Tuple[STATE, ...], base_content: Type[Content], alpha: Callable[[int, int], float]):
+def generate_content(model: MODEL, states: Tuple[STATE, ...], base_content: Type[Content], alpha: Callable[[int, int], int]):
     no_model_layers = len(model)
     len_set = set(len(_x) for _x in states)
     assert len(len_set) == 1

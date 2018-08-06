@@ -15,7 +15,7 @@ from source.tools.timer import Timer
 sigma = lambda _level, _size: .1                                                            # type: Callable[[[int, int], float]
 
 # alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
-alpha = lambda _level, _size: 100.                                                           # type: Callable[[[int, int], float]
+alpha = lambda _level, _size: 100                                                           # type: Callable[[[int, int], float]
 
 
 def fix_level_at_size(_level: int) -> int:

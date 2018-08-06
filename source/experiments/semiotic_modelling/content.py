@@ -7,11 +7,11 @@ CONSEQUENCE = TypeVar("CONSEQUENCE")
 
 
 class Content(Hashable, Generic[CONDITION, CONSEQUENCE]):
-    def __init__(self, shape: int, alpha: float):
+    def __init__(self, shape: int, alpha: int):
         super().__init__()
-        self.__shape = shape              # type: int
-        self.alpha = alpha
-        self.iterations = 0
+        self.__shape = shape                # type: int
+        self.alpha = alpha                  # type: int
+        self.iterations = 0                 # type: int
 
     def __repr__(self) -> str:
         return str(self.__shape)
@@ -48,7 +48,7 @@ class Content(Hashable, Generic[CONDITION, CONSEQUENCE]):
 
 
 class SymbolicContent(Content[Hashable, Hashable]):
-    def __init__(self, shape: int, alpha: float):
+    def __init__(self, shape: int, alpha: int):
         super().__init__(shape, alpha)
         self.table = dict()                                             # type: Dict[Hashable, Dict[Hashable, int]]
 
@@ -78,7 +78,7 @@ class SymbolicContent(Content[Hashable, Hashable]):
 
 
 class RationalContent(Content[float, float]):
-    def __init__(self, shape: int, alpha: float):
+    def __init__(self, shape: int, alpha: int):
         super().__init__(shape, alpha)
         self.regressor = Regressor(100)
 
@@ -94,7 +94,7 @@ class RationalContent(Content[float, float]):
 
 # TODO: integrate unidimensional RationalContent into this (BASIC_IN can be a Tuple)
 class MLPRationalContent(Content[Tuple[float, ...], float]):
-    def __init__(self, shape: int, alpha: float):
+    def __init__(self, shape: int, alpha: int):
         super().__init__(shape, alpha)
         raise NotImplementedError()
 
