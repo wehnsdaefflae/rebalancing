@@ -12,22 +12,16 @@ from source.tools.timer import Timer
 # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
-sigma = lambda _level, _size: .1                                                            # type: Callable[[[int, int], float]
+sigma = lambda _level, _size: .9                                                            # type: Callable[[[int, int], float]
 
 # alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
 alpha = lambda _level, _size: 50.                                                           # type: Callable[[[int, int], float]
 
 
 def fix_level_at_size(_level: int) -> int:
-    # return 1000
-    if _level == 0:
-        return 50
-    if _level == 1:
-        return 20
-    if _level == 2:
-        return 10
-    if _level == 3:
-        return 3
+    sizes = [10, 1]
+    if _level < len(sizes):
+        return sizes[_level]
     return 0
 
 
@@ -64,8 +58,8 @@ def continuous_erratic_sequence_prediction():
     no_senses = 1                                                                               # type: int
     sl = SimulationStats(no_senses)                                                             # type: SimulationStats
 
-    source = debug_series()                                                                     # type: Iterable[List[EXAMPLE]]
-    # source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
+    # source = debug_series()                                                                     # type: Iterable[List[EXAMPLE]]
+    source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
 
     model = [{0: RationalContent(0, alpha(0, 0))}]                                              # type: MODEL
     traces = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))              # type: Tuple[TRACE, ...]

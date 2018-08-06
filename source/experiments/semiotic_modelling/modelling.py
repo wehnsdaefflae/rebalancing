@@ -134,7 +134,7 @@ def update_situation(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, tra
 
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
         abstract_target = hash(content)                                                                           # type: APPEARANCE
-        if content.probability(shape, target_value) >= s or no_representations >= fix_at(level):
+        if content.probability(shape, target_value) >= s or no_representations >= fix_at(level) > 0:
             state[level] = abstract_target
             target_value = abstract_target
             shape = abstract_shape                                                                           # type: HISTORY
