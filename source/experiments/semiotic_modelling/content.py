@@ -11,6 +11,7 @@ class Content(Hashable, Generic[CONDITION, CONSEQUENCE]):
         super().__init__()
         self.__shape = shape              # type: int
         self.alpha = alpha
+        self.iterations = 0
 
     def __repr__(self) -> str:
         return str(self.__shape)
@@ -27,10 +28,19 @@ class Content(Hashable, Generic[CONDITION, CONSEQUENCE]):
     def __lt__(self, other: Any) -> bool:
         return self.__shape < other.__shape
 
+    def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
+        raise NotImplementedError()
+
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        raise NotImplementedError
+        factor = self.alpha / (self.alpha + self.iterations)
+        p = self._probability(condition, consequence, default=default)
+        return factor + (1. - factor) * p
 
     def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
+        self._adapt(condition, consequence)
+        self.iterations += 1
+
+    def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
         raise NotImplementedError
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:
@@ -42,19 +52,16 @@ class SymbolicContent(Content[Hashable, Hashable]):
         super().__init__(shape, alpha)
         self.table = dict()                                             # type: Dict[Hashable, Dict[Hashable, int]]
 
-    def probability(self, condition: CONDITION, consequence: Hashable, default: float = 1.) -> float:
+    def _probability(self, condition: CONDITION, consequence: Hashable, default: float = 1.) -> float:
         sub_dict = self.table.get(condition)                            # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
             return default
+        total = sum(sub_dict.values())
+        if 0 >= total:
+            return default
+        return sub_dict.get(consequence, 0) / total
 
-        total_frequency = self.alpha                                    # type: int
-        for each_consequence, each_frequency in sub_dict.items():
-            total_frequency += each_frequency + self.alpha
-
-        frequency = sub_dict.get(consequence, 0.) + self.alpha          # type: float
-        return frequency / total_frequency
-
-    def adapt(self, condition: CONDITION, consequence: Hashable):
+    def _adapt(self, condition: CONDITION, consequence: Hashable):
         sub_dict = self.table.get(condition)                            # type: Dict[CONSEQUENCE, int]
         if sub_dict is None:
             sub_dict = {consequence: 1}                                 # type: Dict[CONSEQUENCE, int]
@@ -74,18 +81,15 @@ class RationalContent(Content[float, float]):
     def __init__(self, shape: int, alpha: float):
         super().__init__(shape, alpha)
         self.regressor = Regressor(100)
-        self.iterations = 0
 
-    def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
+    def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
         self.regressor.fit(condition, consequence)
-        self.iterations += 1
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
         return self.regressor.output(condition)
 
-    def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        factor = self.alpha / (self.alpha + self.iterations)
-        return factor + (1. - factor) * self.regressor.sim(condition, consequence)
+    def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
+        return self.regressor.sim(condition, consequence)
 
 
 # TODO: integrate unidimensional RationalContent into this (BASIC_IN can be a Tuple)
@@ -94,10 +98,10 @@ class MLPRationalContent(Content[Tuple[float, ...], float]):
         super().__init__(shape, alpha)
         raise NotImplementedError()
 
-    def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
+    def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
         raise NotImplementedError()
 
-    def adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
+    def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
         raise NotImplementedError()
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:

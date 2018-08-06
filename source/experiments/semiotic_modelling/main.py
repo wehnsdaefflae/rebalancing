@@ -12,17 +12,17 @@ from source.tools.timer import Timer
 # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
-sigma = lambda _level, _size: .9                                                            # type: Callable[[[int, int], float]
+sigma = lambda _level, _size: .1                                                            # type: Callable[[[int, int], float]
 
 # alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
-alpha = lambda _level, _size: 50.                                                           # type: Callable[[[int, int], float]
+alpha = lambda _level, _size: 100.                                                           # type: Callable[[[int, int], float]
 
 
 def fix_level_at_size(_level: int) -> int:
-    sizes = [10, 1]
+    sizes = []
     if _level < len(sizes):
         return sizes[_level]
-    return 0
+    return -1
 
 
 def get_outputs(inputs: Iterable[BASIC_IN], model: MODEL, states: Tuple[STATE, ...]) -> List[BASIC_OUT]:
