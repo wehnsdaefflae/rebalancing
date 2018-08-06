@@ -118,7 +118,7 @@ class SimulationStats:
 
         max_levels = max(len(_x) for _x in self.model_structures)
         ax1.set_ylim(0., max_levels)
-        ax1.set_ylabel("sim. to reps.")
+        ax1.set_ylabel("certainty")
 
         class UpdatingRect(Rectangle):
             def __call__(self, ax: pyplot.Axes.axes):

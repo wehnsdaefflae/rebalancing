@@ -26,7 +26,7 @@ class Regressor:
         if 0. >= d:
             return 1.
 
-        if self.var_x == 0.:
+        if self.var_y == 0.:
             return 0.
 
         return 1. - min(1., d / self.var_y)
@@ -56,6 +56,61 @@ class Regressor:
     def output(self, x: float) -> float:
         a, t = self._get_parameters()
         return x * a + t
+
+
+class MultiRegressor:
+    def __init__(self, dim: int, drag: int):
+        # https://mubaris.com/2017/09/28/linear-regression-from-scratch/
+        self.drag = drag
+        self.dim = dim
+        self.mean_x = [0. for _ in range(dim)]
+        self.mean_y = 0.
+        self.var_x = [0. for _ in range(dim)]
+        self.var_y = 0.
+        self.cov_xy = [0. for _ in range(dim)]
+        self.initial = True
+
+    def sim(self, x: Tuple[float, ...], y: float) -> float:
+        assert len(x) == self.dim
+        fx = self.output(x)
+        d = (fx - y) ** 2
+        if 0. >= d:
+            return 1.
+
+        if self.var_y == 0.:
+            return 0.
+
+        return 1. - min(1., d / self.var_y)
+
+    def output(self, x: Tuple[float, ...]) -> float:
+        assert len(x) == self.dim
+        p = self._get_parameters()
+        return sum(x if _i == self.dim - 1 else x * _p for (_i, _p) in enumerate(p))
+
+    def fit(self, x: Tuple[float, ...], y: float):
+        assert len(x) == self.dim
+
+        dx = [_x - self.mean_x[_i] for (_i, _x) in enumerate(x)]
+        dy = y - self.mean_y
+
+        self.var_x = [(self.drag * self.var_x[_i] + _dx ** 2) / (self.drag + 1) for (_i, _dx) in enumerate(dx)]
+        self.var_y = (self.drag * self.var_y + dy ** 2) / (self.drag + 1)
+        self.cov_xy = [(self.drag * self.cov_xy[_i] + _dx * dy) / (self.drag + 1) for (_i, _dx) in enumerate(dx)]
+
+        if self.initial:
+            self.mean_x = x
+            self.mean_y = y
+            self.initial = False
+
+        else:
+            self.mean_x = [(self.drag * self.mean_x[_i] + _x) / (self.drag + 1) for (_i, _x) in enumerate(x)]
+            self.mean_y = (self.drag * self.mean_y + y) / (self.drag + 1)
+
+    def _get_parameters(self) -> Tuple[float, ...]:
+
+        a = 0. if self.var_x == 0. else self.cov_xy / self.var_x
+        t = self.mean_y - a * self.mean_x
+        return a, t
 
 
 if __name__ == "__main__":

@@ -8,18 +8,17 @@ from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content
 from source.tools.timer import Timer
 
 
-# sigma = lambda _level, _size: .01 if _level < 1 else .03                                    # type: Callable[[int, int], float]
+sigma = lambda _level, _size: .7 if _level < 1 else .1                                    # type: Callable[[int, int], float]
 # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
-sigma = lambda _level, _size: .1                                                            # type: Callable[[[int, int], float]
+# sigma = lambda _level, _size: .7                                                            # type: Callable[[[int, int], float]
 
-# alpha = lambda _level, _size: 100. if _level < 1 else 10.                                   # type: Callable[[[int, int], float]
 alpha = lambda _level, _size: 100                                                           # type: Callable[[[int, int], float]
 
 
 def fix_level_at_size(_level: int) -> int:
-    sizes = []
+    sizes = [10, 2, 1, 0]
     if _level < len(sizes):
         return sizes[_level]
     return -1
