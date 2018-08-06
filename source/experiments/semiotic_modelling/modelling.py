@@ -154,3 +154,4 @@ def generate_situation_layer(model: MODEL, states: Tuple[STATE, ...]):
     if -1 in {each_state[-1] for each_state in states} and len(model[-1]) == 1:
         for each_state in states:
             each_state.append(-1)
+

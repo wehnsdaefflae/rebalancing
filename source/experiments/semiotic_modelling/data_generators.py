@@ -49,3 +49,4 @@ def debug_trig() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
         # examples = [(sin(t / 100.), cos(t / 70.)*3. + sin(t/13.)*.7)]
         examples = [(sin(t / 100.), cos(t / 100.))]
         yield t, examples
+

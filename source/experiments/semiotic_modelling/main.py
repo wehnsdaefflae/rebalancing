@@ -117,3 +117,4 @@ if __name__ == "__main__":
 
     # predict from several inputs one target each
     # to predict one target from several inputs: multiple linear regression or symbolic "history"
+

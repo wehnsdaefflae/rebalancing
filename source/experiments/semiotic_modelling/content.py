@@ -106,3 +106,4 @@ class MLPRationalContent(Content[Tuple[float, ...], float]):
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:
         raise NotImplementedError()
+
