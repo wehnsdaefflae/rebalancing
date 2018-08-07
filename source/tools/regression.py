@@ -4,6 +4,7 @@ from typing import Tuple
 
 
 # TODO: make multivariate (https://de.wikipedia.org/wiki/Multiple_lineare_Regression)
+import numpy
 from matplotlib import pyplot
 
 
@@ -108,21 +109,31 @@ class MultiRegressor:
 
     def _get_parameters(self) -> Tuple[Tuple[float, ...], float]:
         xn = tuple(0. if _var_x == 0. else _cov_xy / _var_x for (_cov_xy, _var_x) in zip(self.cov_xy, self.var_x))
-        x0 = self.mean_y - sum(_xn * _mean_x for (_xn, _mean_x) in zip(xn, self.mean_x))
+        x0 = 0.  # self.mean_y - sum(_xn * _mean_x for (_xn, _mean_x) in zip(xn, self.mean_x))
         return xn, x0
 
 
-if __name__ == "__main__":
+def plot_surface(ax: pyplot.Axes.axes, a: float, b: float, c: float, size: int):
+    x = numpy.linspace(0, size, endpoint=False, num=size)
+    y = numpy.linspace(0, size, endpoint=False, num=size)
+
+    _X, _Y = numpy.meshgrid(x, y)
+    _Z = c * _X + b * _Y + a
+
+    ax.plot_surface(_X, _Y, _Z, alpha=.2, antialiased=False)
+
+
+def test3d(x0: float, x1: float, x2: float, size: int = 15):
     from mpl_toolkits.mplot3d import Axes3D
     # https://stackoverflow.com/questions/48335279/given-general-3d-plane-equation-how-can-i-plot-this-in-python-matplotlib
     # https://stackoverflow.com/questions/36060933/matplotlib-plot-a-plane-and-points-in-3d-simultaneously
-    f = lambda _x, _y: .3 * _x + -.4 * _y - 70.
+    f = lambda _x, _y: x2 * _x + x1 * _y + x0
     X = []
     Y = []
     Z = []
-    for each_x in range(15):
-        for each_y in range(15):
-            v = f(each_x, each_y) + (4. * random.random() - 2.)
+    for each_x in range(size):
+        for each_y in range(size):
+            v = f(each_x, each_y) + (100. * (random.random() - .5))
             X.append(each_x)
             Y.append(each_y)
             Z.append(v)
@@ -130,19 +141,50 @@ if __name__ == "__main__":
     regressor = MultiRegressor(2, 10)
     fig = pyplot.figure()
     ax = fig.add_subplot(111, projection='3d')
+
     for each_x, each_y, each_z in zip(X, Y, Z):
         p = each_x, each_y
-        ax.scatter(each_x, each_y, each_z)
+        ax.scatter(each_x, each_y, each_z, antialiased=False)
         regressor.fit(p, each_z)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
 
-    # ax.hold(True)
+    (p1, p2), p0 = regressor._get_parameters()
 
-    for each_x, each_y in zip(X, Y):
-        p = each_x, each_y
-        ax.scatter(each_x, each_y, regressor.output(p), color="black")
+    plot_surface(ax, p0, p1, p2, size)
 
     pyplot.show()
 
+
+def test2d(s: float, o: float):
+        f = lambda _x: s * _x + o
+        X = range(20)
+        Y = [f(_x) + 4. * (random.random() - .5) for _x in X]
+
+        fig, ax = pyplot.subplots(1, sharex="all")
+        ax.scatter(X, Y, label="original")
+
+        r = MultiRegressor(1, 10)
+        for _x, _y in zip(X, Y):
+            r.fit((_x,),  _y)
+
+        (a, ), t = r._get_parameters()
+        Yd = [a *_x + t for _x in X]
+        ax.plot(X, Yd, label="fit")
+
+        var = sum((r.output((_x,)) - _t) ** 2. for (_x, _t) in zip(X, Y))
+        print("{:5.2f}".format(var))
+
+        pyplot.legend()
+        pyplot.tight_layout()
+        pyplot.show()
+
+
+if __name__ == "__main__":
+    for _ in range(100):
+        a = random.random() * 20. - 10
+        b = random.random() * 100. - 50
+        c = random.random() * 40. - 20
+        test3d(a, b, c, size=10)
+        # test2d(a, b)
