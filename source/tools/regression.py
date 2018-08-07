@@ -2,7 +2,6 @@ import random
 from math import sqrt
 from typing import Tuple
 
-
 # TODO: make multivariate (https://de.wikipedia.org/wiki/Multiple_lineare_Regression)
 import numpy
 from matplotlib import pyplot
@@ -152,6 +151,7 @@ def test3d(x0: float, x1: float, x2: float, size: int = 15):
 
     (p1, p2), p0 = regressor._get_parameters()
 
+    print(x0, x1, x2)
     plot_surface(ax, p0, p1, p2, size)
 
     pyplot.show()
@@ -170,7 +170,7 @@ def test2d(s: float, o: float):
             r.fit((_x,),  _y)
 
         (a, ), t = r._get_parameters()
-        Yd = [a *_x + t for _x in X]
+        Yd = [a * _x + t for _x in X]
         ax.plot(X, Yd, label="fit")
 
         var = sum((r.output((_x,)) - _t) ** 2. for (_x, _t) in zip(X, Y))
@@ -182,6 +182,8 @@ def test2d(s: float, o: float):
 
 
 if __name__ == "__main__":
+    random.seed(8746587)
+
     for _ in range(100):
         a = random.random() * 20. - 10
         b = random.random() * 100. - 50
