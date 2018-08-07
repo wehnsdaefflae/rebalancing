@@ -127,13 +127,23 @@ if __name__ == "__main__":
             y.append(_y)
             z.append(v)
 
+    regressor = MultiRegressor(2, 10)
     fig = pyplot.figure()
     ax = fig.add_subplot(111, projection='3d')
     for _x, _y, _z in zip(x, y, z):
+        p = _x, _y
         ax.scatter(_x, _y, _z)
+        regressor.fit(p, _z)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
+
+    ax.hold(True)
+
+    for _x, _y in zip(x, y):
+        p = _x, _y
+        ax.scatter(_x, _y, regressor.output(p), color="black")
+
     pyplot.show()
 
     exit()
