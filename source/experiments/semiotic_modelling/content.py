@@ -1,6 +1,6 @@
 from typing import Hashable, Any, Dict, Tuple, Generic, TypeVar, Optional
 
-from source.tools.regression import Regressor
+from source.tools.regression import Regressor, MultiRegressor
 
 CONDITION = TypeVar("CONDITION")
 CONSEQUENCE = TypeVar("CONSEQUENCE")
@@ -77,10 +77,10 @@ class SymbolicContent(Content[Hashable, Hashable]):
         return consequence
 
 
-class RationalContent(Content[float, float]):
-    def __init__(self, shape: int, alpha: int):
+class RationalContent(Content[Tuple[float, ...], float]):
+    def __init__(self, dimension: int, shape: int, alpha: int):
         super().__init__(shape, alpha)
-        self.regressor = Regressor(1000)
+        self.regressor = MultiRegressor(dimension, 1000)
 
     def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
         self.regressor.fit(condition, consequence)
@@ -90,20 +90,3 @@ class RationalContent(Content[float, float]):
 
     def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
         return self.regressor.sim(condition, consequence)
-
-
-# TODO: integrate unidimensional RationalContent into this (BASIC_IN can be a Tuple)
-class MLPRationalContent(Content[Tuple[float, ...], float]):
-    def __init__(self, shape: int, alpha: int):
-        super().__init__(shape, alpha)
-        raise NotImplementedError()
-
-    def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        raise NotImplementedError()
-
-    def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
-        raise NotImplementedError()
-
-    def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> CONSEQUENCE:
-        raise NotImplementedError()
-

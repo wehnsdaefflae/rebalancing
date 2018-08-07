@@ -1,7 +1,7 @@
 from typing import List, Tuple, Iterable, Callable, Sequence
 
 from source.experiments.semiotic_modelling.content import Content, RationalContent
-from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_series
+from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_multiple_states
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_traces, generate_content, adapt_abstract_content, \
     update_situation, generate_situation_layer, MODEL, TRACE, STATE, BASIC_OUT, BASIC_IN
@@ -55,12 +55,17 @@ def get_probabilities(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[S
 def continuous_erratic_sequence_prediction():
     history_length = 1                                                                          # type: int
     no_senses = 1                                                                               # type: int
+    no_dimensions = 1                                                                           # type: int
     sl = SimulationStats(no_senses)                                                             # type: SimulationStats
 
-    # source = debug_series()                                                                     # type: Iterable[List[EXAMPLE]]
+    # source = debug_series()                                                                   # type: Iterable[List[EXAMPLE]]
     source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
 
-    model = [{0: RationalContent(0, alpha(0, 0))}]                                              # type: MODEL
+    class DimContent(RationalContent):
+        def __init__(self, shape: int, _alpha: int):
+            super().__init__(no_dimensions, shape, _alpha)
+
+    model = [{0: DimContent(0, alpha(0, 0))}]                                                   # type: MODEL
     traces = tuple([[0 for _ in range(history_length)]] for _ in range(no_senses))              # type: Tuple[TRACE, ...]
     states = tuple([0] for _ in range(no_senses))                                               # type: Tuple[STATE, ...]
 
@@ -77,7 +82,7 @@ def continuous_erratic_sequence_prediction():
         update_situations(examples, model, traces, states)
         generate_situation_layer(model, states)
 
-        generate_content(model, states, RationalContent, alpha)
+        generate_content(model, states, DimContent, alpha)
 
         generate_trace_layer(history_length, model, traces)
 

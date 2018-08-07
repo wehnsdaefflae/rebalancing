@@ -73,7 +73,7 @@ class MultiRegressor:
     def sim(self, x: Tuple[float, ...], y: float) -> float:
         assert len(x) == self.dim
         fx = self.output(x)
-        d = (fx - y) ** 2
+        d = (fx - y) ** 2.
         if 0. >= d:
             return 1.
 
@@ -85,12 +85,13 @@ class MultiRegressor:
     def fit(self, x: Tuple[float, ...], y: float):
         assert len(x) == self.dim
 
-        dx = [_x - _mean_x for (_x, _mean_x) in zip(x, self.mean_x)]
         dy = y - self.mean_y
+        for _i, (_var_x, _cov_xy) in enumerate(zip(self.var_x, self.cov_xy)):
+            _dx = x[_i] - self.mean_x[_i]
+            self.var_x[_i] = (self.drag * _var_x + _dx ** 2) / (self.drag + 1)
+            self.cov_xy[_i] = (self.drag * _cov_xy + _dx * dy) / (self.drag + 1)
 
-        self.var_x = [(self.drag * _var_x + _dx ** 2) / (self.drag + 1) for (_var_x, _dx) in zip(self.var_x, dx)]
         self.var_y = (self.drag * self.var_y + dy ** 2) / (self.drag + 1)
-        self.cov_xy = [(self.drag * _cov_xy + _dx * dy) / (self.drag + 1) for (_cov_xy, _dx) in zip(self.cov_xy, dx)]
 
         if self.initial:
             self.mean_x = list(x)
@@ -98,12 +99,14 @@ class MultiRegressor:
             self.initial = False
 
         else:
-            self.mean_x = [(self.drag * _mean_x + _x) / (self.drag + 1) for (_mean_x, _x) in zip(self.mean_x, x)]
+            for _i, (_mean_x, _x) in enumerate(zip(self.mean_x, x)):
+                self.mean_x[_i] = (self.drag * _mean_x + _x) / (self.drag + 1)
             self.mean_y = (self.drag * self.mean_y + y) / (self.drag + 1)
 
     def output(self, x: Tuple[float, ...]) -> float:
         assert len(x) == self.dim
         xn = self._get_parameters()
+        assert len(xn) == self.dim + 1
         return sum(_x * _xn for (_x, _xn) in zip(x + (1.,), xn))
 
     def _get_parameters(self) -> Tuple[float, ...]:
