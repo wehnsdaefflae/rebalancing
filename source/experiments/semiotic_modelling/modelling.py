@@ -3,8 +3,8 @@ from typing import TypeVar, Tuple, Union, List, Dict, Optional, Type, Callable
 from source.experiments.semiotic_modelling.content import Content, SymbolicContent
 
 TIME = TypeVar("TIME")
-BASIC_IN = TypeVar("BASIC_SHAPE_IN")
-BASIC_OUT = TypeVar("BASIC_SHAPE_OUT")
+BASIC_IN = TypeVar("BASIC_IN")
+BASIC_OUT = TypeVar("BASIC_OUT")
 
 EXAMPLE = Tuple[BASIC_IN, BASIC_OUT]
 ABSTRACT_SHAPE = int                                        # TODO: make generic hashable

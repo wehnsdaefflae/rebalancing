@@ -14,7 +14,7 @@ sigma = lambda _level, _size: .7 if _level < 1 else .1                          
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: .7                                                            # type: Callable[[[int, int], float]
 
-alpha = lambda _level, _size: 100                                                           # type: Callable[[[int, int], float]
+alpha = lambda _level, _size: 100                                                           # type: Callable[[int, int], int]
 
 
 def fix_level_at_size(_level: int) -> int:
