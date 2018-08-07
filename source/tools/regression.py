@@ -93,7 +93,7 @@ class MultiRegressor:
         self.cov_xy = [(self.drag * _cov_xy + _dx * dy) / (self.drag + 1) for (_cov_xy, _dx) in zip(self.cov_xy, dx)]
 
         if self.initial:
-            self.mean_x = x
+            self.mean_x = list(x)
             self.mean_y = y
             self.initial = False
 
@@ -103,13 +103,14 @@ class MultiRegressor:
 
     def output(self, x: Tuple[float, ...]) -> float:
         assert len(x) == self.dim
-        xn, x0 = self._get_parameters()
-        return x0 + sum(_x * _xn for (_x, _xn) in zip(x, xn))
+        xn = self._get_parameters()
+        return sum(_x * _xn for (_x, _xn) in zip(x + (1.,), xn))
 
-    def _get_parameters(self) -> Tuple[Tuple[float, ...], float]:
+    def _get_parameters(self) -> Tuple[float, ...]:
         xn = tuple(0. if _var_x == 0. else _cov_xy / _var_x for (_cov_xy, _var_x) in zip(self.cov_xy, self.var_x))
-        x0 = 0.  # self.mean_y - sum(_xn * _mean_x for (_xn, _mean_x) in zip(xn, self.mean_x))
-        return xn, x0
+        x0 = self.mean_y - sum(_xn * _mean_x for (_xn, _mean_x) in zip(xn, self.mean_x))
+        parameters = *xn, x0
+        return parameters
 
 
 def plot_surface(ax: pyplot.Axes.axes, a: float, b: float, c: float, size: int):
@@ -117,7 +118,7 @@ def plot_surface(ax: pyplot.Axes.axes, a: float, b: float, c: float, size: int):
     y = numpy.linspace(0, size, endpoint=False, num=size)
 
     _X, _Y = numpy.meshgrid(x, y)
-    _Z = c * _X + b * _Y + a
+    _Z = a + b * _Y + c * _X
 
     ax.plot_surface(_X, _Y, _Z, alpha=.2, antialiased=False)
 
@@ -127,33 +128,46 @@ def test3d(x0: float, x1: float, x2: float, size: int = 15):
     # https://stackoverflow.com/questions/48335279/given-general-3d-plane-equation-how-can-i-plot-this-in-python-matplotlib
     # https://stackoverflow.com/questions/36060933/matplotlib-plot-a-plane-and-points-in-3d-simultaneously
     f = lambda _x, _y: x2 * _x + x1 * _y + x0
-    X = []
-    Y = []
-    Z = []
-    for each_x in range(size):
-        for each_y in range(size):
-            v = f(each_x, each_y) + (100. * (random.random() - .5))
-            X.append(each_x)
-            Y.append(each_y)
-            Z.append(v)
 
     regressor = MultiRegressor(2, 10)
     fig = pyplot.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    for each_x, each_y, each_z in zip(X, Y, Z):
-        p = each_x, each_y
-        ax.scatter(each_x, each_y, each_z, antialiased=False)
-        regressor.fit(p, each_z)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
 
-    (p1, p2), p0 = regressor._get_parameters()
+    X = []
+    Y = []
+    Z = []
 
-    print(x0, x1, x2)
+    shuffled_a = list(range(size))
+    shuffled_b = list(range(size))
+    random.shuffle(shuffled_a)
+    random.shuffle(shuffled_b)
+
+    for each_x in shuffled_a:
+        for each_y in shuffled_b:
+            each_z = f(each_x, each_y)
+            X.append(each_x)
+            Y.append(each_y)
+            Z.append(each_z)
+
+            p = each_x, each_y
+            ax.scatter(each_x, each_y, each_z, antialiased=False, alpha=.2)
+            regressor.fit(p, each_z)
+
+    p2, p1, p0 = regressor._get_parameters()
     plot_surface(ax, p0, p1, p2, size)
 
+    dev = 0.
+    for each_x, each_y, each_z in zip(X, Y, Z):
+        p = each_x, each_y
+        each_o = regressor.output(p)
+        ax.scatter(each_x, each_y, each_o, antialiased=False, alpha=.2, color="black", marker="^")
+        dev += (each_z - each_o) ** 2.
+
+    print(dev)
     pyplot.show()
 
 
