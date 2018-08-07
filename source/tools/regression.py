@@ -116,50 +116,33 @@ if __name__ == "__main__":
     from mpl_toolkits.mplot3d import Axes3D
     # https://stackoverflow.com/questions/48335279/given-general-3d-plane-equation-how-can-i-plot-this-in-python-matplotlib
     # https://stackoverflow.com/questions/36060933/matplotlib-plot-a-plane-and-points-in-3d-simultaneously
-    f = lambda _x, _y: .3 * _x + -.4 * _y - 7.
-    x = []
-    y = []
-    z = []
-    for _x in range(20):
-        for _y in range(20):
-            v = f(_x, _y) + (4. * random.random() - 2.)
-            x.append(_x)
-            y.append(_y)
-            z.append(v)
+    f = lambda _x, _y: .3 * _x + -.4 * _y - 70.
+    X = []
+    Y = []
+    Z = []
+    for each_x in range(15):
+        for each_y in range(15):
+            v = f(each_x, each_y) + (4. * random.random() - 2.)
+            X.append(each_x)
+            Y.append(each_y)
+            Z.append(v)
 
     regressor = MultiRegressor(2, 10)
     fig = pyplot.figure()
     ax = fig.add_subplot(111, projection='3d')
-    for _x, _y, _z in zip(x, y, z):
-        p = _x, _y
-        ax.scatter(_x, _y, _z)
-        regressor.fit(p, _z)
+    for each_x, each_y, each_z in zip(X, Y, Z):
+        p = each_x, each_y
+        ax.scatter(each_x, each_y, each_z)
+        regressor.fit(p, each_z)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
 
-    ax.hold(True)
+    # ax.hold(True)
 
-    for _x, _y in zip(x, y):
-        p = _x, _y
-        ax.scatter(_x, _y, regressor.output(p), color="black")
+    for each_x, each_y in zip(X, Y):
+        p = each_x, each_y
+        ax.scatter(each_x, each_y, regressor.output(p), color="black")
 
-    pyplot.show()
-
-    exit()
-
-    pyplot.plot(x, y, label="original")
-
-    regressor = MultiRegressor(1, 10)
-    for _x, _y in zip(x, y):
-        regressor.fit((_x, ), _y)
-
-    in_value = 1.
-    o = regressor.output((in_value, ))
-    s = regressor.sim((in_value, ), o * .9)
-
-    pyplot.plot(x, [regressor.output((_x, )) for _x in x], label="fitted")
-
-    pyplot.legend()
     pyplot.show()
 
