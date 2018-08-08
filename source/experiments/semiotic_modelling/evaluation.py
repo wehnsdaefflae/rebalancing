@@ -112,8 +112,8 @@ class SimulationStats:
         ax11 = ax1.twinx()
 
         for _i, each_state_list in enumerate(self.states):
-            segments = SimulationStats._get_segments(self.time_axis, each_state_list)
-            SimulationStats._plot_h_stacked_bars(ax1, segments)
+            # segments = SimulationStats._get_segments(self.time_axis, each_state_list)
+            # SimulationStats._plot_h_stacked_bars(ax1, segments)
             ax1.plot(self.time_axis, self.probabilities[_i], label="probability {:d}".format(_i), alpha=.3)
 
         max_levels = max(len(_x) for _x in self.model_structures)
