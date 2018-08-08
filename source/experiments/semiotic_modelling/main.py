@@ -1,14 +1,14 @@
 from typing import List, Tuple, Iterable, Callable, Sequence
 
 from source.experiments.semiotic_modelling.content import Content, RationalContent
-from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_multiple_states
+from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_multiple_states, debug_multiple_inputs
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_traces, generate_content, adapt_abstract_content, \
     update_situation, generate_situation_layer, MODEL, TRACE, STATE, BASIC_OUT, BASIC_IN
 from source.tools.timer import Timer
 
 
-sigma = lambda _level, _size: .7 if _level < 1 else .1                                    # type: Callable[[int, int], float]
+sigma = lambda _level, _size: .2 if _level < 1 else .1                                    # type: Callable[[int, int], float]
 # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
@@ -53,13 +53,16 @@ def get_probabilities(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[S
 
 
 def continuous_erratic_sequence_prediction():
+    # TODO: generate examples from object, retrieve no_senses, no_dimensions, and BaseContentClass from object
+    no_senses = 2                                                                               # type: int
+    no_dimensions = 4                                                                           # type: int
+
     history_length = 1                                                                          # type: int
-    no_senses = 1                                                                               # type: int
-    no_dimensions = 1                                                                           # type: int
     sl = SimulationStats(no_senses)                                                             # type: SimulationStats
 
-    # source = debug_series()                                                                   # type: Iterable[List[EXAMPLE]]
-    source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
+    #source = debug_multiple_states()                                                            # type: Iterable[List[EXAMPLE]]
+    source = debug_multiple_inputs()                                                            # type: Iterable[List[EXAMPLE]]
+    #source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
 
     class DimContent(RationalContent):
         def __init__(self, shape: int, _alpha: int):
