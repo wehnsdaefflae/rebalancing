@@ -28,89 +28,33 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
         with open("../../../configs/time_series.json", mode="r") as file:
             config = json.load(file)
 
-        self.data_dir = config["data_dir"]
-
-    def get_generator(self) -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
+        data_dir = config["data_dir"]
         base_symbol = "ETH"                     # type: str
         all_symbols = set(self.input_definition) | set(self.output_definition)
-
-        source_paths = {_s: self.data_dir + "{:s}{:s}.csv".format(_s, base_symbol) for _s in all_symbols}
-
-        # here
+        self.source_paths = {_s: data_dir + "{:s}{:s}.csv".format(_s, base_symbol) for _s in all_symbols}
 
         start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())
         end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
         # end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
-        start_str, end_str = str(start), str(end)
+        self.start_str, self.end_str = str(start), str(end)
 
-        generators = {_s: series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _s, _x in source_paths.items()}
-        inputs = tuple(0. for _ in input_symbols)
+    def get_generator(self) -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
+        generators = {_s: series_generator(_x, interval_minutes=1, start_time=self.start_str, end_time=self.end_str)
+                      for _s, _x in self.source_paths.items()}
 
+        inputs = tuple(0. for _ in self.input_definition)
 
-def debug_multiple_inputs() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
-    with open("../../../configs/time_series.json", mode="r") as file:
-        config = json.load(file)
+        while True:
+            values = {_s: next(each_generator) for _s, each_generator in generators.items()}
+            time_set = set(t for t, v in values.values())
+            assert len(time_set) == 1
+            t, = time_set
 
-    base_symbol = "ETH"                                         # type: str
-    input_symbols = "EOS", "SNT", "QTUM", "BNT"                 # type: Tuple[str, ...]
-    target_symbols = "EOS", "SNT"  # , "QTUM", "BNT"
-    all_symbols = set(input_symbols) | set(target_symbols)
+            target_values = [values[_s] for _s in self.output_definition]
+            yield t, [(inputs, each_target) for _, each_target in target_values]
 
-    source_paths = {_s: config["data_dir"] + "{:s}{:s}.csv".format(_s, base_symbol) for _s in all_symbols}
-
-    start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())
-    end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
-    # end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
-    start_str, end_str = str(start), str(end)
-
-    generators = {_s: series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _s, _x in source_paths.items()}
-    inputs = tuple(0. for _ in input_symbols)
-    while True:
-        values = {_s: next(each_generator) for _s, each_generator in generators.items()}
-        time_set = set(t for t, v in values.values())
-        assert len(time_set) == 1
-        t, = time_set
-
-        target_values = [values[_s] for _s in target_symbols]
-        yield t, [(inputs, each_target) for _, each_target in target_values]
-
-        input_values = [values[_s] for _s in input_symbols]
-        inputs = tuple(each_input for _, each_input in input_values)
-
-
-def debug_multiple_states() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
-    with open("../../../configs/time_series.json", mode="r") as file:
-        config = json.load(file)
-
-    base_symbol = "ETH"                                         # type: str
-    asset_symbols = ("EOS", "SNT", "QTUM", "BNT")[:1]           # type: Tuple[str, ...]
-
-    source_paths = (config["data_dir"] + "{:s}{:s}.csv".format(_x, base_symbol) for _x in asset_symbols)
-
-    start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())  # maybe divide by 1000?
-    end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
-    # end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
-    start_str, end_str = str(start), str(end)
-
-    generators = [series_generator(_x, interval_minutes=1, start_time=start_str, end_time=end_str) for _x in source_paths]
-    last_values = [0. for _ in asset_symbols]
-    while True:
-        time_stamps = set()
-        examples = []
-        for _i, each_generator in enumerate(generators):
-            try:
-                t, f = next(each_generator)
-            except StopIteration as e:
-                raise e
-            time_stamps.add(t)
-            each_example = last_values[_i], f
-            examples.append(each_example)
-            last_values[_i] = f
-
-        assert len(time_stamps) == 1
-        t, = time_stamps
-
-        yield t, examples
+            input_values = [values[_s] for _s in self.input_definition]
+            inputs = tuple(each_input for _, each_input in input_values)
 
 
 def debug_trig() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
@@ -121,7 +65,9 @@ def debug_trig() -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
 
 
 if __name__ == "__main__":
-    gen = debug_multiple_inputs()
+    symbols = "EOS", "SNT", "QTUM", "BNT"                 # type: Tuple[str, ...]
+    factory = ExchangeRateGeneratorFactory(symbols[:1], symbols[:1])
+    gen = factory.get_generator()
     for each_time, each_ex in gen:
         print("{:s}:\t{:s}".format(str(each_time), str(each_ex)))
         time.sleep(.5)
