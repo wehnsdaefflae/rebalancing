@@ -4,7 +4,7 @@ from source.experiments.semiotic_modelling.content import Content, RationalConte
 from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_multiple_states, debug_multiple_inputs
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_traces, generate_content, adapt_abstract_content, \
-    update_situation, generate_situation_layer, MODEL, TRACE, STATE, BASIC_OUT, BASIC_IN
+    update_situation, generate_state_layer, MODEL, TRACE, STATE, BASIC_OUT, BASIC_IN
 from source.tools.timer import Timer
 
 
@@ -34,7 +34,7 @@ def get_outputs(inputs: Iterable[BASIC_IN], model: MODEL, states: Tuple[STATE, .
     return output_values
 
 
-def update_situations(examples: Iterable[EXAMPLE], model: MODEL, traces: Tuple[TRACE, ...], states: Tuple[STATE, ...]):
+def update_states(examples: Iterable[EXAMPLE], model: MODEL, traces: Tuple[TRACE, ...], states: Tuple[STATE, ...]):
     for _i, (input_value, target_value) in enumerate(examples):
         update_situation(input_value, target_value, model, traces[_i], states[_i], sigma, fix_level_at_size)
 
@@ -82,8 +82,8 @@ def continuous_erratic_sequence_prediction():
         probabilities = get_probabilities(examples, model, states)                              # type: Tuple[float, ...]
 
         # train
-        update_situations(examples, model, traces, states)
-        generate_situation_layer(model, states)
+        update_states(examples, model, traces, states)
+        generate_state_layer(model, states)
 
         generate_content(model, states, DimContent, alpha)
 

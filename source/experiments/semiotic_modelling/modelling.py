@@ -135,6 +135,8 @@ def update_situation(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, tra
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
         abstract_target = hash(content)                                                                           # type: APPEARANCE
         if content.probability(shape, target_value) >= s or no_representations >= fix_at(level) > 0:
+            if abstract_target == state[level]:
+                break
             state[level] = abstract_target
             target_value = abstract_target
             shape = abstract_shape                                                                           # type: HISTORY
@@ -145,7 +147,7 @@ def update_situation(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, tra
         level += 1
 
 
-def generate_situation_layer(model: MODEL, states: Tuple[STATE, ...]):
+def generate_state_layer(model: MODEL, states: Tuple[STATE, ...]):
     len_set = {len(each_state) for each_state in states}
     assert len(len_set) == 1
     no_state_layers, = len_set

@@ -7,7 +7,7 @@ from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
 from source.experiments.semiotic_modelling.modelling import BASIC_OUT, EXAMPLE, MODEL, STATE, TRACE, TIME
-from source.tools.helper_functions import distribute_circular
+from source.tools.helper_functions import distribute_circular, normalize
 from source.tools.timer import Timer
 
 
@@ -114,10 +114,10 @@ class SimulationStats:
         for _i, each_state_list in enumerate(self.states):
             # segments = SimulationStats._get_segments(self.time_axis, each_state_list)
             # SimulationStats._plot_h_stacked_bars(ax1, segments)
-            ax1.plot(self.time_axis, self.probabilities[_i], label="probability {:d}".format(_i), alpha=.3)
+            ax1.plot(self.time_axis, normalize(self.probabilities[_i]), label="probability {:d}".format(_i), alpha=.3)
 
         max_levels = max(len(_x) for _x in self.model_structures)
-        ax1.set_ylim(0., max_levels)
+        # ax1.set_ylim(0., max_levels)
         ax1.set_ylabel("certainty")
 
         class UpdatingRect(Rectangle):
@@ -132,9 +132,9 @@ class SimulationStats:
         ax1.legend()
 
         for _i, (each_input_list, each_target_list, each_output_list) in enumerate(zip(self.input_values, self.target_values, self.output_values)):
-            ax11.plot(self.time_axis, each_input_list, label="input {:d}".format(_i), alpha=.75)
-            ax11.plot(self.time_axis, each_output_list, label="output {:d}".format(_i), alpha=.75)
-            ax11.plot(self.time_axis, each_target_list, label="target {:d}".format(_i), alpha=.75)
+            # ax11.plot(self.time_axis, each_input_list, label="input {:d}".format(_i), alpha=.75)
+            ax11.plot(self.time_axis, normalize(each_output_list), label="output {:d}".format(_i), alpha=.75)
+            ax11.plot(self.time_axis, normalize(each_target_list), label="target {:d}".format(_i), alpha=.75)
         ax11.set_ylabel("values")
         ax11.legend()
 
@@ -152,6 +152,7 @@ class SimulationStats:
                 squared_error = each_error ** 2.
                 delta = squared_error if len(cumulative_error) < 1 else cumulative_error[-1] + squared_error
                 cumulative_error.append(delta)
+            # TODO: normalize error properly (normalized variance/deviance?)
             ax3.plot(self.time_axis, cumulative_error, label="cumulative error {:d}".format(_i))
         ax3.set_ylabel("error")
         ax3.legend()

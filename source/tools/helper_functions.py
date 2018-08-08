@@ -1,4 +1,5 @@
 import math
+from typing import List
 
 
 def g(x):
@@ -19,3 +20,15 @@ def distribute_circular(x):
         return 0.
     rec_x = h(x - 1)
     return distribute_circular(rec_x) + g(x)
+
+
+def normalize(l: List[float]) -> List[float]:
+    min_val, max_val = float("inf"), float("-inf")
+    for v in l:
+        if v < min_val:
+            min_val = v
+        elif max_val < v:
+            max_val = v
+
+    d = max_val - min_val
+    return [(v - min_val) / d for v in l]
