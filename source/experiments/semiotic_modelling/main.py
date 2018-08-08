@@ -1,14 +1,15 @@
 from typing import List, Tuple, Iterable, Callable, Sequence
 
 from source.experiments.semiotic_modelling.content import Content, RationalContent
-from source.experiments.semiotic_modelling.data_generators import debug_trig, debug_multiple_states, debug_multiple_inputs
+from source.experiments.semiotic_modelling.data_generators import debug_trig, ExchangeRateGeneratorFactory
 from source.experiments.semiotic_modelling.evaluation import SimulationStats
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, get_content, update_traces, generate_content, adapt_abstract_content, \
     update_situation, generate_state_layer, MODEL, TRACE, STATE, BASIC_OUT, BASIC_IN
 from source.tools.timer import Timer
 
 
-sigma = lambda _level, _size: .2 if _level < 1 else .1                                    # type: Callable[[int, int], float]
+sigma = lambda _level, _size: .995                                                          # type: Callable[[int, int], float]
+# sigma = lambda _level, _size: .8 if _level < 1 else .1                                      # type: Callable[[int, int], float]
 # sigma = lambda _level, _size: 1. - min(_size, 20.) / 20.                                    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: max(1. - min(_size, 20.) / 20., 1. - min(_level, 5.) / 5.)    # type: Callable[[[int, int], float]
 # sigma = lambda _level, _size: float(_level < 5 and _size < 20)                              # type: Callable[[[int, int], float]
@@ -18,7 +19,8 @@ alpha = lambda _level, _size: 100                                               
 
 
 def fix_level_at_size(_level: int) -> int:
-    sizes = [10, 2, 1, 0]
+    sizes = [100, 50, 20, 10, 1, 0]
+    # sizes = [1, 0]
     if _level < len(sizes):
         return sizes[_level]
     return -1
@@ -54,15 +56,17 @@ def get_probabilities(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[S
 
 def continuous_erratic_sequence_prediction():
     # TODO: generate examples from object, retrieve no_senses, no_dimensions, and BaseContentClass from object
-    no_senses = 2                                                                               # type: int
-    no_dimensions = 4                                                                           # type: int
+    symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
+    factory = ExchangeRateGeneratorFactory(symbols[:1], symbols[:1])
+
+    no_senses = len(factory.output_definition)                                                  # type: int
+    no_dimensions = len(factory.input_definition)                                               # type: int
 
     history_length = 1                                                                          # type: int
     sl = SimulationStats(no_senses)                                                             # type: SimulationStats
 
-    #source = debug_multiple_states()                                                            # type: Iterable[List[EXAMPLE]]
-    source = debug_multiple_inputs()                                                            # type: Iterable[List[EXAMPLE]]
-    #source = debug_trig()                                                                       # type: Iterable[List[EXAMPLE]]
+    source = factory.get_generator()                                                            # type: Iterable[List[EXAMPLE]]
+    #source = debug_trig()                                                                      # type: Iterable[List[EXAMPLE]]
 
     class DimContent(RationalContent):
         def __init__(self, shape: int, _alpha: int):

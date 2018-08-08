@@ -77,7 +77,7 @@ def generate_content(model: MODEL, states: Tuple[STATE, ...], base_content: Type
                 each_state[_i] = new_shape
 
 
-simple = True
+simple = False
 
 
 def adapt_abstract_content(model: MODEL, traces: Tuple[TRACE, ...], states: Tuple[STATE, ...]):

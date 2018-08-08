@@ -14,16 +14,16 @@ OUTPUT_DEF = TypeVar("OUTPUT_DEF")
 
 
 class SequentialExampleGeneratorFactory(Generic[INPUT_DEF, OUTPUT_DEF]):
-    def __init__(self, input_definition: Iterable[INPUT_DEF], output_definition: Iterable[OUTPUT_DEF]):
-        self.input_definition = input_definition        # type: Iterable[INPUT_DEF]
-        self.output_definition = output_definition      # type: Iterable[OUTPUT_DEF]
+    def __init__(self, input_definition: Tuple[INPUT_DEF, ...], output_definition: Tuple[OUTPUT_DEF, ...]):
+        self.input_definition = input_definition        # type: Tuple[INPUT_DEF, ...]
+        self.output_definition = output_definition      # type: Tuple[OUTPUT_DEF, ...]
 
     def get_generator(self) -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
         raise NotImplementedError
 
 
 class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
-    def __init__(self, input_definition: Iterable[str], output_definition: Iterable[str]):
+    def __init__(self, input_definition: Tuple[str, ...], output_definition: Tuple[str, ...]):
         super().__init__(input_definition, output_definition)
         with open("../../../configs/time_series.json", mode="r") as file:
             config = json.load(file)
@@ -34,8 +34,8 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
         self.source_paths = {_s: data_dir + "{:s}{:s}.csv".format(_s, base_symbol) for _s in all_symbols}
 
         start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())
-        end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
-        # end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
+        # end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
+        end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
         self.start_str, self.end_str = str(start), str(end)
 
     def get_generator(self) -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
