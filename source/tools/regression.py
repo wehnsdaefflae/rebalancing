@@ -70,8 +70,10 @@ class MultiRegressor:
         self.cov_xy = [0. for _ in range(dim)]
         self.initial = True
 
-    def sim(self, x: Tuple[float, ...], y: float) -> float:
+    def sim(self, x: Tuple[float, ...], y: float, default: float = 1.) -> float:
         assert len(x) == self.dim
+        if self.initial:
+            return default
         fx = self.output(x)
         d = (fx - y) ** 2.
         if 0. >= d:

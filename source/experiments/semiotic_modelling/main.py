@@ -79,6 +79,7 @@ def continuous_erratic_sequence_prediction():
     for time_point, examples in source:
         assert len(examples) == no_senses
 
+        # TODO: compare to moving average and arima
         # test
         input_values = [input_value for input_value, _ in examples]
         output_values = get_outputs(input_values, model, states)

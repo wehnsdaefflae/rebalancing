@@ -45,6 +45,7 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
                       for _s, _x in self.source_paths.items()}
 
         inputs = tuple(0. for _ in self.input_definition)
+        last_target_values = tuple(0. for _ in self.output_definition)
 
         while True:
             values = {_s: next(each_generator) for _s, each_generator in generators.items()}
@@ -52,11 +53,15 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
             assert len(time_set) == 1
             t, = time_set
 
-            target_values = [values[_s] for _s in self.output_definition]
-            yield t, [(inputs, each_target) for _, each_target in target_values]
+            target_values = [values[_s][-1] for _s in self.output_definition]
 
-            input_values = [values[_s] for _s in self.input_definition]
-            inputs = tuple(each_input for _, each_input in input_values)
+            change = tuple(0. if _last == 0. else _this / _last - 1. for _last, _this in zip(last_target_values, target_values))
+            yield t, [(inputs, each_change) for each_change in change]
+            #yield t, [(inputs, each_target) for each_target in target_values]
+
+            last_target_values = target_values
+            input_values = [values[_s][-1] for _s in self.input_definition]
+            inputs = tuple(input_values)
 
 
 class SignalGeneratorFactory(ExchangeRateGeneratorFactory):
