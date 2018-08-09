@@ -153,6 +153,7 @@ class SimulationStats:
                 delta = squared_error if len(cumulative_error) < 1 else cumulative_error[-1] + squared_error
                 cumulative_error.append(delta)
             # TODO: normalize error properly (normalized variance/deviance?)
+            # https://de.wikipedia.org/wiki/Variationskoeffizient
             ax3.plot(self.time_axis, cumulative_error, label="cumulative error {:d}".format(_i))
         ax3.set_ylabel("error")
         ax3.legend()

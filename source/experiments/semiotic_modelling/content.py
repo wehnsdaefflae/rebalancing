@@ -32,7 +32,7 @@ class Content(Hashable, Generic[CONDITION, CONSEQUENCE]):
         raise NotImplementedError()
 
     def probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        factor = self.alpha / (self.alpha + self.iterations)
+        factor = self.alpha / (self.alpha + self.iterations + 1.)
         p = self._probability(condition, consequence, default=default)
         return factor + (1. - factor) * p
 
