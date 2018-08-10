@@ -1,4 +1,4 @@
-from typing import Hashable, Any, Dict, Tuple, Generic, TypeVar, Optional
+from typing import Hashable, Any, Dict, Tuple, Generic, TypeVar, Optional, Callable
 
 from source.tools.regression import Regressor, MultiRegressor
 
@@ -78,9 +78,9 @@ class SymbolicContent(Content[Hashable, Hashable]):
 
 
 class RationalContent(Content[Tuple[float, ...], float]):
-    def __init__(self, dimension: int, shape: int, alpha: int):
+    def __init__(self, input_dimension: int, shape: int, drag: int, alpha: int):
         super().__init__(shape, alpha)
-        self.regressor = MultiRegressor(dimension, 1000)
+        self.regressor = MultiRegressor(input_dimension, drag)
 
     def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
         self.regressor.fit(condition, consequence)
@@ -90,3 +90,18 @@ class RationalContent(Content[Tuple[float, ...], float]):
 
     def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
         return self.regressor.sim(condition, consequence)
+
+
+class ContentFactory:
+    def __init__(self, input_dimension: int, drag: int, alpha: Callable[[int, int], int]):
+        self.input_dimension = input_dimension
+        self.drag = drag
+        self.alpha = alpha
+
+    def rational(self, level: int, size: int, shape: int):
+        a = self.alpha(level, size)
+        return RationalContent(self.input_dimension, shape, self.drag, a)
+
+    def symbolic(self, level: int, size: int, shape: int):
+        a = self.alpha(level, size)
+        return SymbolicContent(shape, a)

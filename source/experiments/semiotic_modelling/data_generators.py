@@ -24,8 +24,20 @@ class SequentialExampleGeneratorFactory(Generic[INPUT_DEF, OUTPUT_DEF]):
         raise NotImplementedError
 
 
+class TrigonometryGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
+    def __init__(self, length: int):
+        super().__init__(("sin", ), ("cos", ))
+        self.length = length
+
+    def get_generator(self) -> Generator[Tuple[TIME, Sequence[EXAMPLE]], None, None]:
+        for t in range(self.length):
+            # examples = [(sin(t / 100.), cos(t / 70.)*3. + sin(t/13.)*.7)]
+            examples = [((sin(t / 100.), ), cos(t / 100.))]
+            yield t, examples
+
+
 class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
-    def __init__(self, input_definition: Tuple[str, ...], output_definition: Tuple[str, ...]):
+    def __init__(self, input_definition: Tuple[str, ...], output_definition: Tuple[str, ...], length: int = -1):
         super().__init__(input_definition, output_definition)
         with open("../../../configs/time_series.json", mode="r") as file:
             config = json.load(file)
@@ -34,6 +46,8 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
         base_symbol = "ETH"                     # type: str
         all_symbols = set(self.input_definition) | set(self.output_definition)
         self.source_paths = {_s: data_dir + "{:s}{:s}.csv".format(_s, base_symbol) for _s in all_symbols}
+
+        self.length = length
 
         start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())
         # end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
@@ -47,6 +61,8 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
         inputs = tuple(0. for _ in self.input_definition)
         last_target_values = tuple(0. for _ in self.output_definition)
 
+        iterations = 0
+
         while True:
             values = {_s: next(each_generator) for _s, each_generator in generators.items()}
             time_set = set(t for t, v in values.values())
@@ -58,6 +74,10 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
             change = tuple(0. if _last == 0. else _this / _last - 1. for _last, _this in zip(last_target_values, target_values))
             yield t, [(inputs, each_change) for each_change in change]
             #yield t, [(inputs, each_target) for each_target in target_values]
+
+            iterations += 1
+            if 0 < self.length <= iterations:
+                raise StopIteration
 
             last_target_values = target_values
             input_values = [values[_s][-1] for _s in self.input_definition]
@@ -104,7 +124,6 @@ def signal_testing():
     source_path = data_dir + "{:s}{:s}.csv".format("QTUM", base_symbol)
 
     start = datetime.datetime.fromtimestamp(1501113780, tz=tzutc())
-    # end = datetime.datetime.fromtimestamp(1503712000, tz=tzutc())
     end = datetime.datetime.fromtimestamp(1529712000, tz=tzutc())
     start_str, end_str = str(start), str(end)
 

@@ -1,6 +1,6 @@
-from typing import TypeVar, Tuple, Union, List, Dict, Optional, Type, Callable
+from typing import TypeVar, Tuple, Union, List, Dict, Optional, Callable, Iterable
 
-from source.experiments.semiotic_modelling.content import Content, SymbolicContent
+from source.experiments.semiotic_modelling.content import Content, ContentFactory
 
 TIME = TypeVar("TIME")
 BASIC_IN = TypeVar("BASIC_IN")
@@ -55,7 +55,7 @@ def update_traces(traces: Tuple[TRACE, ...], states: Tuple[STATE, ...], history_
                 each_trace_layer.pop(0)
 
 
-def generate_content(model: MODEL, states: Tuple[STATE, ...], base_content: Type[Content], alpha: Callable[[int, int], int]):
+def generate_content(model: MODEL, states: Tuple[STATE, ...], content_factory: ContentFactory):
     no_model_layers = len(model)
     len_set = set(len(_x) for _x in states)
     assert len(len_set) == 1
@@ -70,8 +70,11 @@ def generate_content(model: MODEL, states: Tuple[STATE, ...], base_content: Type
             else:
                 each_model_layer = model[_i]
             new_shape = len(each_model_layer)
-            alpha_value = alpha(_i, new_shape)
-            each_model_layer[new_shape] = base_content(new_shape, alpha_value) if _i < 1 else SymbolicContent(new_shape, alpha_value)
+            if _i < 1:
+                each_model_layer[new_shape] = content_factory.rational(new_shape, new_shape, new_shape)
+            else:
+                each_model_layer[new_shape] = content_factory.symbolic(new_shape, new_shape, new_shape)
+
             for each_index in state_layer_indices_with_new_content:
                 each_state = states[each_index]
                 each_state[_i] = new_shape
@@ -101,8 +104,8 @@ def adapt_abstract_content(model: MODEL, traces: Tuple[TRACE, ...], states: Tupl
             content.adapt(abstract_shape, shape_out)
 
 
-def update_situation(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: TRACE, state: STATE,
-                     sigma: Callable[[int, int], float], fix_at: Callable[[int], int]):
+def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: TRACE, state: STATE,
+                 sigma: Callable[[int, int], float], fix_at: Callable[[int], int]):
     no_model_layers = len(model)
     level = 0                                                                                                   # type: int
 
@@ -157,3 +160,30 @@ def generate_state_layer(model: MODEL, states: Tuple[STATE, ...]):
         for each_state in states:
             each_state.append(-1)
 
+
+def get_outputs(inputs: Iterable[BASIC_IN], model: MODEL, states: Tuple[STATE, ...]) -> List[BASIC_OUT]:
+    output_values = []                                                                          # type: List[BASIC_OUT]
+    for _i, input_value in enumerate(inputs):
+        each_situation = states[_i]                                                         # type: STATE
+        base_content = get_content(model, each_situation, 0)                                    # type: Content
+        output_value = base_content.predict(input_value)                                        # type: BASIC_OUT
+        output_values.append(output_value)
+    return output_values
+
+
+def generate_trace_layer(history_length: int, model: MODEL, traces: Tuple[TRACE]):
+    no_model_layers = len(model)  # type: int
+    for each_trace in traces:
+        no_trace_layers = len(each_trace)  # type: int
+        if no_trace_layers == no_model_layers - 1:
+            each_trace.append([0 for _ in range(history_length)])
+        elif no_trace_layers == no_model_layers:
+            pass
+        else:
+            assert False
+
+
+def adapt_base_contents(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[STATE, ...]):
+    for _i, (input_value, target_value) in enumerate(examples):
+        base_content = get_content(model, states[_i], 0)  # type: Content
+        base_content.adapt(input_value, target_value)
