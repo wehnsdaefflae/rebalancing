@@ -7,8 +7,8 @@ from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
 from source.experiments.semiotic_modelling.methods import RationalSemioticModel
-from source.experiments.semiotic_modelling.modelling import BASIC_OUT, EXAMPLE, MODEL, STATE, TRACE, TIME
-from source.tools.helper_functions import distribute_circular, normalize
+from source.experiments.semiotic_modelling.modelling import MODEL, STATE, TRACE, TIME
+from source.tools.helper_functions import distribute_circular, smoothing_generator
 from source.tools.timer import Timer
 
 
@@ -79,7 +79,7 @@ class QualitativeEvaluation:
         self.states = tuple([] for _ in range(dim))                     # type: Tuple[List[Tuple[int, ...]]]
         self.model_structures = []                                      # type: List[List[int]
 
-        self.probabilities = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
+        self.certainties = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
 
         self.time_axis = []
 
@@ -99,9 +99,9 @@ class QualitativeEvaluation:
             output_list = self.output_values[_i]                    # type: List[float]
             output_list.append(output_value)                        # type: List[float]
 
-        for _i, each_probability in enumerate(certainty):
-            probability_list = self.probabilities[_i]               # type: List[float]
-            probability_list.append(each_probability)
+        for _i, each_certainty in enumerate(certainty):
+            certainty_list = self.certainties[_i]               # type: List[float]
+            certainty_list.append(each_certainty)
 
         for _i, each_situation in enumerate(states):
             state_list = self.states[_i]                      # type: List[Tuple[int, ...]]
@@ -169,7 +169,9 @@ class QualitativeEvaluation:
             if plot_segments:
                 segments = QualitativeEvaluation._get_segments(self.time_axis, each_state_list)
                 QualitativeEvaluation._plot_h_stacked_bars(ax1, segments)
-            ax1.plot(self.time_axis, normalize(self.probabilities[_i]), label="certainty {:d}".format(_i), alpha=.3)
+
+            each_certainty = smoothing_generator(self.certainties[_i], 1000)
+            ax1.plot(self.time_axis, list(each_certainty), label="certainty {:d}".format(_i), alpha=.3)
 
         max_levels = max(len(_x) for _x in self.model_structures)
         if plot_segments:

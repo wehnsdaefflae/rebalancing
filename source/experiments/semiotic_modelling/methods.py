@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar, Tuple
+from typing import Generic, TypeVar, Tuple, Callable
 
 from source.experiments.semiotic_modelling.content import ContentFactory
 from source.experiments.semiotic_modelling.modelling import MODEL, TRACE, STATE, generate_state_layer, generate_content, adapt_abstract_content, \
@@ -89,51 +89,27 @@ class Regression(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
 
 
 class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
-    @staticmethod
-    def __sigma(level: int, size: int) -> float:
-        return .9
-
-    @staticmethod
-    def __alpha(level: int, size: int) -> int:
-        return 0
-
-    @staticmethod
-    def __fix_level_at_size(_level: int) -> int:
-        # sizes = [100, 50, 20, 10, 1, 0]
-        sizes = [10, 5, 1, 0]
-        # sizes = [1, 0]
-        if _level < len(sizes):
-            return sizes[_level]
-        return -1
-
-    def get_certainty(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]) -> Tuple[float, ...]:
-        base_shapes = tuple(each_state[0] for each_state in self.states)
-        base_layer = self.model[0]
-        base_contents = tuple(base_layer[each_shape] for each_shape in base_shapes)
-        return tuple(content.probability(_input, _target) for (content, _input, _target) in zip(base_contents, input_values, target_values))
-
-    @staticmethod
-    def __update_states(input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...],
-                        model: MODEL, traces: Tuple[STATE, ...], states: Tuple[STATE, ...]):
-
-        for _i, (input_value, target_value) in enumerate(zip(input_values, target_values)):
-            update_state(input_value, target_value,
-                         model, traces[_i], states[_i],
-                         RationalSemioticModel.__sigma, RationalSemioticModel.__fix_level_at_size)
-
-    def __init__(self, no_examples: int, drag: int, input_dimensions: int, trace_length: int):
+    def __init__(self, no_examples: int, drag: int, input_dimensions: int,
+                 alpha: int, sigma: float, trace_length: int, fix_level_size_at: Callable[[int], int] = lambda _level: -1):
         super().__init__(no_examples)
-        self.base_content_factory = ContentFactory(input_dimensions, drag, RationalSemioticModel.__alpha)
+        self.base_content_factory = ContentFactory(input_dimensions, drag, alpha)
+        self.alpha = alpha
+        self.sigma = sigma
         self.trace_length = trace_length
+        self.fix_level_size_at = fix_level_size_at
 
-        self.model = [{0: self.base_content_factory.rational(0, 0, 0)}]                                     # type: MODEL
+        self.model = [{0: self.base_content_factory.rational(0)}]                                           # type: MODEL
         self.traces = tuple([[0 for _ in range(trace_length)]] for _ in range(no_examples))                 # type: Tuple[TRACE, ...]
         self.states = tuple([0] for _ in range(no_examples))                                                # type: Tuple[STATE, ...]
+
+    def _update_states(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]):
+        for _i, (input_value, target_value) in enumerate(zip(input_values, target_values)):
+            update_state(input_value, target_value, self.model, self.traces[_i], self.states[_i], self.sigma, self.fix_level_size_at)
 
     def _fit(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]):
         examples = zip(input_values, target_values)
 
-        RationalSemioticModel.__update_states(input_values, target_values, self.model, self.traces, self.states)
+        self._update_states(input_values, target_values)
         generate_state_layer(self.model, self.states)
 
         generate_content(self.model, self.states, self.base_content_factory)
@@ -157,3 +133,9 @@ class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
 
     def get_states(self) -> Tuple[Tuple[int, ...], ...]:
         return tuple(tuple(each_state) for each_state in self.states)
+
+    def get_certainty(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]) -> Tuple[float, ...]:
+        base_shapes = tuple(each_state[0] for each_state in self.states)
+        base_layer = self.model[0]
+        base_contents = tuple(base_layer[each_shape] for each_shape in base_shapes)
+        return tuple(content.probability(_input, _target) for (content, _input, _target) in zip(base_contents, input_values, target_values))

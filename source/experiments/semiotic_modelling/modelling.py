@@ -71,9 +71,9 @@ def generate_content(model: MODEL, states: Tuple[STATE, ...], content_factory: C
                 each_model_layer = model[_i]
             new_shape = len(each_model_layer)
             if _i < 1:
-                each_model_layer[new_shape] = content_factory.rational(new_shape, new_shape, new_shape)
+                each_model_layer[new_shape] = content_factory.rational(new_shape)
             else:
-                each_model_layer[new_shape] = content_factory.symbolic(new_shape, new_shape, new_shape)
+                each_model_layer[new_shape] = content_factory.symbolic(new_shape)
 
             for each_index in state_layer_indices_with_new_content:
                 each_state = states[each_index]
@@ -104,8 +104,7 @@ def adapt_abstract_content(model: MODEL, traces: Tuple[TRACE, ...], states: Tupl
             content.adapt(abstract_shape, shape_out)
 
 
-def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: TRACE, state: STATE,
-                 sigma: Callable[[int, int], float], fix_at: Callable[[int], int]):
+def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: TRACE, state: STATE, sigma: float, fix_at: Callable[[int], int]):
     no_model_layers = len(model)
     level = 0                                                                                                   # type: int
 
@@ -114,9 +113,8 @@ def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: 
         layer = model[level]
         no_representations = len(layer)
 
-        s = sigma(level, no_representations)
         content = get_content(model, state, level)                                                          # type: Content
-        if content.probability(shape, target_value) >= s:
+        if content.probability(shape, target_value) >= sigma:
             break
 
         if level == 0 or simple:
@@ -128,7 +126,7 @@ def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: 
             abstract_target = context.predict(abstract_shape)                                                                      # type: APPEARANCE
             if abstract_target is not None:
                 content = layer[abstract_target]                                                                              # type: Content
-                if content.probability(shape, target_value) >= s:
+                if content.probability(shape, target_value) >= sigma:
                     state[level] = abstract_target
                     target_value = abstract_target
                     shape = abstract_shape
@@ -137,7 +135,7 @@ def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: 
 
         content = max(layer.values(), key=lambda _x: _x.probability(shape, target_value))               # type: Content
         abstract_target = hash(content)                                                                           # type: APPEARANCE
-        if content.probability(shape, target_value) >= s or no_representations >= fix_at(level) > 0:
+        if content.probability(shape, target_value) >= sigma or no_representations >= fix_at(level) > 0:
             if abstract_target == state[level]:
                 break
             state[level] = abstract_target

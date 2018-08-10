@@ -1,5 +1,5 @@
 import math
-from typing import List
+from typing import List, Iterable, Generator
 
 
 def g(x):
@@ -32,3 +32,15 @@ def normalize(l: List[float]) -> List[float]:
 
     d = max_val - min_val
     return [(v - min_val) / d for v in l]
+
+
+def smoothing_generator(values: Iterable[float], drag: int) -> Generator[float, None, None]:
+    smooth = 0.
+    first = True
+    for each_value in values:
+        if first:
+            smooth = each_value
+            first = False
+        else:
+            smooth = (smooth * drag + each_value) / (drag + 1.)
+        yield smooth

@@ -80,28 +80,26 @@ class SymbolicContent(Content[Hashable, Hashable]):
 class RationalContent(Content[Tuple[float, ...], float]):
     def __init__(self, input_dimension: int, shape: int, drag: int, alpha: int):
         super().__init__(shape, alpha)
-        self.regressor = MultiRegressor(input_dimension, drag)
+        self.regression = MultiRegressor(input_dimension, drag)
 
     def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
-        self.regressor.fit(condition, consequence)
+        self.regression.fit(condition, consequence)
 
     def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
-        return self.regressor.output(condition)
+        return self.regression.output(condition)
 
     def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        return self.regressor.sim(condition, consequence)
+        return self.regression.sim(condition, consequence)
 
 
 class ContentFactory:
-    def __init__(self, input_dimension: int, drag: int, alpha: Callable[[int, int], int]):
+    def __init__(self, input_dimension: int, drag: int, alpha: int):
         self.input_dimension = input_dimension
         self.drag = drag
         self.alpha = alpha
 
-    def rational(self, level: int, size: int, shape: int):
-        a = self.alpha(level, size)
-        return RationalContent(self.input_dimension, shape, self.drag, a)
+    def rational(self, shape: int):
+        return RationalContent(self.input_dimension, shape, self.drag, self.alpha)
 
-    def symbolic(self, level: int, size: int, shape: int):
-        a = self.alpha(level, size)
-        return SymbolicContent(shape, a)
+    def symbolic(self, shape: int):
+        return SymbolicContent(shape, self.alpha)

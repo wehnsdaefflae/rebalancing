@@ -18,10 +18,17 @@ def evaluate():
     no_examples = len(factory.output_definition)
     input_dimension = len(factory.input_definition)
     drag = 100
-    trace_length = 1
 
     # instantiate semiotic model separately for future reference
-    semiotic_model = RationalSemioticModel(no_examples, drag, input_dimension, trace_length)
+    def fix(_level: int) -> int:
+        # sizes = [100, 50, 20, 10, 1, 0]
+        sizes = [10, 5, 1, 0]
+        # sizes = [1, 0]
+        if _level < len(sizes):
+            return sizes[_level]
+        return -1
+
+    semiotic_model = RationalSemioticModel(no_examples, drag, input_dimension, 0, .8, 1, fix_level_size_at=fix)
 
     predictors = [
         MovingAverage(no_examples, drag),
