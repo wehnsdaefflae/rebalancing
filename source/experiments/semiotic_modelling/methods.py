@@ -9,6 +9,7 @@ INPUT_TYPE = TypeVar("INPUT_TYPE")
 OUTPUT_TYPE = TypeVar("OUTPUT_TYPE")
 
 
+# TODO: differentiate no. inputs and input size!
 class Predictor(Generic[INPUT_TYPE, OUTPUT_TYPE]):
     def __init__(self, no_examples: int):
         self.no_examples = no_examples

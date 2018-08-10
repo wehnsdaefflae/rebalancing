@@ -66,8 +66,17 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
         while True:
             values = {_s: next(each_generator) for _s, each_generator in generators.items()}
             time_set = set(t for t, v in values.values())
-            assert len(time_set) == 1
-            t, = time_set
+            if len(time_set) == 1:
+                t, = time_set
+            else:
+                max_time = max(time_set)
+                delta = max_time - min(time_set)                # type: datetime.timedelta
+                if delta.total_seconds() >= 60:
+                    for each_symbol, each_value in values.items():
+                        print("{:s}\t{:s}".format(str(each_symbol), str(each_value)))
+                    raise ValueError("time stamps more than 60 seconds apart")
+                else:
+                    t = max_time
 
             target_values = [values[_s][-1] for _s in self.output_definition]
 

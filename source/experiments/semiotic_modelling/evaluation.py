@@ -9,15 +9,15 @@ from source.tools.timer import Timer
 
 def evaluate():
     # instantiate data source
-    # factory = TrigonometryGeneratorFactory(50000)
-    symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
-    factory = ExchangeRateGeneratorFactory(symbols[:1], symbols[:1], length=-1)
+    factory = TrigonometryGeneratorFactory(50000)
+    symbols = "EOS", "SNT", "QTUM" # , "BNT"                                                       # type: Tuple[str, ...]
+    # factory = ExchangeRateGeneratorFactory(symbols[:1], symbols[:1], length=279625)
     source = factory.get_generator()                                                            # type: Iterable[Sequence[EXAMPLE]]
 
     # instantiate predictors
     no_examples = len(factory.output_definition)
     input_dimension = len(factory.input_definition)
-    drag = 100
+    drag = 500
 
     # instantiate semiotic model separately for future reference
     def fix(_level: int) -> int:
@@ -27,8 +27,8 @@ def evaluate():
         if _level < len(sizes):
             return sizes[_level]
         return -1
-
-    semiotic_model = RationalSemioticModel(no_examples, drag, input_dimension, 0, .8, 1, fix_level_size_at=fix)
+    alpha, sigma, trace_length = 0, .5, 1
+    semiotic_model = RationalSemioticModel(no_examples, drag, input_dimension, alpha, sigma, trace_length, fix_level_size_at=fix)
 
     predictors = [
         MovingAverage(no_examples, drag),
@@ -71,7 +71,7 @@ def evaluate():
     # visualize results
     comparison.plot()
     # visualize semiotic model
-    analysis.plot(plot_segments=False)
+    analysis.plot(plot_segments=True)
 
 
 def main():
