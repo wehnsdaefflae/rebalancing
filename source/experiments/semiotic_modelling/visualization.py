@@ -39,7 +39,7 @@ class ComparativeEvaluation:
                 output_list.append(_o)
             error_list = self.errors[_i]
 
-            each_error = math.sqrt(sum((_o - _t) ** 2. for (_o, _t) in zip(output_value, target_value)))
+            each_error = math.sqrt(sum((_o - _t) ** 2. for _o, _t in zip(output_value, target_value)))
             error_list.append(each_error)
 
     def _convert_time(self):
@@ -93,6 +93,56 @@ class ComparativeEvaluation:
 
     def save(self, file_path: str):
         raise NotImplementedError
+
+
+class QualitativeEvaluationMultiSequence:
+    def save(self, file_path: str):
+        raise NotImplementedError
+
+    def __init__(self, output_dimension: int, no_examples: int):
+        assert output_dimension == 1
+        self.no_examples = no_examples
+        self.output_dimensions = output_dimension
+        self.time_axis = []                                                                                     # type: List[int]
+        self.certainties = tuple([] for _ in range(no_examples))                                                # type: Tuple[List[float], ...]
+        self.errors = tuple([] for _ in range(no_examples))                                                     # type: Tuple[List[float], ...]
+
+    def log_multisequence(self, time: TIME,
+                          target_values: Tuple[Tuple[float, ...], ...], output_values: Tuple[Tuple[float, ...], ...],
+                          certainties: Tuple[float, ...]):
+        assert self.no_examples == len(target_values) == len(output_values) == len(certainties)
+        self.time_axis.append(time)
+
+        for _i in range(self.no_examples):
+            certainty_list = self.certainties[_i]
+            certainty_list.append(certainties[_i])
+            each_target_value = target_values[_i]
+            assert len(each_target_value) == self.output_dimensions
+            each_output_value = output_values[_i]
+            assert len(each_output_value) == self.output_dimensions
+            each_error = math.sqrt(sum((_o - _t) ** 2. for _o, _t in zip(each_output_value, each_target_value)))
+            error_list = self.errors[_i]
+            error_list.append(each_error)
+
+    def plot(self):
+        fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
+        s = 1000
+        for _i, each_certainty in enumerate(self.certainties):
+            smooth_certainty = smoothing_generator(each_certainty, s)
+            ax1.plot(self.time_axis, list(smooth_certainty), label="certainty {:d} (smooth {:d})".format(_i, s))
+
+            cumulative_error = []
+            for each_error in self.errors[_i]:
+                if len(cumulative_error) < 1:
+                    cumulative_error.append(each_error ** 2.)
+                else:
+                    cumulative_error.append(each_error ** 2. + cumulative_error[-1])
+
+            # smooth_error = smoothing_generator(cumulative_error, s)
+            ax2.plot(self.time_axis, cumulative_error, label="error {:d}".format(_i))
+        ax1.legend()
+        ax2.legend()
+        pyplot.show()
 
 
 class QualitativeEvaluationSingleSequence(ComparativeEvaluation):
