@@ -35,7 +35,7 @@ class TrigonometricSequence(SequenceFactory[Tuple[float], Tuple[float]]):
             yield t, examples
 
 
-class MultipleExchangeRateSequence(SequenceFactory[Tuple[float, ...], Tuple[float, ...]]):
+class ExchangeRateSequence(SequenceFactory[Tuple[float, ...], Tuple[float, ...]]):
     @staticmethod
     def _get_current_values(values: Dict[str, Tuple[TIME, float]]) -> Tuple[TIME, Dict[str, float]]:
         time_set = set(t for t, v in values.values())
@@ -78,7 +78,7 @@ class MultipleExchangeRateSequence(SequenceFactory[Tuple[float, ...], Tuple[floa
 
         while True:
             snapshots = {_s: next(each_generator) for _s, each_generator in self.generators.items()}
-            t, symbol_values = MultipleExchangeRateSequence._get_current_values(snapshots)
+            t, symbol_values = ExchangeRateSequence._get_current_values(snapshots)
 
             target_values = tuple(symbol_values[_s] for _s in self.output_symbols)
             change = tuple(0. if _last == 0. else _this / _last - 1. for _last, _this in zip(last_target_values, target_values))
@@ -93,7 +93,7 @@ class MultipleExchangeRateSequence(SequenceFactory[Tuple[float, ...], Tuple[floa
 def generator_testing():
     symbols = "EOS", "SNT", "QTUM", "BNT"                 # type: Tuple[str, ...]
 
-    factory = MultipleExchangeRateSequence(symbols[:], symbols[:1], start_timestamp=1501113780, end_timestamp=1532508240)
+    factory = ExchangeRateSequence(symbols[:], symbols[:1], start_timestamp=1501113780, end_timestamp=1532508240)
     gen = factory.get_generator()
     for each_time, each_ex in gen:
         print("{:s}:\t{:s}".format(str(each_time), str(each_ex)))

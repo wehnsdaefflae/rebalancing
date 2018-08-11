@@ -1,4 +1,5 @@
 import datetime
+import math
 from typing import List, Tuple, Sequence
 
 from matplotlib import pyplot
@@ -6,63 +7,84 @@ from matplotlib.colors import hsv_to_rgb
 from matplotlib.dates import date2num
 from matplotlib.patches import Rectangle
 
-from source.experiments.semiotic_modelling.methods import RationalSemioticModel
 from source.experiments.semiotic_modelling.modelling import MODEL, STATE, TRACE, TIME
 from source.tools.helper_functions import distribute_circular, smoothing_generator
 from source.tools.timer import Timer
 
 
 class ComparativeEvaluation:
-    def __init__(self, method_names: Sequence[str]):
+    def __init__(self, output_dimension: int, method_names: Sequence[str]):
+        self.output_dimension = output_dimension
+        self.targets = tuple([] for _ in range(output_dimension))
+
         self.method_names = method_names
-        self.outputs = tuple([] for _ in method_names)
-        self.target_list = []
-        self.no_methods = len(method_names)
-        self.time_axis = []
+        self.outputs = {each_method: tuple([] for _ in range(output_dimension)) for each_method in method_names}
+
         self.errors = tuple([] for _ in method_names)
+        self.time_axis = []
 
-    def log(self, time: TIME, output_values: Sequence[Tuple[float, ...]], target_values: Tuple[float, ...]):
-        assert len(output_values) == self.no_methods
+    def log_predictors(self, time: TIME, all_output_values: Sequence[Tuple[float, ...]], target_value: Tuple[float, ...]):
+        assert len(all_output_values) == len(self.method_names)
         self.time_axis.append(time)
-        self.target_list.append(target_values)
-        for _i, each_output in enumerate(output_values):
-            output_list = self.outputs[_i]
-            output_list.append(each_output)
+        for _i, each_target in enumerate(target_value):
+            target_list = self.targets[_i]
+            target_list.append(each_target)
+
+        for _i, output_value in enumerate(all_output_values):
+            assert len(output_value) == len(target_value)
+            each_method = self.method_names[_i]
+            output_tuples = self.outputs[each_method]
+            for _j, _o in enumerate(output_value):
+                output_list = output_tuples[_j]
+                output_list.append(_o)
             error_list = self.errors[_i]
-            error_list.append(abs(sum(each_output) - sum(target_values)))
 
-    def plot(self):
-        # self.time_axis.append(datetime.datetime.fromtimestamp(time_stamp, tz=tzutc()))
+            each_error = math.sqrt(sum((_o - _t) ** 2. for (_o, _t) in zip(output_value, target_value)))
+            error_list.append(each_error)
 
+    def _convert_time(self):
         type_set = {type(_x) for _x in self.time_axis}
         assert len(type_set) == 1
         time_type, = type_set
-
         if time_type == datetime.datetime:
             is_datetime = True
             for _i, each_datetime in enumerate(self.time_axis):
                 self.time_axis[_i] = date2num(each_datetime)
         else:
             is_datetime = False
+        return is_datetime
 
-        fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
-        fig.suptitle("Comparative Evaluation")
-
-        ax1.set_ylabel("output values")
-        ax2.set_ylabel("cumulative squared error")
-
+    def _plot_errors(self, axis: pyplot.Axes.axes):
         for _i, method_name in enumerate(self.method_names):
-            ax1.plot(self.time_axis, self.outputs[_i], label=method_name, alpha=.5)
             cumulative_error = []
             for each_error in self.errors[_i]:
                 if len(cumulative_error) < 1:
                     cumulative_error.append(each_error ** 2.)
                 else:
                     cumulative_error.append(each_error ** 2. + cumulative_error[-1])
-            ax2.plot(self.time_axis, cumulative_error, label="{:s}".format(method_name), alpha=.5)
-        ax1.plot(self.time_axis, [sum(each_target) for each_target in self.target_list], label="target", alpha=.5)
-        ax1.legend()
-        ax2.legend()
+            axis.plot(self.time_axis, cumulative_error, label=method_name, alpha=.5)
+        axis.set_ylabel("cumulative squared error")
+        axis.legend()
+
+    def _plot_outputs(self, axis: pyplot.Axes.axes):
+        for _j in range(self.output_dimension):
+            axis.plot(self.time_axis, self.targets[_j], label="target {:d}".format(_j))
+        for _i, method_name in enumerate(self.method_names):
+            each_outputs = self.outputs[method_name]
+            for _j in range(self.output_dimension):
+                axis.plot(self.time_axis, each_outputs[_j], label="{:s} {:d}".format(method_name, _j), alpha=.5)
+        axis.set_ylabel("output values")
+        axis.legend()
+
+    def plot(self):
+        # self.time_axis.append(datetime.datetime.fromtimestamp(time_stamp, tz=tzutc()))
+        is_datetime = self._convert_time()
+
+        fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
+        fig.suptitle("Comparative Evaluation")
+
+        self._plot_outputs(ax1)
+        self._plot_errors(ax2)
 
         if is_datetime:
             ax1.xaxis_date()
@@ -73,49 +95,28 @@ class ComparativeEvaluation:
         raise NotImplementedError
 
 
-class QualitativeEvaluation:
-    def __init__(self, dim: int):
-        self.target_values = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
-        self.output_values = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
+class QualitativeEvaluationSingleSequence(ComparativeEvaluation):
+    def __init__(self, output_dimension: int, method_names: Sequence[str]):
+        super().__init__(output_dimension, method_names)
+        self.states = []                                                                    # type: List[Tuple[int, ...]]
+        self.model_structures = []                                                          # type: List[List[int]
 
-        self.states = tuple([] for _ in range(dim))                     # type: Tuple[List[Tuple[int, ...]]]
-        self.model_structures = []                                      # type: List[List[int]
+        self.certainties = []                                                               # type: List[float]
 
-        self.certainties = tuple([] for _ in range(dim))              # type: Tuple[List[float], ...]
+    def log_semiotic_model(self, time: TIME,
+                           target_value: Tuple[float, ...], output_value: Tuple[float, ...], certainty: float,
+                           structure: Tuple[int, ...], state: Tuple[int, ...]):
+        assert len(target_value) == len(output_value) == self.output_dimension
 
-        self.time_axis = []
+        self.log_predictors(time, [output_value], target_value)
 
-    def log(self, time: TIME,
-            input_values: Tuple[Tuple[float, ...], ...], target_values: Tuple[Tuple[float, ...], ...],
-            model: RationalSemioticModel):
-
-        self.time_axis.append(time)
-
-        output_values = model.predict(input_values)
-        certainty = model.get_certainty(input_values, target_values)
-        structure = model.get_structure()
-        states = model.get_states()
-
-        for _i, (target_value, output_value) in enumerate(zip(target_values, output_values)):
-            target_list = self.target_values[_i]                    # type: List[float]
-            target_list.append(target_value)
-
-            output_list = self.output_values[_i]                    # type: List[float]
-            output_list.append(output_value)                        # type: List[float]
-
-        for _i, each_certainty in enumerate(certainty):
-            certainty_list = self.certainties[_i]               # type: List[float]
-            certainty_list.append(each_certainty)
-
-        for _i, each_situation in enumerate(states):
-            state_list = self.states[_i]                      # type: List[Tuple[int, ...]]
-            state_list.append(tuple(each_situation))
-
+        self.states.append(state)
         self.model_structures.append(list(structure))
 
-    def save(self, model: MODEL, traces: Tuple[TRACE], situations: Tuple[STATE], file_path: str):
-        pass
-        # raise NotImplementedError()
+        self.certainties.append(certainty)
+
+    def save(self, file_path: str):
+        raise NotImplementedError()
 
     @staticmethod
     def _get_segments(time_axis: Sequence[TIME], states: List[Tuple[int, ...]]) -> Tuple[Sequence[Tuple[int, TIME]], ...]:
@@ -154,9 +155,7 @@ class QualitativeEvaluation:
                 if Timer.time_passed(2000):
                     print("Finished {:5.2f}% of plotting level {:d}/{:d}...".format(100. * _x / (len(each_level) - 1), _i, len(segments)))
 
-    def plot(self, plot_segments: bool = False):
-        # self.time_axis.append(datetime.datetime.fromtimestamp(time_stamp, tz=tzutc()))
-
+    def _convert_time(self):
         type_set = {type(_x) for _x in self.time_axis}
         assert len(type_set) == 1
         time_type, = type_set
@@ -166,42 +165,32 @@ class QualitativeEvaluation:
                 self.time_axis[_i] = date2num(each_datetime)
         else:
             is_datetime = False
+        return is_datetime
+
+    def plot(self, plot_segments: bool = False):
+        # self.time_axis.append(datetime.datetime.fromtimestamp(time_stamp, tz=tzutc()))
+
+        is_datetime = self._convert_time()
 
         fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
-        fig.suptitle("Qualitative Evaluation")
         ax11 = ax1.twinx()
-
-        for _i, each_state_list in enumerate(self.states):
-            if plot_segments:
-                segments = QualitativeEvaluation._get_segments(self.time_axis, each_state_list)
-                QualitativeEvaluation._plot_h_stacked_bars(ax1, segments)
-
-            each_certainty = smoothing_generator(self.certainties[_i], 1000)
-            ax1.plot(self.time_axis, list(each_certainty), label="certainty {:d}".format(_i), alpha=.3)
-
-        max_levels = max(len(_x) for _x in self.model_structures)
-        if plot_segments:
-            ax1.set_ylim(0., max_levels)
-        ax1.set_ylabel("certainty")
-
-        class UpdatingRect(Rectangle):
-            def __call__(self, ax: pyplot.Axes.axes):
-                try:
-                    ax.set_ylim(0., max_levels)
-                except RecursionError as e:
-                    pass
+        fig.suptitle("Qualitative Evaluation")
 
         if plot_segments:
-            reset_y = UpdatingRect([0, 0], 0, 0, facecolor="None", edgecolor="black", linewidth=1.)
-            ax1.callbacks.connect("ylim_changed", reset_y)
-        ax1.legend(loc="upper left")
+            self._plot_segments(ax1)
 
-        for _i, (each_target_list, each_output_list) in enumerate(zip(self.target_values, self.output_values)):
-            ax11.plot(self.time_axis, each_output_list, label="output {:d}".format(_i), alpha=.75)
-            ax11.plot(self.time_axis, each_target_list, label="target {:d}".format(_i), alpha=.75)
-        ax11.set_ylabel("values")
-        ax11.legend(loc="upper right")
+        self._plot_certainty(ax1)
+        self._plot_outputs(ax11)
 
+        self._plot_structure(ax2)
+
+        if is_datetime:
+            ax1.xaxis_date()
+            ax11.xaxis_date()
+            ax2.xaxis_date()
+        pyplot.show()
+
+    def _plot_structure(self, ax2):
         len_last_structure = len(self.model_structures[-1])
         for each_structure in self.model_structures:
             while len(each_structure) < len_last_structure:
@@ -210,8 +199,26 @@ class QualitativeEvaluation:
         ax2.set_ylabel("model size")
         ax2.stackplot(self.time_axis, *transposed)
 
-        if is_datetime:
-            ax1.xaxis_date()
-            ax11.xaxis_date()
-            ax2.xaxis_date()
-        pyplot.show()
+    def _plot_certainty(self, ax1):
+        s = 1000
+        smooth_certainty = smoothing_generator(self.certainties, s)
+        ax1.plot(self.time_axis, list(smooth_certainty), label="certainty (smooth {:d})".format(s), alpha=.3)
+        ax1.set_ylabel("certainty")
+        ax1.legend(loc="upper left")
+
+    def _plot_segments(self, ax1):
+        segments = QualitativeEvaluationSingleSequence._get_segments(self.time_axis, self.states)
+        QualitativeEvaluationSingleSequence._plot_h_stacked_bars(ax1, segments)
+        max_levels = max(len(_x) for _x in self.model_structures)
+
+        ax1.set_ylim(0., max_levels)
+
+        class UpdatingRect(Rectangle):
+            def __call__(self, ax: pyplot.Axes.axes):
+                try:
+                    ax.set_ylim(0., max_levels)
+                except RecursionError as e:
+                    pass
+
+        reset_y = UpdatingRect([0, 0], 0, 0, facecolor="None", edgecolor="black", linewidth=1.)
+        ax1.callbacks.connect("ylim_changed", reset_y)

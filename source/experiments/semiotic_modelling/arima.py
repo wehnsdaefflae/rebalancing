@@ -4,7 +4,7 @@ from matplotlib import pyplot
 from statsmodels.tsa.arima_model import ARIMA, ARIMAResults
 from sklearn.metrics import mean_squared_error
 
-from source.experiments.semiotic_modelling.sequence_generation import MultipleExchangeRateSequence
+from source.experiments.semiotic_modelling.sequence_generation import ExchangeRateSequence
 
 
 def parser(x):
@@ -12,7 +12,7 @@ def parser(x):
 
 
 symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
-factory = MultipleExchangeRateSequence(symbols[:1], symbols[:1])
+factory = ExchangeRateSequence(symbols[:1], symbols[:1])
 g = factory.get_generator()
 h = 100
 

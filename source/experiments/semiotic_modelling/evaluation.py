@@ -3,10 +3,10 @@ from typing import Tuple, Iterable, Sequence
 
 from dateutil.tz import tzutc
 
-from source.experiments.semiotic_modelling.sequence_generation import MultipleExchangeRateSequence, TrigonometricSequence
+from source.experiments.semiotic_modelling.sequence_generation import ExchangeRateSequence, TrigonometricSequence
 from source.experiments.semiotic_modelling.methods import MovingAverage, Regression, RationalSemioticModel
 from source.experiments.semiotic_modelling.modelling import EXAMPLE
-from source.experiments.semiotic_modelling.visualization import ComparativeEvaluation, QualitativeEvaluation
+from source.experiments.semiotic_modelling.visualization import ComparativeEvaluation, QualitativeEvaluationSingleSequence
 from source.tools.timer import Timer
 
 
@@ -16,13 +16,13 @@ def multiple_sequences():
 
 def single_sequence():
     # instantiate data source
-    factory = TrigonometricSequence(1000)
+    """
+    factory = TrigonometricSequence(100000)
+    """
     symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
-
-    # self.start_ts = 1501113780
-    # self.end_ts = 1532508240
-
-    #factory = SingularExchangeRateGeneratorFactory(symbols[:], symbols[:2], length=1000)
+    factory = ExchangeRateSequence(symbols[:], symbols[:2], start_timestamp=1501113780, end_timestamp=1502508240)
+    # factory = ExchangeRateSequence(symbols[:], symbols[:2], start_timestamp=1501113780, end_timestamp=1532508240)
+    # """
     sequence = factory.get_generator()                                                            # type: Iterable[Sequence[EXAMPLE]]
 
     # instantiate predictors
@@ -47,32 +47,40 @@ def single_sequence():
     predictors = [
         MovingAverage(output_dimension, no_parallel_examples, drag),
         Regression(input_dimension, output_dimension, no_parallel_examples, drag),
-        semiotic_model
     ]
 
     # instantiate comparison visualization
-    comparison = ComparativeEvaluation([each_predictor.__class__.__name__ for each_predictor in predictors])
-    analysis = QualitativeEvaluation(no_parallel_examples)
+    method_names = [each_predictor.__class__.__name__ for each_predictor in predictors] + ["semiotic model"]
+    comparison = ComparativeEvaluation(output_dimension, method_names)
+    analysis = QualitativeEvaluationSingleSequence(output_dimension, ["semiotic model"])
 
     iterations = 0
     # iterate over sequence
-    for time_step, examples in sequence:
-        each_input, each_target = examples
-        input_value = each_input,
-        target_value = each_target,
+    for time_step, each_example in sequence:
+        each_input, each_target = each_example
+        input_values = each_input,
+        target_values = each_target,
 
         all_outputs = []
         for each_predictor in predictors:
             # test
-            output_values = each_predictor.predict(input_value)
+            output_values = each_predictor.predict(input_values)
             all_outputs.append(output_values[0])
 
             # train
-            each_predictor.fit(input_value, target_value)
+            each_predictor.fit(input_values, target_values)
+
+        semiotic_output = semiotic_model.predict(input_values)
+        all_outputs.append(semiotic_output[0])
+        semiotic_model.fit(input_values, target_values)
 
         # log data
-        comparison.log(time_step, all_outputs, each_target)
-        analysis.log(time_step, input_value, target_value, semiotic_model)
+        comparison.log_predictors(time_step, all_outputs, each_target)
+        certainty = semiotic_model.get_certainty(input_values, target_values)
+        structure = semiotic_model.get_structure()
+        states = semiotic_model.get_states()
+        analysis.log_semiotic_model(time_step, target_values[0], semiotic_output[0], certainty[0], structure, states[0])
+
         if Timer.time_passed(2000):
             msg = "At iteration {:d} time {:s} structure {:s}"
             print(msg.format(iterations, str(datetime.datetime.fromtimestamp(time_step, tz=tzutc())), str(semiotic_model.get_structure())))
@@ -89,7 +97,7 @@ def single_sequence():
     # visualize results
     comparison.plot()
     # visualize semiotic model
-    analysis.plot(plot_segments=True)
+    analysis.plot(plot_segments=False)
 
 
 def main():
