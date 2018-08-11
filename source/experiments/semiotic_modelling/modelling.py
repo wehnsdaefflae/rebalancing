@@ -62,6 +62,7 @@ def generate_content(model: MODEL, states: Tuple[STATE, ...], content_factory: C
     no_state_layers, = len_set
     assert no_model_layers + 1 >= no_state_layers >= no_model_layers
     for _i in range(no_state_layers):
+        # TODO: if alpha == 0, new content cannot be shared among states
         state_layer_indices_with_new_content = [_j for _j, each_state_layer in enumerate(states) if each_state_layer[_i] == -1]
         if 0 < len(state_layer_indices_with_new_content):
             if _i == no_model_layers:

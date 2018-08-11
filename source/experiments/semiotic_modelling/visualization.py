@@ -32,6 +32,8 @@ class ComparativeEvaluation:
             error_list.append(abs(sum(each_output) - sum(target_values)))
 
     def plot(self):
+        # self.time_axis.append(datetime.datetime.fromtimestamp(time_stamp, tz=tzutc()))
+
         type_set = {type(_x) for _x in self.time_axis}
         assert len(type_set) == 1
         time_type, = type_set
@@ -151,6 +153,8 @@ class QualitativeEvaluation:
                     print("Finished {:5.2f}% of plotting level {:d}/{:d}...".format(100. * _x / (len(each_level) - 1), _i, len(segments)))
 
     def plot(self, plot_segments: bool = False):
+        # self.time_axis.append(datetime.datetime.fromtimestamp(time_stamp, tz=tzutc()))
+
         type_set = {type(_x) for _x in self.time_axis}
         assert len(type_set) == 1
         time_type, = type_set

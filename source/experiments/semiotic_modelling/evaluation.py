@@ -1,4 +1,7 @@
+import datetime
 from typing import Tuple, Iterable, Sequence
+
+from dateutil.tz import tzutc
 
 from source.experiments.semiotic_modelling.data_generators import ExchangeRateGeneratorFactory, TrigonometryGeneratorFactory
 from source.experiments.semiotic_modelling.methods import MovingAverage, Regression, RationalSemioticModel
@@ -9,9 +12,9 @@ from source.tools.timer import Timer
 
 def evaluate():
     # instantiate data source
-    factory = TrigonometryGeneratorFactory(50000)
-    symbols = "EOS", "SNT", "QTUM" # , "BNT"                                                       # type: Tuple[str, ...]
-    # factory = ExchangeRateGeneratorFactory(symbols[:1], symbols[:1], length=279625)
+    # factory = TrigonometryGeneratorFactory(50000)
+    symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
+    factory = ExchangeRateGeneratorFactory(symbols[:], symbols[:1], length=-1)
     source = factory.get_generator()                                                            # type: Iterable[Sequence[EXAMPLE]]
 
     # instantiate predictors
@@ -57,7 +60,8 @@ def evaluate():
         comparison.log(time_step, all_outputs, target_values)
         analysis.log(time_step, input_values, target_values, semiotic_model)
         if Timer.time_passed(2000):
-            print("At iteration {:d} time stamp {:s} structure {:s}".format(iterations, str(time_step), str(semiotic_model.get_structure())))
+            msg = "At iteration {:d} time {:s} structure {:s}"
+            print(msg.format(iterations, str(datetime.datetime.fromtimestamp(time_step, tz=tzutc())), str(semiotic_model.get_structure())))
 
         iterations += 1
 
