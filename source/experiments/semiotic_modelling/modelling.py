@@ -182,7 +182,7 @@ def generate_trace_layer(history_length: int, model: MODEL, traces: Tuple[TRACE]
             assert False
 
 
-def adapt_base_contents(examples: Iterable[EXAMPLE], model: MODEL, states: Tuple[STATE, ...]):
-    for _i, (input_value, target_value) in enumerate(examples):
+def adapt_base_contents(input_values: Iterable[BASIC_IN], target_values: Iterable[BASIC_OUT], model: MODEL, states: Tuple[STATE, ...]):
+    for _i, (input_value, target_value) in enumerate(zip(input_values, target_values)):
         base_content = get_content(model, states[_i], 0)  # type: Content
         base_content.adapt(input_value, target_value)

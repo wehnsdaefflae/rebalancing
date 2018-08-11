@@ -22,7 +22,7 @@ class SequentialExampleGeneratorFactory(Generic[INPUT_DEF, OUTPUT_DEF]):
         raise NotImplementedError
 
 
-class TrigonometryGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
+class SingularTrigonometryGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
     def __init__(self, length: int):
         super().__init__(("sin", ), ("cos", ))
         self.length = length
@@ -34,7 +34,7 @@ class TrigonometryGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
             yield t, examples
 
 
-class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
+class SingularExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
     def __init__(self, input_definition: Tuple[str, ...], output_definition: Tuple[str, ...], length: int = -1):
         super().__init__(input_definition, output_definition)
         with open("../../../configs/time_series.json", mode="r") as file:
@@ -91,8 +91,12 @@ class ExchangeRateGeneratorFactory(SequentialExampleGeneratorFactory[str, str]):
 
 def generator_testing():
     symbols = "EOS", "SNT", "QTUM", "BNT"                 # type: Tuple[str, ...]
-    factory = ExchangeRateGeneratorFactory(symbols[:1], symbols[:1])
+    factory = SingularExchangeRateGeneratorFactory(symbols[:1], symbols[:1])
     gen = factory.get_generator()
     for each_time, each_ex in gen:
         print("{:s}:\t{:s}".format(str(each_time), str(each_ex)))
         time.sleep(.5)
+
+
+if __name__ == "__main__":
+    generator_testing()

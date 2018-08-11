@@ -41,25 +41,28 @@ RATIONAL_VECTOR = Tuple[float, ...]
 RATIONAL_SCALAR = float
 
 
-class MovingAverage(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
-    def __init__(self, no_examples: int, drag: int):
+class MovingAverage(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
+    def __init__(self, output_dimensions: int, no_examples: int, drag: int):
         super().__init__(no_examples)
+        self.output_dimensions = output_dimensions
         self.drag = drag
-        self.average = [0. for _ in range(self.no_examples)]
+        self.average = tuple([0. for _ in range(output_dimensions)] for _ in range(self.no_examples))
         self.initial = True
 
-    def _fit(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_SCALAR, ...]):
+    def _fit(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]):
         if self.initial:
-            for _i, each_target in enumerate(target_values):
-                self.average[_i] = each_target
+            for each_target, each_average in zip(target_values, self.average):
+                for _i, each_target_value in enumerate(each_target):
+                    each_average[_i] = each_target_value
             self.initial = False
 
         else:
-            for _i, each_target in enumerate(target_values):
-                self.average[_i] = (self.average[_i] * self.drag + each_target) / (self.drag + 1)
+            for each_target, each_average in zip(target_values, self.average):
+                for _i, each_target_value in enumerate(each_target):
+                    each_average[_i] = (each_average[_i] * self.drag + each_target_value) / (self.drag + 1)
 
-    def _predict(self, input_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_SCALAR, ...]:
-        return tuple(self.average)
+    def _predict(self, input_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_VECTOR, ...]:
+        return tuple(tuple(each_average) for each_average in self.average)
 
     def save(self, file_path):
         raise NotImplementedError
@@ -68,19 +71,26 @@ class MovingAverage(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
         raise NotImplementedError
 
 
-class Regression(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
-    def __init__(self, no_examples: int, drag: int, input_dimension: int):
+class Regression(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
+    def __init__(self, input_dimension: int, output_dimension: int, no_examples: int, drag: int):
         super().__init__(no_examples)
         self.input_dimension = input_dimension
         self.drag = drag
-        self.regressions = tuple(MultiRegressor(input_dimension, self.drag) for _ in range(self.no_examples))
+        self.regressions = tuple(tuple(MultiRegressor(input_dimension, self.drag) for _ in range(output_dimension)) for _ in range(no_examples))
 
-    def _fit(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_SCALAR, ...]):
-        for each_regression, each_input, each_target in zip(self.regressions, input_values, target_values):
-            each_regression.fit(each_input, each_target)
+    def _fit(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]):
+        for example_index in range(self.no_examples):
+            each_regression = self.regressions[example_index]
+            each_input = input_values[example_index]
+            each_target = target_values[example_index]
+            for each_single_regression, each_target_value in zip(each_regression, each_target):
+                each_single_regression.fit(each_input, each_target_value)
 
-    def _predict(self, input_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_SCALAR, ...]:
-        return tuple(each_regression.output(each_input) for each_regression, each_input in zip(self.regressions, input_values))
+    def _predict(self, input_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_VECTOR, ...]:
+        return tuple(
+                tuple(single_regression.output(each_input) for single_regression in each_regression)
+                for each_regression, each_input in zip(self.regressions, input_values)
+        )
 
     def save(self, file_path):
         raise NotImplementedError
@@ -89,11 +99,11 @@ class Regression(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
         raise NotImplementedError
 
 
-class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
-    def __init__(self, no_examples: int, drag: int, input_dimensions: int,
-                 alpha: int, sigma: float, trace_length: int, fix_level_size_at: Callable[[int], int] = lambda _level: -1):
+class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
+    def __init__(self, input_dimensions: int, output_dimensions: int, no_examples: int, alpha: int, sigma: float, drag: int, trace_length: int,
+                 fix_level_size_at: Callable[[int], int] = lambda _level: -1):
         super().__init__(no_examples)
-        self.base_content_factory = ContentFactory(input_dimensions, drag, alpha)
+        self.base_content_factory = ContentFactory(input_dimensions, output_dimensions, drag, alpha)
         self.alpha = alpha
         self.sigma = sigma
         self.trace_length = trace_length
@@ -103,13 +113,11 @@ class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
         self.traces = tuple([[0 for _ in range(trace_length)]] for _ in range(no_examples))                 # type: Tuple[TRACE, ...]
         self.states = tuple([0] for _ in range(no_examples))                                                # type: Tuple[STATE, ...]
 
-    def _update_states(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]):
+    def _update_states(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]):
         for _i, (input_value, target_value) in enumerate(zip(input_values, target_values)):
             update_state(input_value, target_value, self.model, self.traces[_i], self.states[_i], self.sigma, self.fix_level_size_at)
 
-    def _fit(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]):
-        examples = zip(input_values, target_values)
-
+    def _fit(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]):
         self._update_states(input_values, target_values)
         generate_state_layer(self.model, self.states)
 
@@ -118,11 +126,11 @@ class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
         generate_trace_layer(self.trace_length, self.model, self.traces)
 
         adapt_abstract_content(self.model, self.traces, self.states)
-        adapt_base_contents(examples, self.model, self.states)
+        adapt_base_contents(input_values, target_values, self.model, self.states)
 
         update_traces(self.traces, self.states, self.trace_length)
 
-    def _predict(self, input_values: Tuple[INPUT_TYPE, ...]) -> Tuple[OUTPUT_TYPE, ...]:
+    def _predict(self, input_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_VECTOR, ...]:
         output_list = get_outputs(input_values, self.model, self.states)
         return tuple(output_list)
 
@@ -135,7 +143,7 @@ class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_SCALAR]):
     def get_states(self) -> Tuple[Tuple[int, ...], ...]:
         return tuple(tuple(each_state) for each_state in self.states)
 
-    def get_certainty(self, input_values: Tuple[INPUT_TYPE, ...], target_values: Tuple[OUTPUT_TYPE, ...]) -> Tuple[float, ...]:
+    def get_certainty(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[float, ...]:
         base_shapes = tuple(each_state[0] for each_state in self.states)
         base_layer = self.model[0]
         base_contents = tuple(base_layer[each_shape] for each_shape in base_shapes)

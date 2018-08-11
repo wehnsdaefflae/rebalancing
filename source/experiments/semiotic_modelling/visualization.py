@@ -59,7 +59,7 @@ class ComparativeEvaluation:
                     cumulative_error.append(each_error ** 2.)
                 else:
                     cumulative_error.append(each_error ** 2. + cumulative_error[-1])
-            ax2.plot(self.time_axis, cumulative_error, label=method_name, alpha=.5)
+            ax2.plot(self.time_axis, cumulative_error, label="{:s}".format(method_name), alpha=.5)
         ax1.plot(self.time_axis, [sum(each_target) for each_target in self.target_list], label="target", alpha=.5)
         ax1.legend()
         ax2.legend()
@@ -85,7 +85,9 @@ class QualitativeEvaluation:
 
         self.time_axis = []
 
-    def log(self, time: TIME, input_values: Tuple[Tuple[float, ...], ...], target_values: Tuple[float, ...], model: RationalSemioticModel):
+    def log(self, time: TIME,
+            input_values: Tuple[Tuple[float, ...], ...], target_values: Tuple[Tuple[float, ...], ...],
+            model: RationalSemioticModel):
 
         self.time_axis.append(time)
 

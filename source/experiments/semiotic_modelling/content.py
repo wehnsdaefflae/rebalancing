@@ -77,29 +77,43 @@ class SymbolicContent(Content[Hashable, Hashable]):
         return consequence
 
 
-class RationalContent(Content[Tuple[float, ...], float]):
-    def __init__(self, input_dimension: int, shape: int, drag: int, alpha: int):
+class RationalContent(Content[Tuple[float, ...], Tuple[float, ...]]):
+    def __init__(self, input_dimension: int, output_dimension: int, shape: int, drag: int, alpha: int):
         super().__init__(shape, alpha)
-        self.regression = MultiRegressor(input_dimension, drag)
+        self.input_dimension = input_dimension
+        self.output_dimension = output_dimension
+        self.regressions = tuple(MultiRegressor(input_dimension, drag) for _ in range(output_dimension))
 
     def _adapt(self, condition: CONDITION, consequence: CONSEQUENCE):
-        self.regression.fit(condition, consequence)
+        assert len(condition) == self.input_dimension
+        assert len(consequence) == self.output_dimension
+        for _i, each_consequence in enumerate(consequence):
+            each_regression = self.regressions[_i]
+            each_regression.fit(condition, each_consequence)
 
-    def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> float:
-        return self.regression.output(condition)
+    def predict(self, condition: CONDITION, default: Optional[CONSEQUENCE] = None) -> Tuple[float, ...]:
+        assert len(condition) == self.input_dimension
+        return tuple(each_regression.output(condition) for each_regression in self.regressions)
 
     def _probability(self, condition: CONDITION, consequence: CONSEQUENCE, default: float = 1.) -> float:
-        return self.regression.sim(condition, consequence)
+        assert len(condition) == self.input_dimension
+        assert len(consequence) == self.output_dimension
+        sim_sum = 0.
+        for _i, each_consequence in enumerate(consequence):
+            each_regression = self.regressions[_i]
+            sim_sum += each_regression.sim(condition, each_consequence)
+        return sim_sum / self.output_dimension
 
 
 class ContentFactory:
-    def __init__(self, input_dimension: int, drag: int, alpha: int):
+    def __init__(self, input_dimension: int, output_dimensions: int, drag: int, alpha: int):
         self.input_dimension = input_dimension
+        self.output_dimensions = output_dimensions
         self.drag = drag
         self.alpha = alpha
 
     def rational(self, shape: int):
-        return RationalContent(self.input_dimension, shape, self.drag, self.alpha)
+        return RationalContent(self.input_dimension, self.output_dimensions, shape, self.drag, self.alpha)
 
     def symbolic(self, shape: int):
         return SymbolicContent(shape, self.alpha)
