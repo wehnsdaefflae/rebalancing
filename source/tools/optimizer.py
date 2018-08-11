@@ -6,7 +6,7 @@ from typing import Callable, Sequence, Tuple, List, Optional
 
 from matplotlib import pyplot
 
-from source.data.data_generation import series_generator
+from source.data.data_processing import series_generator
 
 RANGE = Tuple[float, float]
 POINT = Tuple[float, ...]

@@ -5,7 +5,7 @@ from typing import Dict, Tuple, Generic, Callable, List, Iterator, Sequence
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 
-from source.data.data_generation import series_generator
+from source.data.data_processing import series_generator
 from source.tactics.signals.signals import TradingSignal, SIGNAL_INPUT, SymmetricChannelSignal
 from source.tools.timer import Timer
 

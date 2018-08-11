@@ -9,7 +9,7 @@ import json
 
 from matplotlib import pyplot
 
-from source.data.data_generation import series_generator
+from source.data.data_processing import series_generator
 from source.tactics.signals.signals import SymmetricChannelSignal
 
 

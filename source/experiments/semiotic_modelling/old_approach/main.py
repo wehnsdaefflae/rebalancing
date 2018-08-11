@@ -4,7 +4,7 @@ from typing import Optional, Type, Callable, List, Iterable, TypeVar, Tuple, Uni
 
 from matplotlib import pyplot
 
-from source.data.data_generation import series_generator
+from source.data.data_processing import series_generator
 from source.experiments.semiotic_modelling.content import LEVEL, Content, HISTORY, MODEL, STATE, ACTION, SHAPE_A, SymbolicContent, CONDITION, \
     RationalContent
 

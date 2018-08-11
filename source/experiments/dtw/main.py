@@ -4,7 +4,7 @@ import os
 from math import sin, cos
 
 from source.experiments.dtw import get_fit
-from source.data.data_generation import series_generator
+from source.data.data_processing import series_generator
 
 
 def fit_exchange_rates(cur_a, cur_b, start_date, end_date, interval, parameters, data_dir, result_dir=None):

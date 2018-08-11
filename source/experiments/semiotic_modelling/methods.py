@@ -38,7 +38,6 @@ class Predictor(Generic[INPUT_TYPE, OUTPUT_TYPE]):
 
 
 RATIONAL_VECTOR = Tuple[float, ...]
-RATIONAL_SCALAR = float
 
 
 class MovingAverage(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
@@ -100,6 +99,8 @@ class Regression(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
 
 
 class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
+    # TODO: instead of fix_level_size_at preconstruct model and prohibit content generation with boolean
+    # avoids problem of two states writing to the same content until model is fixed
     def __init__(self, input_dimensions: int, output_dimensions: int, no_examples: int, alpha: int, sigma: float, drag: int, trace_length: int,
                  fix_level_size_at: Callable[[int], int] = lambda _level: -1):
         super().__init__(no_examples)

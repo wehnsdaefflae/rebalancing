@@ -4,7 +4,7 @@ from typing import Iterable, Tuple, Type, Collection
 
 from matplotlib import pyplot
 
-from source.data.data_generation import series_generator
+from source.data.data_processing import series_generator
 from source.tools.scipy_plot import heat_plot
 from source.tools.optimizer import StatefulOptimizer, SAMPLE
 from source.tools.timer import Timer
