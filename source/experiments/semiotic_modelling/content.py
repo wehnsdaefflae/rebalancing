@@ -117,3 +117,8 @@ class ContentFactory:
 
     def symbolic(self, shape: int):
         return SymbolicContent(shape, self.alpha)
+
+
+if __name__ == "__main__":
+    content = RationalContent(1, 1, 0, 10, 0)
+    _ = 0

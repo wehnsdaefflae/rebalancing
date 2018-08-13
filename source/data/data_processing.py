@@ -47,8 +47,8 @@ def series_generator(file_path: str, start_timestamp: int = -1, end_timestamp: i
                     if i < 1:
                         first_date = datetime.datetime.fromtimestamp(row_ts, tz=tzutc())
                         start_time = datetime.datetime.fromtimestamp(start_timestamp, tz=tzutc())
-                        msg = "Source {:s} starts after {:s} (at {:s})!"
-                        raise ValueError(msg.format(file_path, start_time, str(first_date)))
+                        msg = "Source {:s} starts after {:s} (ts {:f}) at {:s} (ts {:f})!"
+                        raise ValueError(msg.format(file_path, str(start_time), start_timestamp, str(first_date), row_ts))
                 elif row_ts < end_timestamp:
                     continue
 
@@ -61,8 +61,8 @@ def series_generator(file_path: str, start_timestamp: int = -1, end_timestamp: i
         if row_ts < end_timestamp:
             last_date = datetime.datetime.fromtimestamp(row_ts, tz=tzutc())
             end_time = datetime.datetime.fromtimestamp(end_timestamp, tz=tzutc())
-            msg = "Source {:s} ends before {:s} (at {:s})!"
-            raise ValueError(msg.format(file_path, end_time, str(last_date)))
+            msg = "Source {:s} ends before {:s} (ts {:f}) at {:s} (ts {:f})!"
+            raise ValueError(msg.format(file_path, str(end_time), end_timestamp, str(last_date), row_ts))
 
 
 def equisample(iterator: Iterator[Tuple[float, float]], target_delta: float) -> Generator[Tuple[float, float], None, None]:

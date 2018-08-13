@@ -59,19 +59,26 @@ class Regressor:
 
 
 class MultiRegressor:
-    def __init__(self, dim: int, drag: int):
+    def __init__(self, input_dimensions: int, drag: int):
         # https://mubaris.com/2017/09/28/linear-regression-from-scratch/
         self.drag = drag
-        self.dim = dim
-        self.mean_x = [0. for _ in range(dim)]
+        self.input_dimensions = input_dimensions
+        self.mean_x = [0. for _ in range(input_dimensions)]
         self.mean_y = 0.
-        self.var_x = [0. for _ in range(dim)]
+        self.var_x = [0. for _ in range(input_dimensions)]
         self.var_y = 0.
-        self.cov_xy = [0. for _ in range(dim)]
+        self.cov_xy = [0. for _ in range(input_dimensions)]
         self.initial = True
 
+    def __str__(self):
+        parameters = self._get_parameters()
+        component_list = ["{:.4f} * x{:d}".format(_p, _i) for _p, _i in zip(parameters[:-1], range(self.input_dimensions))]
+        arguments = ", ".join(["x{:d}".format(_i) for _i in range(self.input_dimensions)])
+        components = " + ".join(component_list)
+        return "f({:s}) = {:s} + {:.4f}".format(arguments, components, parameters[-1])
+
     def sim(self, x: Tuple[float, ...], y: float, default: float = 1.) -> float:
-        assert len(x) == self.dim
+        assert len(x) == self.input_dimensions
         if self.initial:
             return default
         fx = self.output(x)
@@ -85,7 +92,9 @@ class MultiRegressor:
         return 1. - min(1., d / self.var_y)
 
     def fit(self, x: Tuple[float, ...], y: float):
-        assert len(x) == self.dim
+        assert len(x) == self.input_dimensions
+        if self.drag < 0:
+            return
 
         dy = y - self.mean_y
         for _i, (_var_x, _cov_xy) in enumerate(zip(self.var_x, self.cov_xy)):
@@ -106,9 +115,9 @@ class MultiRegressor:
             self.mean_y = (self.drag * self.mean_y + y) / (self.drag + 1)
 
     def output(self, x: Tuple[float, ...]) -> float:
-        assert len(x) == self.dim
+        assert len(x) == self.input_dimensions
         xn = self._get_parameters()
-        assert len(xn) == self.dim + 1
+        assert len(xn) == self.input_dimensions + 1
         return sum(_x * _xn for (_x, _xn) in zip(x + (1.,), xn))
 
     def _get_parameters(self) -> Tuple[float, ...]:

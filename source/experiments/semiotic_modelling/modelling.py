@@ -118,10 +118,13 @@ def update_state(shape: BASIC_IN, target_value: BASIC_OUT, model: MODEL, trace: 
         if content.probability(shape, target_value) >= sigma:
             break
 
+        # TODO: preventive switch if next content is better
+
         if level == 0 or simple:
             abstract_shape = tuple(trace[level])
         else:
             abstract_shape = tuple(trace[level]), shape                     # TODO: keep shape of content? see above
+
         if level + 1 < no_model_layers:
             context = get_content(model, state, level + 1)                                                      # type: Content
             abstract_target = context.predict(abstract_shape)                                                                      # type: APPEARANCE

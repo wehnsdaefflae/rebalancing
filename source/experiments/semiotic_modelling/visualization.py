@@ -66,14 +66,17 @@ class ComparativeEvaluation:
         axis.set_ylabel("cumulative squared error")
         axis.legend()
 
-    def _plot_outputs(self, axis: pyplot.Axes.axes):
+    def _plot_values(self, axis: pyplot.Axes.axes, input_values: Sequence[float]):
         for _j in range(self.output_dimension):
             axis.plot(self.time_axis, self.targets[_j], label="target {:d}".format(_j))
         for _i, method_name in enumerate(self.method_names):
             each_outputs = self.outputs[method_name]
             for _j in range(self.output_dimension):
-                axis.plot(self.time_axis, each_outputs[_j], label="{:s} {:d}".format(method_name, _j), alpha=.5)
-        axis.set_ylabel("output values")
+                axis.plot(self.time_axis, each_outputs[_j], label="output {:d} {:s}".format(_j, method_name), alpha=.5)
+        if len(input_values) >= 1:
+            assert len(input_values) == len(self.time_axis)
+            axis.plot(self.time_axis, input_values, label="inputs")
+        axis.set_ylabel("values")
         axis.legend()
 
     def plot(self):
@@ -83,7 +86,7 @@ class ComparativeEvaluation:
         fig, (ax1, ax2) = pyplot.subplots(2, sharex="all")
         fig.suptitle("Comparative Evaluation")
 
-        self._plot_outputs(ax1)
+        self._plot_values(ax1, [])
         self._plot_errors(ax2)
 
         if is_datetime:
@@ -149,15 +152,18 @@ class QualitativeEvaluationSingleSequence(ComparativeEvaluation):
     def __init__(self, output_dimension: int, method_names: Sequence[str]):
         super().__init__(output_dimension, method_names)
         self.states = []                                                                    # type: List[Tuple[int, ...]]
-        self.model_structures = []                                                          # type: List[List[int]
+        self.model_structures = []                                                          # type: List[List[int]]
+        self.input_values = []
 
         self.certainties = []                                                               # type: List[float]
 
     def log_semiotic_model(self, time: TIME,
-                           target_value: Tuple[float, ...], output_value: Tuple[float, ...], certainty: float,
-                           structure: Tuple[int, ...], state: Tuple[int, ...]):
+                           input_value: Tuple[float, ...], target_value: Tuple[float, ...], output_value: Tuple[float, ...],
+                           certainty: float, structure: Tuple[int, ...], state: Tuple[int, ...]):
         assert len(target_value) == len(output_value) == self.output_dimension
 
+        if len(input_value) == 1:
+            self.input_values.append(input_value[0])
         self.log_predictors(time, [output_value], target_value)
 
         self.states.append(state)
@@ -230,7 +236,7 @@ class QualitativeEvaluationSingleSequence(ComparativeEvaluation):
             self._plot_segments(ax1)
 
         self._plot_certainty(ax1)
-        self._plot_outputs(ax11)
+        self._plot_values(ax11, self.input_values)
 
         self._plot_structure(ax2)
 

@@ -1,20 +1,23 @@
 import datetime
-from typing import Tuple, Iterable, Sequence, Generator, Iterator
+from typing import Tuple, Iterable, Sequence, Generator, Iterator, Dict
 
 from dateutil.tz import tzutc
+from matplotlib import pyplot
 
+from source.experiments.semiotic_modelling.content import RationalContent
 from source.experiments.semiotic_modelling.sequence_generation import ExchangeRateSequence, TrigonometricSequence
 from source.experiments.semiotic_modelling.methods import MovingAverage, Regression, RationalSemioticModel
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, TIME
 from source.experiments.semiotic_modelling.visualization import ComparativeEvaluation, QualitativeEvaluationSingleSequence, \
     QualitativeEvaluationMultiSequence
+from source.tools.regression import MultiRegressor
 from source.tools.timer import Timer
 
 
 def fix(_level: int) -> int:
     # sizes = [100, 50, 20, 10, 1, 0]
-    sizes = [10, 5, 1, 0]
-    # sizes = [1, 0]
+    # sizes = [10, 5, 1, 0]
+    sizes = [4, 1, 0]
     if _level < len(sizes):
         return sizes[_level]
     return -1
@@ -36,7 +39,7 @@ def join_sequences(sequences: Iterable[Iterator[Tuple[TIME, EXAMPLE]]]) -> Gener
 def multiple_sequences():
     symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
     # factories = tuple(ExchangeRateSequence((_x, ), (_x, ), start_timestamp=1501113780, end_timestamp=1501250240) for _x in symbols)
-    factories = tuple(ExchangeRateSequence((_x, ), (_x, ), start_timestamp=1501113780, end_timestamp=1532508240) for _x in symbols)
+    factories = tuple(ExchangeRateSequence((_x, ), (_x, ), start_timestamp=1501113780, end_timestamp=1529712000) for _x in symbols)
     sequences = join_sequences([_x.get_generator() for _x in factories])
 
     no_parallel_examples = len(symbols)
@@ -78,8 +81,8 @@ def multiple_sequences():
 
 def single_sequence():
     # instantiate data source
-    """
-    factory = TrigonometricSequence(100000)
+    #"""
+    factory = TrigonometricSequence(50000)
     """
     symbols = "EOS", "SNT", "QTUM", "BNT"                                                       # type: Tuple[str, ...]
     # factory = ExchangeRateSequence(symbols[:1], symbols[:1], start_timestamp=1501113780, end_timestamp=1501250240)
@@ -90,7 +93,7 @@ def single_sequence():
     # instantiate predictors
     no_parallel_examples = 1
     input_dimension, output_dimension = factory.get_dimensions()
-    drag = 500
+    drag = 200
 
     # instantiate semiotic model separately for future reference
     alpha, sigma, trace_length = 0, .8, 1
@@ -133,7 +136,7 @@ def single_sequence():
         certainty = semiotic_model.get_certainty(input_values, target_values)
         structure = semiotic_model.get_structure()
         states = semiotic_model.get_states()
-        analysis.log_semiotic_model(time_step, target_values[0], semiotic_output[0], certainty[0], structure, states[0])
+        analysis.log_semiotic_model(time_step, input_values[0], target_values[0], semiotic_output[0], certainty[0], structure, states[0])
 
         if Timer.time_passed(2000):
             msg = "At iteration {:d} time {:s} structure {:s}"
@@ -149,16 +152,16 @@ def single_sequence():
         pass
 
     # visualize results
-    comparison.plot()
+    # comparison.plot()
     # visualize semiotic model
-    analysis.plot(plot_segments=False)
+    analysis.plot(plot_segments=True)
 
 
 def main():
     # TODO: replace fix model at with ability to pregenerate model
     # investigate content generation by parallel examples (problematic)
-    # single_sequence()
-    multiple_sequences()
+    single_sequence()
+    # multiple_sequences()
 
 
 if __name__ == "__main__":
