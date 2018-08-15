@@ -3,7 +3,7 @@ import json
 import os
 import random
 from math import sin, cos
-from typing import Generator, Tuple, Iterator, Sequence
+from typing import Generator, Tuple, Iterator, Sequence, TypeVar
 
 import numpy
 from dateutil import parser
@@ -139,5 +139,51 @@ def time_stamp_test():
                 print("{:s} and {:s}: {:s}".format(file_names[_i], file_names[_j], str(each_axis == time_axes[_j])))
 
 
+def difference(source_generator: Generator[float, None, None]) -> Generator[float, None, None]:
+    last_value = next(source_generator)
+    for each_value in source_generator:
+        yield each_value - last_value
+        last_value = each_value
+
+
+def normalize(value: float, min_val: float, max_val: float):
+    return (value - min_val) / (max_val - min_val)
+
+
+def my_normalization(source_generator: Generator[float, None, None], drag: int) -> Generator[float, None, None]:
+    min_v = 0.
+    max_v = 1.
+    for each_value in source_generator:
+        if max_v < each_value:
+            max_v = each_value
+            min_v = (drag * min_v + each_value) / (drag + 1)
+        elif each_value < min_v:
+            max_v = (drag * max_v + each_value) / (drag + 1)
+            min_v = each_value
+        else:
+            max_v = (drag * max_v + each_value) / (drag + 1)
+            min_v = (drag * min_v + each_value) / (drag + 1)
+        yield (each_value - min_v) / (max_v - min_v)
+
+
+def zscore_normalization(source_generator: Generator[float, None, None], drag: int) -> Generator[float, None, None]:
+    mean = 0.
+    deviation = 0.
+    for each_value in source_generator:
+        mean = (mean * drag + each_value) / (drag + 1)
+        this_deviation = each_value - mean
+        if deviation == 0.:
+            yield float(each_value >= mean)
+        else:
+            yield this_deviation / deviation
+        deviation = (deviation * drag + this_deviation) / (drag + 1)
+
+
 if __name__ == "__main__":
-    time_stamp_test()
+    # time_stamp_test()
+    X = range(1000)
+    # Y = [sin(_x/10.) for _x in X]
+    Y = list(my_normalization((sin(_x / 10.) for _x in range(1000)), 100))
+    pyplot.plot(X, Y)
+    pyplot.show()
+    exit()

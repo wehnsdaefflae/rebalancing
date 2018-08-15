@@ -15,9 +15,10 @@ AREA = Tuple[POINT, POINT]
 PRIORITY_ELEMENT = Tuple[float, POINT, AREA]
 
 
+# TODO: make into generator with send
 class StatefulOptimizer:
     def __init__(self, evaluation_function: Callable[..., float], ranges: Sequence[RANGE], limit: int = 1000):
-        self.eval = evaluation_function                                         # type: Callable[..., float]
+        self.eval = evaluation_function                                         # type: Callable[[...], float]
         self.dimensionality = len(ranges)                                       # type: int
         self.limit = limit                                                      # type: int
 
