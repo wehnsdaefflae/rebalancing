@@ -163,14 +163,14 @@ def generate_state_layer(model: MODEL, states: Tuple[STATE, ...]):
             each_state.append(-1)
 
 
-def get_outputs(inputs: Iterable[BASIC_IN], model: MODEL, states: Tuple[STATE, ...]) -> List[BASIC_OUT]:
+def get_outputs(inputs: Iterable[BASIC_IN], model: MODEL, states: Tuple[STATE, ...]) -> Tuple[BASIC_OUT, ...]:
     output_values = []                                                                          # type: List[BASIC_OUT]
     for _i, input_value in enumerate(inputs):
         each_situation = states[_i]                                                         # type: STATE
         base_content = get_content(model, each_situation, 0)                                    # type: Content
         output_value = base_content.predict(input_value)                                        # type: BASIC_OUT
         output_values.append(output_value)
-    return output_values
+    return tuple(output_values)
 
 
 def generate_trace_layer(history_length: int, model: MODEL, traces: Tuple[TRACE]):

@@ -70,12 +70,12 @@ def equisample(iterator: Iterator[Tuple[float, float]], target_delta: float) -> 
     last_time = -1
     last_value = 0.
     for time_stamp, value in iterator:
-        difference = time_stamp - last_time
+        delta = time_stamp - last_time
 
-        if difference < target_delta:
+        if delta < target_delta:
             continue
 
-        elif difference == target_delta or last_time < 0:
+        elif delta == target_delta or last_time < 0:
             assert last_time < 0 or time_stamp == last_time + target_delta
             yield time_stamp, value
 
@@ -83,8 +83,8 @@ def equisample(iterator: Iterator[Tuple[float, float]], target_delta: float) -> 
             last_time = time_stamp
 
         else:
-            value_change = (value - last_value) / difference
-            no_intermediate_steps = round(difference // target_delta)
+            value_change = (value - last_value) / delta
+            no_intermediate_steps = round(delta // target_delta)
             for each_step in range(no_intermediate_steps):
                 last_value += value_change
                 last_time += target_delta
@@ -144,6 +144,14 @@ def difference(source_generator: Generator[float, None, None]) -> Generator[floa
     for each_value in source_generator:
         yield each_value - last_value
         last_value = each_value
+
+
+def example_difference(source_generator: Generator[Tuple[TIME, Tuple[float, float]], None, None]) -> Generator[Tuple[TIME, Tuple[float, float]],
+                                                                                                               None, None]:
+    last_time, (last_input, last_target) = next(source_generator)
+    for each_time, (each_input, each_target) in source_generator:
+        yield each_time, (each_input - last_input, each_target - last_target)
+        last_time, last_input, last_target = each_time, each_input, each_target
 
 
 def normalize(value: float, min_val: float, max_val: float):

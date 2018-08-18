@@ -102,38 +102,67 @@ class RationalSemioticModel(Predictor[RATIONAL_VECTOR, RATIONAL_VECTOR]):
     # TODO: instead of fix_level_size_at preconstruct model and prohibit content generation with boolean
     # avoids problem of two states writing to the same content until model is fixed
     def __init__(self, input_dimensions: int, output_dimensions: int, no_examples: int, alpha: int, sigma: float, drag: int, trace_length: int,
-                 fix_level_size_at: Callable[[int], int] = lambda _level: -1):
+                 fix_level_size_at: Callable[[int], int] = lambda _level: -1, differentiate: bool = False):
         super().__init__(no_examples)
+        self.output_dimensions = output_dimensions
         self.base_content_factory = ContentFactory(input_dimensions, output_dimensions, drag, alpha)
         self.alpha = alpha
         self.sigma = sigma
         self.trace_length = trace_length
         self.fix_level_size_at = fix_level_size_at
+        self.differentiate = differentiate
 
         self.model = [{0: self.base_content_factory.rational(0)}]                                           # type: MODEL
         self.traces = tuple([[0 for _ in range(trace_length)]] for _ in range(no_examples))                 # type: Tuple[TRACE, ...]
         self.states = tuple([0] for _ in range(no_examples))                                                # type: Tuple[STATE, ...]
+        self.last_input = None
+        self.last_target = None
 
     def _update_states(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]):
         for _i, (input_value, target_value) in enumerate(zip(input_values, target_values)):
             update_state(input_value, target_value, self.model, self.traces[_i], self.states[_i], self.sigma, self.fix_level_size_at)
 
-    def _fit(self, input_values: Tuple[RATIONAL_VECTOR, ...], target_values: Tuple[RATIONAL_VECTOR, ...]):
-        self._update_states(input_values, target_values)
-        generate_state_layer(self.model, self.states)
+    @staticmethod
+    def _difference(last_values: Tuple[RATIONAL_VECTOR, ...], this_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_VECTOR, ...]:
+        return tuple(tuple(_x - _y
+                           for _x, _y in zip(this_example, last_example))
+                     for this_example, last_example in zip(this_values, last_values))
 
-        generate_content(self.model, self.states, self.base_content_factory)
+    @staticmethod
+    def _sum(last_values: Tuple[RATIONAL_VECTOR, ...], this_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_VECTOR, ...]:
+        return tuple(tuple(_x + _y
+                           for _x, _y in zip(this_example, last_example))
+                     for this_example, last_example in zip(this_values, last_values))
 
-        generate_trace_layer(self.trace_length, self.model, self.traces)
+    def _fit(self, abs_input: Tuple[RATIONAL_VECTOR, ...], abs_target: Tuple[RATIONAL_VECTOR, ...]):
+        if not self.differentiate or not(self.last_input is None or self.last_target is None):
+            if self.differentiate:
+                input_values = RationalSemioticModel._difference(self.last_input, abs_input)
+                target_values = RationalSemioticModel._difference(self.last_target, abs_target)
+            else:
+                input_values = abs_input
+                target_values = abs_target
 
-        adapt_abstract_content(self.model, self.traces, self.states)
-        adapt_base_contents(input_values, target_values, self.model, self.states)
+            self._update_states(input_values, target_values)
+            generate_state_layer(self.model, self.states)
+            generate_content(self.model, self.states, self.base_content_factory)
+            generate_trace_layer(self.trace_length, self.model, self.traces)
 
-        update_traces(self.traces, self.states, self.trace_length)
+            adapt_abstract_content(self.model, self.traces, self.states)
+            adapt_base_contents(input_values, target_values, self.model, self.states)
+
+            update_traces(self.traces, self.states, self.trace_length)
+
+        self.last_input = abs_input
+        self.last_target = abs_target
 
     def _predict(self, input_values: Tuple[RATIONAL_VECTOR, ...]) -> Tuple[RATIONAL_VECTOR, ...]:
-        output_list = get_outputs(input_values, self.model, self.states)
-        return tuple(output_list)
+        output_values = get_outputs(input_values, self.model, self.states)
+        if self.differentiate:
+            if self.last_target is None:
+                return tuple(tuple(0. for _ in range(self.output_dimensions)) for _ in self.traces)
+            return RationalSemioticModel._sum(output_values, self.last_target)
+        return tuple(output_values)
 
     def save(self, file_path: str):
         raise NotImplementedError

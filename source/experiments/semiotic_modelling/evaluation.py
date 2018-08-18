@@ -1,23 +1,21 @@
 import datetime
-from typing import Tuple, Iterable, Sequence, Generator, Iterator, Dict
+from typing import Tuple, Iterable, Generator, Iterator
 
 from dateutil.tz import tzutc
 from matplotlib import pyplot
 
-from source.experiments.semiotic_modelling.content import RationalContent
 from source.experiments.semiotic_modelling.sequence_generation import ExchangeRateSequence, TrigonometricSequence
 from source.experiments.semiotic_modelling.methods import MovingAverage, Regression, RationalSemioticModel
 from source.experiments.semiotic_modelling.modelling import EXAMPLE, TIME
 from source.experiments.semiotic_modelling.visualization import ComparativeEvaluation, QualitativeEvaluationSingleSequence, \
     QualitativeEvaluationMultiSequence
-from source.tools.regression import MultiRegressor
 from source.tools.timer import Timer
 
 
 def fix(_level: int) -> int:
     # sizes = [100, 50, 20, 10, 1, 0]
     # sizes = [10, 5, 1, 0]
-    sizes = [4, 1, 0]
+    sizes = [4, 2, 1, 0]
     if _level < len(sizes):
         return sizes[_level]
     return -1
@@ -88,7 +86,7 @@ def single_sequence():
     # factory = ExchangeRateSequence(symbols[:1], symbols[:1], start_timestamp=1501113780, end_timestamp=1501250240)
     factory = ExchangeRateSequence(symbols[:1], symbols[:1], start_timestamp=1501113780, end_timestamp=1532508240)
     # """
-    sequence = factory.get_generator()                                                            # type: Iterable[Tuple[TIME, EXAMPLE]]
+    sequence = factory.get_generator()                                     # type: Iterable[Tuple[TIME, EXAMPLE]]
 
     # instantiate predictors
     no_parallel_examples = 1
@@ -100,7 +98,7 @@ def single_sequence():
     semiotic_model = RationalSemioticModel(
         input_dimension, output_dimension,
         no_parallel_examples,
-        alpha, sigma, drag, trace_length, fix_level_size_at=fix)
+        alpha, sigma, drag, trace_length, fix_level_size_at=fix, differentiate=False)
     predictors = [
         MovingAverage(output_dimension, no_parallel_examples, drag),
         Regression(input_dimension, output_dimension, no_parallel_examples, drag),
@@ -152,7 +150,7 @@ def single_sequence():
         pass
 
     # visualize results
-    # comparison.plot()
+    comparison.plot()
     # visualize semiotic model
     analysis.plot(plot_segments=True)
 
