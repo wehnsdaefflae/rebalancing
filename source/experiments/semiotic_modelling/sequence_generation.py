@@ -30,7 +30,7 @@ class TrigonometricSequence(SequenceFactory[Tuple[float], Tuple[float]]):
         for t in range(self.length):
             # examples = [(sin(t / 100.), cos(t / 70.)*3. + sin(t/13.)*.7)]
             input_value = sin(t / 100.),
-            target_value = cos(t / 100.),
+            target_value = float(cos(t / 100.) >= 0.) * 2. - 1.,
             examples = input_value, target_value
             yield t, examples
 

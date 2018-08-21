@@ -15,7 +15,7 @@ from source.tools.timer import Timer
 def fix(_level: int) -> int:
     # sizes = [100, 50, 20, 10, 1, 0]
     # sizes = [10, 5, 1, 0]
-    sizes = [4, 2, 1, 0]
+    sizes = [3, 1, 0]
     if _level < len(sizes):
         return sizes[_level]
     return -1
