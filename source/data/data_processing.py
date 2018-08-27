@@ -10,8 +10,12 @@ from dateutil import parser
 from dateutil.tz import tzutc
 from matplotlib import pyplot
 
-from source.experiments.semiotic_modelling.modelling import TIME, EXAMPLE
 from source.tools.timer import Timer
+
+TIME = TypeVar("TIME")
+BASIC_IN = TypeVar("BASIC_IN")
+BASIC_OUT = TypeVar("BASIC_OUT")
+EXAMPLE = Tuple[BASIC_IN, BASIC_OUT]
 
 
 def relative_brownian(initial=1., drift=.0, volatility=.01):  # relative normally distributed change
