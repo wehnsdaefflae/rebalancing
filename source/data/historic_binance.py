@@ -24,11 +24,12 @@ from binance.client import Client
 
 # pair = "ETHBTC"
 
-start_date = "01 Jan, 2010"
-end_date = None
+# start_date = "01 Jan, 2010"
+start_date = "01 May, 2018"
+end_date = "01 Jan, 2020"
 interval = Client.KLINE_INTERVAL_1MINUTE
 
-encoded_dates = start_date.replace(" ", "").replace(",", "") + "-"  # + end_date.replace(" ", "").replace(",", "")
+encoded_dates = start_date.replace(" ", "").replace(",", "") + "-" + end_date.replace(" ", "").replace(",", "")
 data_dir = "../../data/binance/" + encoded_dates + "-" + interval + "/"
 if not os.path.isdir(data_dir):
     os.mkdir(data_dir)
@@ -58,8 +59,10 @@ while True:
         try:
             klines = client.get_historical_klines(each_pair, interval, start_date, end_date)
             with open(data_dir + "{}.csv".format(each_pair), mode='w') as f:
-                for each_kline in klines:
+                for i, each_kline in enumerate(klines):
                     f.write("\t".join([str(x) for x in each_kline]) + "\n")
+                    if i % 100 == 99:
+                        print(f"finished {i * 100 / len(klines):5.2f}% of klines...")
         except Exception as e:
             print("{} didn't work, continuing.".format(each_pair))
             print(e)
