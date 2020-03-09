@@ -6,7 +6,7 @@ def main():
     folder_old = "C:/Users/Mark/PycharmProjects/rebalancing/data/binance/old/"
     folder_new = "C:/Users/Mark/PycharmProjects/rebalancing/data/binance/new/"
 
-    files = {os.path.basename(x) for folder in (folder_old, folder_new) for x in glob.glob(folder + "*.csv")}
+    files = {os.path.basename(x) for x in glob.glob(folder_old + "*.csv")} & {os.path.basename(x) for x in glob.glob(folder_new + "*.csv")}
 
     for each_file_name in sorted(files):
         print(f"reading {each_file_name:s}...")
