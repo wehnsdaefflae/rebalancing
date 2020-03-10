@@ -4,6 +4,7 @@ import random
 from typing import Sequence
 
 # from matplotlib import pyplot
+from matplotlib import pyplot
 
 
 def get_sequence(start_value: float, length: int) -> Sequence[float]:
@@ -21,7 +22,7 @@ def get_sequence(start_value: float, length: int) -> Sequence[float]:
 def main():
     random.seed(235235)
 
-    size = 10
+    size = 200
     seq_ass = get_sequence(53.5, size)
     seq_sec = get_sequence(12.2, size)
 
@@ -38,7 +39,7 @@ def main():
     # split on each switch, keep alternative, discard worse sequence
     # remember actions, not states
 
-    # todo: generalize to n assets
+    # todo: generalize to n assets, add fees, is log required?
 
     for i in range(size - 1):
         # next sec
@@ -97,8 +98,28 @@ def main():
 
     print(f"final value: {val_sec[-1]:5.2f}")
 
-    # pyplot.plot(seq)
-    # pyplot.show()
+    fig, ax = pyplot.subplots()
+    ax.plot(range(size), seq_ass, label="asset")
+    label_buy = True
+    ax.plot(range(size), seq_sec, label="security")
+    label_sell = True
+    for i in range(len(storage_path) - 1):
+        if storage_path[i] == "sec" and storage_path[i+1] == "ass":
+            if label_buy:
+                ax.axvline(i, label="buy", color="red")
+                label_buy = False
+            else:
+                ax.axvline(i, color="red")
+
+        elif storage_path[i] == "ass" and storage_path[i+1] == "sec":
+            if label_sell:
+                ax.axvline(i, label="sell", color="green")
+                label_sell = False
+            else:
+                ax.axvline(i, color="green")
+
+    pyplot.legend()
+    pyplot.show()
 
 
 if __name__ == "__main__":
