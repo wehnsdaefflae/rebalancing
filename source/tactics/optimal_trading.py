@@ -19,72 +19,45 @@ def get_sequence(start_value: float, length: int) -> Sequence[float]:
     return s
 
 
-def get_trading_sequence(rates: Sequence[Sequence[float]]) -> Tuple[Sequence[int], float]:
-    assert len(rates) == 2
-    seq_sec, seq_ass = rates
+def forward(rates: Sequence[Sequence[float]]) -> Tuple[Sequence[int], float]:
+    no_assets = len(rates)
+    len_sequence, = set(len(x) for x in rates)
+    len_path = len_sequence - 1
 
-    size, = set(len(x) for x in rates)
+    values_objective = [1. for _ in rates]
+    paths = tuple([] for _ in rates)
 
-    origin_ass = [0 for _ in range(size-1)]  # [index of source asset]
-    origin_sec = [0 for _ in range(size-1)]  # [index of source asset]
+    for t in range(len_path):
+        rates_now = tuple(x[t] for x in rates)
+        rates_next = tuple(x[t + 1] for x in rates)
+        values_tmp = values_objective[:]
+        for asset_to, (rate_to_now, rate_to_next) in enumerate(zip(rates_now, rates_next)):
+            change = rate_to_next / rate_to_now
 
-    val_ass = [-1. for _ in range(size)]
-    val_sec = [-1. for _ in range(size)]
+            asset_from = -1
+            value_max = -1.
+            for asset_tmp in range(no_assets):
+                value_tmp = values_objective[asset_tmp] * change
+                if value_max < value_tmp or (value_max == value_tmp and asset_tmp == asset_to):  # additional condition can be removed for fees
+                    asset_from = asset_tmp
+                    value_max = value_tmp
 
-    val_ass[0] = 0.
-    val_sec[0] = 1.
+            asset_path = paths[asset_to]
+            asset_path.append(asset_from)
+            values_tmp[asset_to] = value_max
 
-    # keep two alternative accumulative value sequences
-    # split on each switch, keep alternative, discard worse sequence
-    # remember actions, not states
+        values_objective = values_tmp
 
-    # todo: generalize to n assets, add fees, is log required?
+        continue
 
-    for i in range(size - 1):
-        # next sec
-        change_sec = seq_sec[i+1] / seq_sec[i]
+    asset_last, roi = max(enumerate(values_objective), key=lambda x: x[1])
+    path = [asset_last]
+    for i in range(len_path - 1, 0, -1):
+        asset_path = paths[asset_last]
+        asset_last = asset_path[i]
+        path.insert(0, asset_last)
 
-        hold_sec = val_sec[i] * change_sec
-        sell_ass = val_ass[i] * change_sec
-        if hold_sec < sell_ass or i >= size - 2:
-            origin_sec[i] = 1           # set origin of sec i + 1 to from ass
-            val_sec[i+1] = sell_ass
-
-        else:
-            origin_sec[i] = 0          # set origin of sec i + 1 to from sec
-            val_sec[i+1] = hold_sec
-
-        # next ass
-        change_ass = seq_ass[i+1] / seq_ass[i]
-
-        hold_ass = val_ass[i] * change_ass
-        sell_sec = val_sec[i] * change_ass
-        if hold_ass >= sell_sec or i >= size - 2:
-            origin_ass[i] = 1          # set origin of ass i + 1 to from ass
-            val_ass[i+1] = hold_ass
-
-        else:
-            origin_ass[i] = 0           # set origin of ass i + 1 to from sec
-            val_ass[i+1] = sell_sec
-
-    origin = origin_sec
-    storage_inv = []
-    for i in range(size - 2, -1, -1):
-        storage_inv.append(origin[i])
-        if origin[i] == 0:
-            origin = origin_sec
-        else:
-            origin = origin_ass
-
-    print("val_ass " + "".join(f"{x: 9.2f}" for x in val_ass))
-    print("origin  " + "".join(["     init"] + [f"{x: 9d}" for x in origin_ass]))
-    print()
-    print("val_sec " + "".join(f"{x:9.2f}" for x in val_sec))
-    print("origin  " + "".join(["     init"] + [f"{x: 9d}" for x in origin_sec]))
-    print()
-
-    assert origin_ass == origin_sec
-    return storage_inv[::-1], val_sec[-1]
+    return path, roi
 
 
 def plot_trading(path_trade: Sequence[int], seq_ass: Sequence[float], seq_sec: Sequence[float]):
@@ -155,31 +128,31 @@ def simulate_alternative(path_trading: Sequence[int], rates: Sequence[Sequence[f
 def main():
     random.seed(235235)
 
-    size = 5
-    seq_ass = get_sequence(53.5, size)
-    seq_sec = get_sequence(12.2, size)
-    rates = seq_sec, seq_ass
+    size = 10
+    no_assets = 2
+
+    # rates = [[1., 1., 1., 1., 1.], [1., 2., 2., 3., 2.]]
+    rates = tuple(get_sequence(random.uniform(10., 60.), size) for _ in range(no_assets))
 
     print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
     print()
-    print("seq_ass " + "".join(f"{x:9.2f}" for x in seq_ass))
-    print("seq_sec " + "".join(f"{x:9.2f}" for x in seq_sec))
+    for i, each_rate in enumerate(rates):
+        print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
+
     print()
 
-    path_trade, final_value = get_trading_sequence(rates)
+    path_trade, roi = forward(rates)
 
-    print("path    " + "".join(f"{x: 9d}" for x in path_trade))
+    print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f"{roi:9.2f}"]))
     print()
-
-    print(f"final value: {final_value:5.5f}")
 
     # plot_trading(path_trade, seq_ass, seq_sec)
 
-    amount = simulate(path_trade, rates, objective_value=10.)
-    print(f"result end of simulation 0: {amount:5.5f}.")
+    amount = simulate(path_trade, rates, objective_value=1.)
+    print(f"roi simulation 0: {amount:5.5f}.")
 
-    amount = simulate_alternative(path_trade, rates, objective_value=10.)
-    print(f"result end of simulation 1: {amount:5.5f}.")
+    amount = simulate_alternative(path_trade, rates, objective_value=1.)
+    print(f"roi simulation 1: {amount:5.5f}.")
 
 
 if __name__ == "__main__":
