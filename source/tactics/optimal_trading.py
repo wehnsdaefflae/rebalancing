@@ -153,9 +153,9 @@ def simulate_alternative(
 
 
 def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
-    if asset_from != asset_to:
-        return amount_from * .1
-    return 0.
+    if asset_from == asset_to:
+        return 0.
+    return amount_from * .1
 
 
 def main():
@@ -164,8 +164,10 @@ def main():
     size = 20
     no_assets = 10
 
-    # rates = [[1., 1., 1., 1., 1.], [1., 2., 2., 3., 2.]]
-    rates = tuple(get_sequence(random.uniform(10., 60.), size) for _ in range(no_assets))
+    rates = tuple(
+        get_sequence(random.uniform(10., 60.), size)
+        for _ in range(no_assets)
+    )
 
     print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
     print()
