@@ -1,7 +1,7 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
 import math
 import random
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Callable
 
 # from matplotlib import pyplot
 from matplotlib import pyplot
@@ -19,7 +19,9 @@ def get_sequence(start_value: float, length: int) -> Sequence[float]:
     return s
 
 
-def forward(rates: Sequence[Sequence[float]]) -> Tuple[Sequence[int], float]:
+def forward(
+        rates: Sequence[Sequence[float]],
+        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[int], float]:
     no_assets = len(rates)
     len_sequence, = set(len(x) for x in rates)
     len_path = len_sequence - 1
@@ -38,6 +40,9 @@ def forward(rates: Sequence[Sequence[float]]) -> Tuple[Sequence[int], float]:
             value_max = -1.
             for asset_tmp in range(no_assets):
                 value_tmp = values_objective[asset_tmp] * change
+                value_tmp -= fees(value_tmp, asset_tmp, asset_to)
+                if value_tmp < 0.:
+                    continue
                 if value_max < value_tmp or (value_max == value_tmp and asset_tmp == asset_to):  # additional condition can be removed for fees
                     asset_from = asset_tmp
                     value_max = value_tmp
@@ -87,7 +92,12 @@ def plot_trading(path_trade: Sequence[int], seq_ass: Sequence[float], seq_sec: S
     pyplot.show()
 
 
-def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], objective_value: float = 1.) -> float:
+def simulate(
+        path_trading: Sequence[int],
+        rates: Sequence[Sequence[float]],
+        objective_value: float = 1.,
+        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
+
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
 
@@ -96,6 +106,11 @@ def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], obje
     amount_asset = objective_value / rates_asset[0]
 
     for i, asset_target in enumerate(path_trading):
+        # subtract fees prior to conversion
+        amount_asset -= fees(amount_asset, asset_current, asset_target)
+        if amount_asset < 0.:
+            raise ValueError(f"Trade at time index {i:d} not possible due to fees!")
+
         each_rates = tuple(each_sequence[i] for each_sequence in rates)
 
         # objective value does not change
@@ -104,6 +119,7 @@ def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], obje
 
         ratio_conversion = rate_current / rate_target
         amount_asset *= ratio_conversion
+
         asset_current = asset_target
 
     rates_asset = rates[asset_current]
@@ -111,11 +127,22 @@ def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], obje
     return objective_result
 
 
-def simulate_alternative(path_trading: Sequence[int], rates: Sequence[Sequence[float]], objective_value: float = 1.) -> float:
+def simulate_alternative(
+        path_trading: Sequence[int],
+        rates: Sequence[Sequence[float]],
+        objective_value: float = 1.,
+        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
 
     for i, asset_target in enumerate(path_trading):
+        # subtract fees before conversion
+        if i >= 1:
+            asset_last = path_trading[i - 1]
+            objective_value -= fees(objective_value, asset_last, asset_target)
+            if objective_value < 0.:
+                raise ValueError(f"Trade at time index {i:d} not possible due to fees!")
+
         rates_asset = rates[asset_target]
 
         # amount of asset changes
@@ -125,11 +152,17 @@ def simulate_alternative(path_trading: Sequence[int], rates: Sequence[Sequence[f
     return objective_value
 
 
+def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
+    if asset_from != asset_to:
+        return amount_from * .1
+    return 0.
+
+
 def main():
     random.seed(235235)
 
-    size = 10
-    no_assets = 2
+    size = 20
+    no_assets = 10
 
     # rates = [[1., 1., 1., 1., 1.], [1., 2., 2., 3., 2.]]
     rates = tuple(get_sequence(random.uniform(10., 60.), size) for _ in range(no_assets))
@@ -141,17 +174,17 @@ def main():
 
     print()
 
-    path_trade, roi = forward(rates)
+    path_trade, roi = forward(rates, fees=fees_debug)
 
-    print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f"{roi:9.2f}"]))
+    print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
     print()
 
     # plot_trading(path_trade, seq_ass, seq_sec)
 
-    amount = simulate(path_trade, rates, objective_value=1.)
+    amount = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
     print(f"roi simulation 0: {amount:5.5f}.")
 
-    amount = simulate_alternative(path_trade, rates, objective_value=1.)
+    amount = simulate_alternative(path_trade, rates, objective_value=1., fees=fees_debug)
     print(f"roi simulation 1: {amount:5.5f}.")
 
 
