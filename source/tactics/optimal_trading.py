@@ -22,6 +22,7 @@ def get_sequence(start_value: float, length: int) -> Sequence[float]:
 def forward(
         rates: Sequence[Sequence[float]],
         fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[int], float]:
+    print(f"forward pass...")
     no_assets = len(rates)
     len_sequence, = set(len(x) for x in rates)
     len_path = len_sequence - 1
@@ -55,6 +56,7 @@ def forward(
 
         continue
 
+    print(f"backwards pass...")
     asset_last, roi = max(enumerate(values_objective), key=lambda x: x[1])
     path = [asset_last]
     for i in range(len_path - 1, 0, -1):
@@ -98,6 +100,7 @@ def simulate(
         objective_value: float = 1.,
         fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
 
+    print(f"simulating trading strategy...")
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
 
@@ -132,6 +135,8 @@ def simulate_alternative(
         rates: Sequence[Sequence[float]],
         objective_value: float = 1.,
         fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
+
+    print(f"simulating trading strategy...")
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
 
@@ -155,33 +160,50 @@ def simulate_alternative(
 def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
     if asset_from == asset_to:
         return 0.
-    return amount_from * .1
+    return amount_from * .01
 
 
-def main():
+def get_crypto_rates(file_name: str) -> Sequence[Sequence[float]]:
+    print(f"reading {file_name:s}...")
+    sequence = []
+    with open(file_name, mode="r") as file:
+        for line in file:
+            close_str = line.split("\t")[4]
+            sequence.append(float(close_str))
+
+    return sequence, [1. for _ in sequence]
+
+
+def get_random_rates() -> Sequence[Sequence[float]]:
     random.seed(235235)
 
     size = 20
     no_assets = 10
 
-    rates = tuple(
+    return tuple(
         get_sequence(random.uniform(10., 60.), size)
         for _ in range(no_assets)
     )
 
-    print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
-    print()
-    for i, each_rate in enumerate(rates):
-        print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
 
-    print()
+def main():
+    rates = get_crypto_rates("../../data/binance/ADAETH.csv")
+    # rates = get_random_rates()
+
+    size, = set(len(x) for x in rates)
 
     path_trade, roi = forward(rates, fees=fees_debug)
 
-    print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
-    print()
+    if size < 20:
+        print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
+        print()
+        for i, each_rate in enumerate(rates):
+            print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
 
-    # plot_trading(path_trade, seq_ass, seq_sec)
+        print()
+
+        print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
+        print()
 
     amount = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
     print(f"roi simulation 0: {amount:5.5f}.")
