@@ -114,11 +114,11 @@ def plot_trading(path_trade: Sequence[int], seq_ass: Sequence[float], seq_sec: S
     pyplot.show()
 
 
-def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], objective_value: float = 1., asset_start: int = 0) -> Tuple[float, int]:
+def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], objective_value: float = 1.) -> float:
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
 
-    asset_current = asset_start
+    asset_current = path_trading[0]
     rates_asset = rates[asset_current]
     amount_asset = objective_value / rates_asset[0]
 
@@ -126,18 +126,36 @@ def simulate(path_trading: Sequence[int], rates: Sequence[Sequence[float]], obje
         each_rates = tuple(each_sequence[i] for each_sequence in rates)
 
         # objective value does not change
-        ratio_conversion = each_rates[asset_current] / each_rates[asset_target]
+        rate_current = each_rates[asset_current]
+        rate_target = each_rates[asset_target]
+
+        ratio_conversion = rate_current / rate_target
         amount_asset *= ratio_conversion
         asset_current = asset_target
 
     rates_asset = rates[asset_current]
-    return amount_asset * rates_asset[-1], asset_current
+    objective_result = amount_asset * rates_asset[-1]
+    return objective_result
+
+
+def simulate_alternative(path_trading: Sequence[int], rates: Sequence[Sequence[float]], objective_value: float = 1.) -> float:
+    no_rates, =  set(len(x) for x in rates)
+    assert no_rates - 1 == len(path_trading)
+
+    for i, asset_target in enumerate(path_trading):
+        rates_asset = rates[asset_target]
+
+        # amount of asset changes
+        ratio_rates = rates_asset[i + 1] / rates_asset[i]
+        objective_value *= ratio_rates
+
+    return objective_value
 
 
 def main():
     random.seed(235235)
 
-    size = 3
+    size = 5
     seq_ass = get_sequence(53.5, size)
     seq_sec = get_sequence(12.2, size)
     rates = seq_sec, seq_ass
@@ -157,8 +175,11 @@ def main():
 
     # plot_trading(path_trade, seq_ass, seq_sec)
 
-    amount, asset = simulate(path_trade, rates, objective_value=seq_sec[0], asset_start=0)
-    print(f"result end of simulation 0 {amount:5.5f} of asset {asset:d}.")
+    amount = simulate(path_trade, rates, objective_value=10.)
+    print(f"result end of simulation 0: {amount:5.5f}.")
+
+    amount = simulate_alternative(path_trade, rates, objective_value=10.)
+    print(f"result end of simulation 1: {amount:5.5f}.")
 
 
 if __name__ == "__main__":
