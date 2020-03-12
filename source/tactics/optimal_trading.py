@@ -187,14 +187,14 @@ def get_random_rates() -> Sequence[Sequence[float]]:
 
 
 def main():
-    rates = get_crypto_rates("../../data/binance/ADAETH.csv")
-    # rates = get_random_rates()
+    # rates = get_crypto_rates("../../data/binance/ADAETH.csv")
+    rates = get_random_rates()
 
     size, = set(len(x) for x in rates)
 
     path_trade, roi = forward(rates, fees=fees_debug)
 
-    if size < 20:
+    if size < 30:
         print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
         print()
         for i, each_rate in enumerate(rates):
