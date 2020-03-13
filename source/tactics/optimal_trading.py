@@ -198,8 +198,8 @@ def get_crypto_rates(interval: int = 1) -> Tuple[Sequence[int], Sequence[Sequenc
     v_last = -1.
     w_last = -1.
 
-    generate_ada = data_generator("ada", "eth", interval_minutes=interval, data=("timestamp_close", "close",))
-    generate_adx = data_generator("adx", "eth", interval_minutes=interval, data=("timestamp_close", "close",))
+    generate_ada = data_generator("ada", "eth", interval_minutes=interval, data=("close",))
+    generate_adx = data_generator("adx", "eth", interval_minutes=interval, data=("close",))
 
     for v, w in zip(generate_ada, generate_adx):
         _v = v[1]

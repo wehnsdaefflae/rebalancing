@@ -85,7 +85,7 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
     return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in stats)
 
 
-def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, data: Sequence[str] = ("close",)) -> Generator[Sequence[float], None, None]:
+def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, data: Tuple[str, ...] = ("close",)) -> Generator[Sequence[float], None, None]:
     directory_data = "../../data/"
     directory_merged = directory_data + "merged/"
     files = sorted(glob.glob(directory_merged + "merged_*.csv"))
@@ -95,7 +95,7 @@ def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, da
             header = next(file)
             stripped = header.strip()
             split = stripped.split("\t")
-            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + "_" + each_datum.lower()) for each_datum in data)
+            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + "_" + each_datum.lower()) for each_datum in ("timestamp_close", ) + data)
 
             for line in file:
                 iterator += 1
@@ -183,7 +183,7 @@ def main():
     g = data_generator("ada", "eth", interval_minutes=100, data=("close",))
     s = []
     for v in g:
-        s.append(v[0])
+        s.append(v[1])
         if Timer.time_passed(2000):
             print(f"length so far {len(s):d}")
 
