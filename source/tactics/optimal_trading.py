@@ -202,19 +202,24 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Sequence[Sequence[f
     )
 
 
-def get_crypto_rates(interval: int = 1) -> Sequence[Sequence[float]]:
+def get_crypto_rates(interval: int = 1) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
     rates = [], []
+    timestamps = []
 
     v_last = -1.
     w_last = -1.
 
-    for v, w in zip(data_generator("ada", "eth", interval_minutes=interval, data=("close",)), data_generator("adx", "eth", interval_minutes=interval, data=("close",))):
-        _v = v[0]
-        _w = w[0]
+    generate_ada = data_generator("ada", "eth", interval_minutes=interval, data=("timestamp_close", "close",))
+    generate_adx = data_generator("adx", "eth", interval_minutes=interval, data=("timestamp_close", "close",))
+
+    for v, w in zip(generate_ada, generate_adx):
+        _v = v[1]
+        _w = w[1]
 
         if (_v < 0. or _w < 0.) and len(rates[0]) < 1:
             continue
 
+        timestamps.append(int(v[0]))
         rates[0].append(max(v_last, _v))
         rates[1].append(max(w_last, _w))
 
@@ -227,13 +232,14 @@ def get_crypto_rates(interval: int = 1) -> Sequence[Sequence[float]]:
     assert all(0. < x for x in rates[0])
     assert all(0. < x for x in rates[1])
 
-    return rates
+    return timestamps, rates
 
 
 def main():
-    # rates = get_crypto_rates("../../data/binance/ADAETH.csv")
+    # rates = get_crypto_rates_old("../../data/binance/ADAETH.csv")
     rates = get_random_rates(no_assets=3, size=5)
-    # rates = get_crypto_rates(interval=1)
+    timestamps = list(range(len(rates[0])))
+    # time_stamps, rates = get_crypto_rates(interval=100)
 
     size, = set(len(x) for x in rates)
 
@@ -259,6 +265,17 @@ def main():
     print()
     print(f"history simulation 0: {str(history_a):s}")
     print(f"history simulation 0: {str(history_b):s}")
+
+    with open("../../data/examples/test.csv", mode="a") as file:
+        header = "timestamp", "rates", "action", "intensity"
+        file.write("\t".join(header) + "\n")
+        for i in range(len(path_trade)):
+            ts = timestamps[i]
+            r = tuple(each_rates[i] for each_rates in rates)
+            a = path_trade[i]
+            i = history_a[i]
+            values = f"{ts:d}", f"{', '.join(f'{x:.4f}' for x in r):s}", f"ass_{a:03d}", f"{i:.4f}"
+            file.write("\t".join(values) + "\n")
 
 
 if __name__ == "__main__":
