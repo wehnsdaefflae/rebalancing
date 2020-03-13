@@ -110,7 +110,7 @@ def simulate(
         path_trading: Sequence[int],
         rates: Sequence[Sequence[float]],
         objective_value: float = 1.,
-        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
+        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[float], float]:
 
     # TODO: return by step return of interest
     print(f"simulating trading strategy...")
@@ -121,6 +121,7 @@ def simulate(
     rates_asset = rates[asset_current]
     amount_asset = objective_value / rates_asset[0]
 
+    ratio_history = []
     for i, asset_target in enumerate(path_trading):
         # subtract fees prior to conversion
         amount_asset -= fees(amount_asset, asset_current, asset_target)
@@ -136,24 +137,27 @@ def simulate(
         ratio_conversion = rate_current / rate_target
         amount_asset *= ratio_conversion
 
+        ratio_history.append(rates[asset_target][i+1] / rate_target)
+
         asset_current = asset_target
 
     rates_asset = rates[asset_current]
     objective_result = amount_asset * rates_asset[-1]
-    return objective_result
+    return ratio_history, objective_result
 
 
 def simulate_alternative(
         path_trading: Sequence[int],
         rates: Sequence[Sequence[float]],
         objective_value: float = 1.,
-        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
+        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[float], float]:
 
     # TODO: return by step return of interest
     print(f"simulating trading strategy...")
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
 
+    ratio_history = []
     for i, asset_target in enumerate(path_trading):
         # subtract fees before conversion
         if i >= 1:
@@ -167,8 +171,9 @@ def simulate_alternative(
         # amount of asset changes
         ratio_rates = rates_asset[i + 1] / rates_asset[i]
         objective_value *= ratio_rates
+        ratio_history.append(ratio_rates)
 
-    return objective_value
+    return ratio_history, objective_value
 
 
 def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
@@ -188,11 +193,8 @@ def get_crypto_rates_old(file_name: str) -> Sequence[Sequence[float]]:
     return sequence, [1. for _ in sequence]
 
 
-def get_random_rates() -> Sequence[Sequence[float]]:
+def get_random_rates(size: int = 20, no_assets: int = 10) -> Sequence[Sequence[float]]:
     random.seed(235235)
-
-    size = 20
-    no_assets = 10
 
     return tuple(
         get_sequence(random.uniform(10., 60.), size)
@@ -230,12 +232,15 @@ def get_crypto_rates(interval: int = 1) -> Sequence[Sequence[float]]:
 
 def main():
     # rates = get_crypto_rates("../../data/binance/ADAETH.csv")
-    # rates = get_random_rates()
-    rates = get_crypto_rates(interval=1)
+    rates = get_random_rates(no_assets=3, size=5)
+    # rates = get_crypto_rates(interval=1)
 
     size, = set(len(x) for x in rates)
 
     path_trade, roi = forward(rates, fees=fees_debug)
+
+    history_a, amount_a = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
+    history_b, amount_b = simulate_alternative(path_trade, rates, objective_value=1., fees=fees_debug)
 
     if size < 30:
         print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
@@ -246,13 +251,14 @@ def main():
         print()
 
         print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
+        print("ratio   " + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in history_a]))
         print()
 
-    amount = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
-    print(f"roi simulation 0: {amount:5.5f}.")
-
-    amount = simulate_alternative(path_trade, rates, objective_value=1., fees=fees_debug)
-    print(f"roi simulation 1: {amount:5.5f}.")
+    print(f"roi simulation 0: {amount_a:5.5f}.")
+    print(f"roi simulation 1: {amount_b:5.5f}.")
+    print()
+    print(f"history simulation 0: {str(history_a):s}")
+    print(f"history simulation 0: {str(history_b):s}")
 
 
 if __name__ == "__main__":
