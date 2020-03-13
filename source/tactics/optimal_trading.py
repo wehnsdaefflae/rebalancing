@@ -6,6 +6,7 @@ from typing import Sequence, Tuple, Callable
 # from matplotlib import pyplot
 from matplotlib import pyplot
 
+from source.data.merge_csv import data_generator
 from source.tools.timer import Timer
 
 
@@ -174,7 +175,7 @@ def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
     return amount_from * .01
 
 
-def get_crypto_rates(file_name: str) -> Sequence[Sequence[float]]:
+def get_crypto_rates_old(file_name: str) -> Sequence[Sequence[float]]:
     print(f"reading {file_name:s}...")
     sequence = []
     with open(file_name, mode="r") as file:
@@ -197,9 +198,38 @@ def get_random_rates() -> Sequence[Sequence[float]]:
     )
 
 
+def get_crypto_rates(interval: int = 1) -> Sequence[Sequence[float]]:
+    rates = [], []
+
+    v_last = -1.
+    w_last = -1.
+
+    for v, w in zip(data_generator("ada", "eth", interval_minutes=interval, data=("close",)), data_generator("adx", "eth", interval_minutes=interval, data=("close",))):
+        _v = v[0]
+        _w = w[0]
+
+        if (_v < 0. or _w < 0.) and len(rates[0]) < 1:
+            continue
+
+        rates[0].append(max(v_last, _v))
+        rates[1].append(max(w_last, _w))
+
+        v_last = _v if 0. < _v else v_last
+        w_last = _w if 0. < _w else w_last
+
+        if Timer.time_passed(2000):
+            print(f"length of rates {len(rates[0]):d}...")
+
+    assert all(0. < x for x in rates[0])
+    assert all(0. < x for x in rates[1])
+
+    return rates
+
+
 def main():
     # rates = get_crypto_rates("../../data/binance/ADAETH.csv")
-    rates = get_random_rates()
+    # rates = get_random_rates()
+    rates = get_crypto_rates(interval=1)
 
     size, = set(len(x) for x in rates)
 

@@ -95,7 +95,7 @@ def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, da
             header = next(file)
             stripped = header.strip()
             split = stripped.split("\t")
-            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + each_datum.lower()) for each_datum in data)
+            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + "_" + each_datum.lower()) for each_datum in data)
 
             for line in file:
                 iterator += 1
@@ -103,13 +103,11 @@ def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, da
                     continue
                 iterator = 0
 
-                stripped = line.strip()
-                split = stripped.split("\t")
-                values = tuple(float(x) for x in split)
-                yield tuple(values[i] for i in indices)
+                split = line[:-1].split("\t")
+                yield tuple(float(split[i]) for i in indices)
 
 
-def main():
+def merge():
     interval_timestamp = 60000
 
     directory_data = "../../data/"
@@ -179,6 +177,17 @@ def main():
 
                 if Timer.time_passed(2000):
                     print(f"finished {j+1:d}/{len(ranges):d} {(reference_timestamp_close - timestamp_from) * 100. / (timestamp_to - timestamp_from):5.2f}%...")
+
+
+def main():
+    g = data_generator("ada", "eth", interval_minutes=100, data=("close",))
+    s = []
+    for v in g:
+        s.append(v[0])
+        if Timer.time_passed(2000):
+            print(f"length so far {len(s):d}")
+
+    print(s)
 
 
 if __name__ == "__main__":
