@@ -200,7 +200,6 @@ def get_crypto_rates(interval: int = 1) -> Tuple[Sequence[int], Sequence[Sequenc
         data_generator("iota", "eth", interval_minutes=interval, data=("close",)),
         data_generator("ltc", "eth", interval_minutes=interval, data=("close",)),
         data_generator("nano", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("npx", "eth", interval_minutes=interval, data=("close",)),
         data_generator("poa", "eth", interval_minutes=interval, data=("close",)),
         data_generator("qtum", "eth", interval_minutes=interval, data=("close",)),
         data_generator("theta", "eth", interval_minutes=interval, data=("close",)),
