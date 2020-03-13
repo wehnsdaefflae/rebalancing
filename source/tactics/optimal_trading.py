@@ -33,7 +33,7 @@ def forward(
     values_objective = [1. for _ in rates]
     paths = tuple([] for _ in rates)
 
-    iterations_total = len_path * len_sequence * no_assets
+    iterations_total = len_path * no_assets * no_assets
     iterations_done = 0
 
     for t in range(len_path):
@@ -73,6 +73,8 @@ def forward(
         asset_path = paths[asset_last]
         asset_last = asset_path[i]
         path.insert(0, asset_last)
+        if Timer.time_passed(2000):
+            print(f"finished {(len_path - 1 - i) * 100. / (len_path - 1):5.2f}% of backwards pass...")
 
     return path, roi
 
