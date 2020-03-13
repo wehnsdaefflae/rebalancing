@@ -174,11 +174,9 @@ def main_new():
     directory_data = "../../data/"
 
     directory_csv = directory_data + "binance/"
-    files = sorted(glob.glob(directory_csv + "*.csv"))[:2]
+    files = sorted(glob.glob(directory_csv + "*.csv"))
 
     directory_merged = directory_data + "merged/"
-
-    path_merged = directory_merged + "merged.csv"
 
     ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
     timestamp_from = round_down_timestamp(ts_close_min, interval_timestamp) + interval_timestamp
@@ -191,36 +189,55 @@ def main_new():
 
     pairs = get_pairs(files)
     header = ("timestamp_close", "timestamp_open") + get_header(pairs)
-    with open(path_merged, mode="a") as file:
-        file.write("\t".join(header) + "\n")
 
-        for reference_timestamp_close in range(timestamp_from, timestamp_to, interval_timestamp):
-            reference_timestamp_open = reference_timestamp_close - interval_timestamp
-            values = [reference_timestamp_close, reference_timestamp_open]
+    length_segment = 100000
+    no_entries = (timestamp_to - timestamp_from) // interval_timestamp + 1
+    print(f"total number of entries: {no_entries:d}")
+    ranges = tuple(
+        (i * length_segment, min((i + 1) * length_segment, no_entries))
+        for i in range(no_entries // length_segment + 1)
+    )
 
-            for i, each_stat in enumerate(stats_all):
-                each_timestamp_close = each_stat[6]
-                if reference_timestamp_open < each_timestamp_close <= reference_timestamp_close:
-                    values.extend(each_stat)
-                    proceed[i] = True
+    for j, each_range in enumerate(ranges):
+        print(f"writing entries # {each_range[0]:d} to {each_range[1]:d}...")
+        path_merged = directory_merged + f"merged_{j:05d}.csv"
 
-                elif each_timestamp_close < reference_timestamp_open:
-                    values.extend(stat_empty)
-                    proceed[i] = True
+        print(f"from timestamps {each_range[0] * interval_timestamp + timestamp_from:d} to {each_range[0] * interval_timestamp + timestamp_from:d}...")
 
-                elif reference_timestamp_close < each_timestamp_close:
-                    values.extend(stat_empty)
+        with open(path_merged, mode="a") as file:
+            file.write("\t".join(header) + "\n")
 
-            for i, p in enumerate(proceed):
-                if not p:
-                    continue
-                proceed[i] = False
-                stats_all[i] = next(generators_all[i])
+            for reference_timestamp_close in range(*each_range):
+                reference_timestamp_close *= interval_timestamp
+                reference_timestamp_close += timestamp_from
 
-            file.write("\t".join(str(x) for x in values) + "\n")
+                reference_timestamp_open = reference_timestamp_close - interval_timestamp
 
-            if Timer.time_passed(2000):
-                print(f"finished {(reference_timestamp_close - timestamp_from) * 100. / (timestamp_to - timestamp_from):5.2f}%...")
+                values = [reference_timestamp_close, reference_timestamp_open]
+
+                for i, each_stat in enumerate(stats_all):
+                    each_timestamp_close = each_stat[6]
+                    if reference_timestamp_open < each_timestamp_close <= reference_timestamp_close:
+                        values.extend(each_stat)
+                        proceed[i] = True
+
+                    elif each_timestamp_close < reference_timestamp_open:
+                        values.extend(stat_empty)
+                        proceed[i] = True
+
+                    elif reference_timestamp_close < each_timestamp_close:
+                        values.extend(stat_empty)
+
+                for i, p in enumerate(proceed):
+                    if not p:
+                        continue
+                    proceed[i] = False
+                    stats_all[i] = next(generators_all[i])
+
+                file.write("\t".join(str(x) for x in values) + "\n")
+
+                if Timer.time_passed(2000):
+                    print(f"finished {j+1:d}/{len(ranges):d} {(reference_timestamp_close - timestamp_from) * 100. / (timestamp_to - timestamp_from):5.2f}%...")
 
 
 if __name__ == "__main__":
