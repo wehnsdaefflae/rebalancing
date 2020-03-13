@@ -182,21 +182,10 @@ def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
     return amount_from * .01
 
 
-def get_crypto_rates_old(file_name: str) -> Sequence[Sequence[float]]:
-    print(f"reading {file_name:s}...")
-    sequence = []
-    with open(file_name, mode="r") as file:
-        for line in file:
-            close_str = line.split("\t")[4]
-            sequence.append(float(close_str))
-
-    return sequence, [1. for _ in sequence]
-
-
-def get_random_rates(size: int = 20, no_assets: int = 10) -> Sequence[Sequence[float]]:
+def get_random_rates(size: int = 20, no_assets: int = 10) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
     random.seed(235235)
 
-    return tuple(
+    return list(range(size)), tuple(
         get_sequence(random.uniform(10., 60.), size)
         for _ in range(no_assets)
     )
@@ -236,10 +225,8 @@ def get_crypto_rates(interval: int = 1) -> Tuple[Sequence[int], Sequence[Sequenc
 
 
 def main():
-    # rates = get_crypto_rates_old("../../data/binance/ADAETH.csv")
-    rates = get_random_rates(no_assets=3, size=5)
-    timestamps = list(range(len(rates[0])))
-    # time_stamps, rates = get_crypto_rates(interval=100)
+    # timestamps, rates = get_random_rates(no_assets=3, size=5)
+    timestamps, rates = get_crypto_rates(interval=1)
 
     size, = set(len(x) for x in rates)
 
@@ -276,6 +263,8 @@ def main():
             i = history_a[i]
             values = f"{ts:d}", f"{', '.join(f'{x:.4f}' for x in r):s}", f"ass_{a:03d}", f"{i:.4f}"
             file.write("\t".join(values) + "\n")
+            if Timer.time_passed(2000):
+                print(f"finished {i * 100. / len(path_trade):5.2f}% of example generation...")
 
 
 if __name__ == "__main__":
