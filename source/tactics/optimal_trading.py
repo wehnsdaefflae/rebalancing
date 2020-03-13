@@ -192,34 +192,43 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Tuple[Sequence[int]
 
 
 def get_crypto_rates(interval: int = 1) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
-    rates = [], []
+    generators = (
+        data_generator("bcc", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("bnb", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("dash", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("icx", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("iota", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("ltc", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("nano", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("npx", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("poa", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("qtum", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("theta", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("tusd", "eth", interval_minutes=interval, data=("close",)),
+        data_generator("xmr", "eth", interval_minutes=interval, data=("close",)),
+    )
+
     timestamps = []
+    rates = tuple([] for _ in generators)
+    vs_last = [-1. for _ in generators]
 
-    v_last = -1.
-    w_last = -1.
+    for _vs in zip(*generators):
+        vs = [v[1] for v in _vs]
 
-    generate_ada = data_generator("ada", "eth", interval_minutes=interval, data=("close",))
-    generate_adx = data_generator("adx", "eth", interval_minutes=interval, data=("close",))
-
-    for v, w in zip(generate_ada, generate_adx):
-        _v = v[1]
-        _w = w[1]
-
-        if (_v < 0. or _w < 0.) and len(rates[0]) < 1:
+        if all(v < 0. for v in vs) and len(rates[0]) < 1:
             continue
 
-        timestamps.append(int(v[0]))
-        rates[0].append(max(v_last, _v))
-        rates[1].append(max(w_last, _w))
+        timestamps.append(int(_vs[0][0]))
 
-        v_last = _v if 0. < _v else v_last
-        w_last = _w if 0. < _w else w_last
+        for i, (each_rates, v_last, v) in enumerate(zip(rates, vs_last, vs)):
+            each_rates.append(max(v_last, v))
+            if 0. < v:
+                vs_last[i] = v
 
         if Timer.time_passed(2000):
             print(f"length of rates {len(rates[0]):d}...")
 
-    assert all(0. < x for x in rates[0])
-    assert all(0. < x for x in rates[1])
+    assert all(0. < x for each_rate in rates for x in each_rate)
 
     return timestamps, rates
 
@@ -240,18 +249,17 @@ def main():
         print()
         for i, each_rate in enumerate(rates):
             print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
-
         print()
-
         print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
         print("ratio   " + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in history_a]))
         print()
+        print()
+        print(f"history simulation 0: {str(history_a):s}")
+        print(f"history simulation 0: {str(history_b):s}")
 
     print(f"roi simulation 0: {amount_a:5.5f}.")
     print(f"roi simulation 1: {amount_b:5.5f}.")
     print()
-    print(f"history simulation 0: {str(history_a):s}")
-    print(f"history simulation 0: {str(history_b):s}")
 
     with open("../../data/examples/test.csv", mode="a") as file:
         header = "timestamp", "rates", "action", "intensity"
@@ -261,7 +269,7 @@ def main():
             r = tuple(each_rates[i] for each_rates in rates)
             a = path_trade[i]
             i = history_a[i]
-            values = f"{ts:d}", f"{', '.join(f'{x:.4f}' for x in r):s}", f"ass_{a:03d}", f"{i:.4f}"
+            values = f"{ts:d}", f"{', '.join(f'{x:.8f}' for x in r):s}", f"ass_{a:03d}", f"{i:.8f}"
             file.write("\t".join(values) + "\n")
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(path_trade):5.2f}% of example generation...")
