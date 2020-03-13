@@ -1,7 +1,9 @@
 from __future__ import annotations
 import glob
 import os
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Generator
+
+from source.tools.timer import Timer
 
 STATS = Tuple[int, float, float, float, float, float, int, float, int, float, float, float]
 
@@ -16,6 +18,15 @@ def stat_from_line(line: str) -> STATS:
            float(split[3]), float(split[4]), float(split[5]), \
            int(split[6]), float(split[7]), int(split[8]), \
            float(split[9]), float(split[10]), float(split[11])
+
+
+def generator_file(path_file: str) -> Generator[STATS, None, None]:
+    with open(path_file, mode="r") as file:
+        for line in file:
+            yield stat_from_line(line)
+
+    while True:
+        yield stat_empty
 
 
 def round_down_timestamp(timestamp: int, round_to: int) -> int:
@@ -157,5 +168,60 @@ def main():
         add_file(path_merged, each_file)
 
 
+def main_new():
+    interval_timestamp = 60000
+
+    directory_data = "../../data/"
+
+    directory_csv = directory_data + "binance/"
+    files = sorted(glob.glob(directory_csv + "*.csv"))[:2]
+
+    directory_merged = directory_data + "merged/"
+
+    path_merged = directory_merged + "merged.csv"
+
+    ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
+    timestamp_from = round_down_timestamp(ts_close_min, interval_timestamp) + interval_timestamp
+    timestamp_to = round_down_timestamp(ts_close_max, interval_timestamp) + 2 * interval_timestamp
+
+    generators_all = tuple(generator_file(each_file) for each_file in files)
+    stats_all = [next(each_generator) for each_generator in generators_all]
+
+    proceed = [False for _ in generators_all]
+
+    pairs = get_pairs(files)
+    header = ("timestamp_close", "timestamp_open") + get_header(pairs)
+    with open(path_merged, mode="a") as file:
+        file.write("\t".join(header) + "\n")
+
+        for reference_timestamp_close in range(timestamp_from, timestamp_to, interval_timestamp):
+            reference_timestamp_open = reference_timestamp_close - interval_timestamp
+            values = [reference_timestamp_close, reference_timestamp_open]
+
+            for i, each_stat in enumerate(stats_all):
+                each_timestamp_close = each_stat[6]
+                if reference_timestamp_open < each_timestamp_close <= reference_timestamp_close:
+                    values.extend(each_stat)
+                    proceed[i] = True
+
+                elif each_timestamp_close < reference_timestamp_open:
+                    values.extend(stat_empty)
+                    proceed[i] = True
+
+                elif reference_timestamp_close < each_timestamp_close:
+                    values.extend(stat_empty)
+
+            for i, p in enumerate(proceed):
+                if not p:
+                    continue
+                proceed[i] = False
+                stats_all[i] = next(generators_all[i])
+
+            file.write("\t".join(str(x) for x in values) + "\n")
+
+            if Timer.time_passed(2000):
+                print(f"finished {(reference_timestamp_close - timestamp_from) * 100. / (timestamp_to - timestamp_from):5.2f}%...")
+
+
 if __name__ == "__main__":
-    main()
+    main_new()
