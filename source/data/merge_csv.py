@@ -95,7 +95,8 @@ def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, da
             header = next(file)
             stripped = header.strip()
             split = stripped.split("\t")
-            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + "_" + each_datum.lower()) for each_datum in ("timestamp_close", ) + data)
+            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + "_" + each_datum.lower()) for each_datum in data)
+            indices = (split.index("timestamp_close"), ) + indices
 
             for line in file:
                 iterator += 1
