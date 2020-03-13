@@ -85,90 +85,7 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
     return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in stats)
 
 
-def write_header(path_file: str, pairs: Sequence[Tuple[str, str]]):
-    print(f"writing header...")
-    header = ("timestamp_close", "timestamp_open") + get_header(pairs)
-    with open(path_file, mode="a") as file:
-        file.write("\t".join(header) + "\n")
-
-
-def write_timestamps(file_path: str, files: Sequence[str], interval_timestamp: int):
-    print(f"writing time stamps...")
-    ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
-    timestamp_from = round_down_timestamp(ts_close_min, interval_timestamp)
-    timestamp_to = round_down_timestamp(ts_close_max, interval_timestamp)
-    with open(file_path, mode="a") as file:
-        for each_ts_close in range(timestamp_from, timestamp_to + interval_timestamp, interval_timestamp):
-            values = f"{each_ts_close:d}", f"{each_ts_close - interval_timestamp:d}"
-            file.write("\t".join(values) + "\n")
-
-
-def timestamps_base_line(line: str) -> Tuple[int, int]:
-    stripped = line.strip()
-    split = stripped.split("\t", maxsplit=2)
-    return int(split[1]), int(split[0])
-
-
-def add_file(path_basis: str, path_extension: str):
-    print(f"adding {path_extension:s} to {path_basis:s}...")
-    path_tmp = os.path.dirname(path_basis) + "/temp.tmp"
-    if os.path.isfile(path_tmp):
-        os.remove(path_tmp)
-
-    with open(path_basis, mode="r") as file_basis, open(path_extension, mode="r") as file_extension, open(path_tmp, mode="a") as file_temp:
-        header = next(file_basis)
-        file_temp.write(header)
-
-        for i, line in enumerate(file_extension):
-            stats = stat_from_line(line)
-            timestamp_ext_close = stats[6]
-
-            try:
-                line_basis = next(file_basis)
-
-            except StopIteration:
-                print(f"base file terminated prematurely at the {i+1:d}th line of {path_extension:s}.")
-                # doesn't seem to be a problem. why though?!
-                break
-
-            stripped_basis = line_basis.strip()
-            _, timestamp_base_close = timestamps_base_line(stripped_basis)
-
-            while timestamp_ext_close >= timestamp_base_close:
-                line_new = stripped_basis + "\t" + "\t".join(str(x) for x in stat_empty)
-                file_temp.write(line_new + "\n")
-                line_basis = next(file_basis)
-                stripped_basis = line_basis.strip()
-                _, timestamp_base_close = timestamps_base_line(stripped_basis)
-
-            file_temp.write(stripped_basis + "\t" + line)
-
-    os.remove(path_basis)
-    os.rename(path_tmp, path_basis)
-
-
 def main():
-    interval_timestamp = 60000
-
-    directory_data = "../../data/"
-
-    directory_csv = directory_data + "binance/"
-    files = sorted(glob.glob(directory_csv + "*.csv"))
-
-    directory_merged = directory_data + "merged/"
-
-    path_merged = directory_merged + "merged.csv"
-
-    pairs = get_pairs(files)
-    write_header(path_merged, pairs)
-    write_timestamps(path_merged, files, interval_timestamp)
-
-    for i, each_file in enumerate(files):
-        print(f"adding {i + 1:d} / {len(files)} ({each_file:s})...")
-        add_file(path_merged, each_file)
-
-
-def main_new():
     interval_timestamp = 60000
 
     directory_data = "../../data/"
@@ -241,4 +158,4 @@ def main_new():
 
 
 if __name__ == "__main__":
-    main_new()
+    main()
