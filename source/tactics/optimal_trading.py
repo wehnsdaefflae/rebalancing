@@ -6,6 +6,8 @@ from typing import Sequence, Tuple, Callable
 # from matplotlib import pyplot
 from matplotlib import pyplot
 
+from source.tools.timer import Timer
+
 
 def get_sequence(start_value: float, length: int) -> Sequence[float]:
     s = [-1. for _ in range(length)]
@@ -30,6 +32,9 @@ def forward(
     values_objective = [1. for _ in rates]
     paths = tuple([] for _ in rates)
 
+    iterations_total = len_path * len_sequence * no_assets
+    iterations_done = 0
+
     for t in range(len_path):
         rates_now = tuple(x[t] for x in rates)
         rates_next = tuple(x[t + 1] for x in rates)
@@ -40,6 +45,10 @@ def forward(
             asset_from = -1
             value_max = -1.
             for asset_tmp in range(no_assets):
+                if Timer.time_passed(2000):
+                    print(f"path finding finished by {iterations_done * 100. / iterations_total:5.2}%...")
+                iterations_done += 1
+
                 value_tmp = values_objective[asset_tmp] * change
                 value_tmp -= fees(value_tmp, asset_tmp, asset_to)
                 if value_tmp < 0.:
@@ -100,6 +109,7 @@ def simulate(
         objective_value: float = 1.,
         fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
 
+    # TODO: return by step return of interest
     print(f"simulating trading strategy...")
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)
@@ -136,6 +146,7 @@ def simulate_alternative(
         objective_value: float = 1.,
         fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> float:
 
+    # TODO: return by step return of interest
     print(f"simulating trading strategy...")
     no_rates, =  set(len(x) for x in rates)
     assert no_rates - 1 == len(path_trading)

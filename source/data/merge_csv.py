@@ -23,10 +23,10 @@ def round_down_timestamp(timestamp: int, round_to: int) -> int:
 
 
 def get_timestamp_close_boundaries(files: Sequence[str]) -> Tuple[int, int]:
-    print(f"getting timestamp boundaries...")
     timestamp_close_min = -1
     timestamp_close_max = -1
     for i, each_file in enumerate(files):
+        print(f"getting timestamp boundaries of {each_file:s}...")
         with open(each_file, mode="r") as file:
             for each_line in file:
                 stripped = each_line.strip()
@@ -75,17 +75,18 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
 
 
 def write_header(path_file: str, pairs: Sequence[Tuple[str, str]]):
+    print(f"writing header...")
+    header = ("timestamp_close", "timestamp_open") + get_header(pairs)
     with open(path_file, mode="a") as file:
-        header = ("timestamp_close", "timestamp_open") + get_header(pairs)
         file.write("\t".join(header) + "\n")
 
 
 def write_timestamps(file_path: str, files: Sequence[str], interval_timestamp: int):
     print(f"writing time stamps...")
+    ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
+    timestamp_from = round_down_timestamp(ts_close_min, interval_timestamp)
+    timestamp_to = round_down_timestamp(ts_close_max, interval_timestamp)
     with open(file_path, mode="a") as file:
-        ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
-        timestamp_from = round_down_timestamp(ts_close_min, interval_timestamp)
-        timestamp_to = round_down_timestamp(ts_close_max, interval_timestamp)
         for each_ts_close in range(timestamp_from, timestamp_to + interval_timestamp, interval_timestamp):
             values = f"{each_ts_close:d}", f"{each_ts_close - interval_timestamp:d}"
             file.write("\t".join(values) + "\n")
@@ -97,7 +98,7 @@ def timestamps_base_line(line: str) -> Tuple[int, int]:
     return int(split[1]), int(split[0])
 
 
-def add_file(path_basis: str, path_extension: str, interval_timestamp: int):
+def add_file(path_basis: str, path_extension: str):
     print(f"adding {path_extension:s} to {path_basis:s}...")
     path_tmp = os.path.dirname(path_basis) + "/temp.tmp"
     if os.path.isfile(path_tmp):
@@ -113,8 +114,10 @@ def add_file(path_basis: str, path_extension: str, interval_timestamp: int):
 
             try:
                 line_basis = next(file_basis)
+
             except StopIteration:
-                print(f"base file terminated prematurely at the {i+1:d}th line of {file_extension:s}.")
+                print(f"base file terminated prematurely at the {i+1:d}th line of {path_extension:s}.")
+                # doesn't seem to be a problem. why though?!
                 break
 
             stripped_basis = line_basis.strip()
@@ -151,7 +154,7 @@ def main():
 
     for i, each_file in enumerate(files):
         print(f"adding {i + 1:d} / {len(files)} ({each_file:s})...")
-        add_file(path_merged, each_file, interval_timestamp)
+        add_file(path_merged, each_file)
 
 
 if __name__ == "__main__":
