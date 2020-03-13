@@ -1,7 +1,7 @@
 from __future__ import annotations
 import glob
 import os
-from typing import Tuple, Sequence, Generator
+from typing import Tuple, Sequence, Generator, Union
 
 from source.tools.timer import Timer
 
@@ -83,6 +83,30 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
     ]
 
     return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in stats)
+
+
+def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, data: Sequence[str] = ("close",)) -> Generator[Sequence[float], None, None]:
+    directory_data = "../../data/"
+    directory_merged = directory_data + "merged/"
+    files = sorted(glob.glob(directory_merged + "merged_*.csv"))
+    iterator = 0
+    for each_file in files:
+        with open(each_file, mode="r") as file:
+            header = next(file)
+            stripped = header.strip()
+            split = stripped.split("\t")
+            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + each_datum.lower()) for each_datum in data)
+
+            for line in file:
+                iterator += 1
+                if iterator % interval_minutes != 0:
+                    continue
+                iterator = 0
+
+                stripped = line.strip()
+                split = stripped.split("\t")
+                values = tuple(float(x) for x in split)
+                yield tuple(values[i] for i in indices)
 
 
 def main():
