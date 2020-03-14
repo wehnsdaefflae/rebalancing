@@ -6,7 +6,7 @@ from typing import Sequence, Tuple, Callable
 # from matplotlib import pyplot
 from matplotlib import pyplot
 
-from source.data.merge_csv import data_generator
+from source.data.merge_csv import merge_generator
 from source.tools.timer import Timer
 
 
@@ -191,50 +191,33 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Tuple[Sequence[int]
     )
 
 
-def get_crypto_rates(interval: int = 1) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
-    generators = (
-        data_generator("bcc", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("bnb", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("dash", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("icx", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("iota", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("ltc", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("nano", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("poa", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("qtum", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("theta", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("tusd", "eth", interval_minutes=interval, data=("close",)),
-        data_generator("xmr", "eth", interval_minutes=interval, data=("close",)),
+def get_crypto_rates(interval_minutes: int = 1) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
+    pairs = (
+        ("bcc", "eth"), ("bnb", "eth"), ("dash", "eth"), ("icx", "eth"),
+        ("iota", "eth"), ("ltc", "eth"), ("nano", "eth"), ("poa", "eth"),
+        ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
     )
+    generator = merge_generator(pairs, interval_minutes=interval_minutes, header=("close_time", "close", ))
 
     timestamps = []
-    rates = tuple([] for _ in generators)
-    vs_last = [-1. for _ in generators]
+    rates = tuple([] for _ in pairs)
 
-    for _vs in zip(*generators):
-        vs = [v[1] for v in _vs]
-
-        if all(v < 0. for v in vs) and len(rates[0]) < 1:
-            continue
-
-        timestamps.append(int(_vs[0][0]))
-
-        for i, (each_rates, v_last, v) in enumerate(zip(rates, vs_last, vs)):
-            each_rates.append(max(v_last, v))
-            if 0. < v:
-                vs_last[i] = v
+    for data in generator:
+        assert None not in data
+        for i, (each_rates, (close_time, close_rate)) in enumerate(zip(rates, data)):
+            if i < 1:
+                timestamps.append(close_time)
+            each_rates.append(close_rate)
 
         if Timer.time_passed(2000):
-            print(f"length of rates {len(rates[0]):d}...")
-
-    assert all(0. < x for each_rate in rates for x in each_rate)
+            print(f"length of rates {len(timestamps):d}...")
 
     return timestamps, rates
 
 
 def main():
     # timestamps, rates = get_random_rates(no_assets=3, size=5)
-    timestamps, rates = get_crypto_rates(interval=1)
+    timestamps, rates = get_crypto_rates(interval_minutes=1)
 
     size, = set(len(x) for x in rates)
 

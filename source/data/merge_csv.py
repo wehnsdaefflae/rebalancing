@@ -1,5 +1,4 @@
 from __future__ import annotations
-import glob
 import os
 from typing import Tuple, Sequence, Generator, Union, Optional, Iterable
 
@@ -99,7 +98,7 @@ def generator_file(
                 current_range = ranges[index_next_range]
 
     # fill rest
-    for index_current_range in range(index_next_range, no_ranges - 1):
+    for index_current_range in range(index_next_range, no_ranges):
         current_range = ranges[index_current_range]
         yield make_empty(current_range[1] - data_difference_timestamp, current_range[1] - 1, indices)
 
@@ -145,37 +144,14 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
     return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in stats)
 
 
-def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, data: Tuple[str, ...] = ("close",)) -> Generator[Sequence[float], None, None]:
-    directory_data = "../../data/"
-    directory_merged = directory_data + "merged/"
-    files = sorted(glob.glob(directory_merged + "merged_*.csv"))
-    iterator = 0
-    for each_file in files:
-        with open(each_file, mode="r") as file:
-            header = next(file)
-            stripped = header.strip()
-            split = stripped.split("\t")
-            indices = tuple(split.index(asset_from.upper() + "_" + asset_to.upper() + "_" + each_datum.lower()) for each_datum in data)
-            indices = (split.index("timestamp_close"), ) + indices
-
-            for line in file:
-                iterator += 1
-                if iterator % interval_minutes != 0:
-                    continue
-                iterator = 0
-
-                split = line[:-1].split("\t")
-                yield tuple(float(split[i]) for i in indices)
-
-
 def merge_generator(
         pairs: Iterable[Tuple[str, str]],
         timestamp_start: int = -1,
         timestamp_end: int = -1,
         interval_minutes: int = 1,
-        header: Tuple[str, ...] = ("close",)) -> Generator[Sequence[Union[int, float]], None, None]:
+        header: Tuple[str, ...] = ("close_time", "close", )) -> Generator[Sequence[Union[int, float]], None, None]:
 
-    indices = tuple(stats.index(x) for x in ("open_time", "close_time", ) + header)
+    indices = tuple(stats.index(x) for x in header)
 
     directory_data = "../../data/"
     directory_csv = directory_data + "binance/"
@@ -189,35 +165,45 @@ def merge_generator(
         ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
         timestamp_start = ts_close_min if timestamp_start < 0 else timestamp_start
         timestamp_end = ts_close_max if timestamp_end < 0 else timestamp_end
+        print(f"timestamp start {timestamp_start:d}, timestamp end {timestamp_end:d}")
 
     timestamp_range = timestamp_start, timestamp_end
     generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
 
-    no_generators = len(generators_all)
-    while True:
-        stats_all = tuple(next(each_generator, None) for each_generator in generators_all)
-        no_nones = stats_all.count(None)
-        if no_nones == no_generators:
-            break
-
-        assert no_nones == 0
-
-        yield stats_all
+    yield from zip(*generators_all)
 
 
 def main_single():
-    g = generator_file("../../data/binance/ADAETH.csv", (1577836620000, 1577837220000), 1, (0, 6, 4,))
-    for v in g:
-        print(v)
+    files = ['../../data/binance/BCCETH.csv', '../../data/binance/BNBETH.csv', '../../data/binance/TUSDETH.csv']
+    timestamp_range = 1501113780000, 1577836860000
+    interval_minutes = 1
+    indices = 6, 4,
+    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
+
+    value_lists = tuple([] for _ in generators_all)
+
+    for i, each_generator in enumerate(generators_all):
+        print(f"generator {i:d}")
+        for v in each_generator:
+            value_lists[i].append(v)
+
+        if Timer.time_passed(2000):
+            print(f"processed {i:d} elements")
+
+    print([len(x) for x in value_lists])
+    print([x[-1] for x in value_lists])
+    print()
 
 
 def main():
     g = merge_generator(
-        (("ada", "eth"), ("adx", "eth")),
+        (
+            ("bcc", "eth"), ("bnb", "eth"), ("tusd", "eth"),
+        ),
         interval_minutes=1,
-        header=("close",),
-        # timestamp_start=1512044700000,
-        # timestamp_end=1512045300000,
+        header=("close_time", "close",),
+        timestamp_start=1501113780000,
+        timestamp_end=1577836860000,
     )
     v = None
     for i, v in enumerate(g):
@@ -225,6 +211,7 @@ def main():
         if Timer.time_passed(2000):
             print(f"iterated over {i:d} elements")
     print(v)
+
 
 if __name__ == "__main__":
     main()
