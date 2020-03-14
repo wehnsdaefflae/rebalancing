@@ -1,32 +1,107 @@
 from __future__ import annotations
 import glob
 import os
-from typing import Tuple, Sequence, Generator, Union
+from typing import Tuple, Sequence, Generator, Union, Optional, Iterable
 
 from source.tools.timer import Timer
 
-STATS = Tuple[int, float, float, float, float, float, int, float, int, float, float, float]
+STATS = Tuple[Union[int, float], ...]
+
+stats = (
+    "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    "ignore",
+)
 
 stat_empty = -1, -1., -1., -1., -1., -1., -1, -1., -1, -1., -1., -1.
 
+indices_ints = 0, 6, 8
 
-def stat_from_line(line: str) -> STATS:
+
+def stat_from_line(line: str, indices: Optional[Sequence[int]] = None) -> STATS:
     stripped = line.strip()
     split = stripped.split("\t")
-    assert len(split) == 12
-    return int(split[0]), float(split[1]), float(split[2]), \
-           float(split[3]), float(split[4]), float(split[5]), \
-           int(split[6]), float(split[7]), int(split[8]), \
-           float(split[9]), float(split[10]), float(split[11])
+    if indices is None:
+        return int(split[0]), float(split[1]), float(split[2]), \
+               float(split[3]), float(split[4]), float(split[5]), \
+               int(split[6]), float(split[7]), int(split[8]), \
+               float(split[9]), float(split[10]), float(split[11])
+
+    return tuple(int(split[i]) if i in indices_ints else float(split[i]) for i in indices)
 
 
-def generator_file(path_file: str) -> Generator[STATS, None, None]:
+def get_close_time(line: str) -> int:
+    split = line[:-1].split("\t")
+    return int(split[6])
+
+
+def make_values(line: str, indices: Sequence[int]) -> Sequence[Union[int, float]]:
+    strip = line.strip()
+    split = strip.split("\t")
+    return tuple(int(split[i]) if i in indices_ints else float(split[i]) for i in indices)
+
+
+def make_empty(timestamp_open: int, timestamp_close: int, indices: Sequence[int]) -> Sequence[Union[int, float]]:
+    return tuple(timestamp_open if i == 0 else timestamp_close if i == 6 else stat_empty[i] for i in indices)
+
+
+def generator_file(
+        path_file: str,
+        timestamp_range: Optional[Tuple[int, int]],
+        interval_minutes: int,
+        indices: Optional[Sequence[int]] = None) -> Generator[STATS, None, None]:
+
+    if indices is None:
+        indices = 0, 6, 1, 4
+
+    data_difference_timestamp = 60000
+    interval_timestamp = interval_minutes * data_difference_timestamp
+    no_ranges = (timestamp_range[1] - timestamp_range[0]) // interval_timestamp
+    ranges = tuple(
+        (timestamp_range[0] + i * interval_timestamp, timestamp_range[0] + (i + 1) * interval_timestamp)
+        for i in range(no_ranges)
+    )
+
+    index_next_range = 0
     with open(path_file, mode="r") as file:
-        for line in file:
-            yield stat_from_line(line)
+        line = next(file, None)
+        while line is not None and index_next_range < no_ranges:
+            current_range = ranges[index_next_range]
+            timestamp_close = get_close_time(line)
 
-    while True:
-        yield stat_empty
+            # get next lines until line fits
+            while current_range[0] >= timestamp_close:
+                line = next(file, None)
+                if line is None:
+                    break
+                timestamp_close = get_close_time(line)
+            if line is None:
+                break
+
+            # current line fits, yield it, proceed to next range
+            if current_range[0] < timestamp_close <= current_range[1]:
+                yield make_values(line, indices)
+                index_next_range += 1
+
+            # yield empties for timestamps not covered by data
+            while current_range[1] < timestamp_close:
+                yield make_empty(current_range[1] - data_difference_timestamp, current_range[1] - 1, indices)
+                index_next_range += 1
+                current_range = ranges[index_next_range]
+
+    # fill rest
+    for index_current_range in range(index_next_range, no_ranges - 1):
+        current_range = ranges[index_current_range]
+        yield make_empty(current_range[1] - data_difference_timestamp, current_range[1] - 1, indices)
 
 
 def round_down_timestamp(timestamp: int, round_to: int) -> int:
@@ -67,21 +142,6 @@ def get_pairs(files: Sequence[str]) -> Sequence[Tuple[str, str]]:
 
 
 def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
-    stats = [
-        "open_time",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "close_time",
-        "quote_asset_volume",
-        "number_of_trades",
-        "taker_buy_base_asset_volume",
-        "taker_buy_quote_asset_volume",
-        "ignore",
-    ]
-
     return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in stats)
 
 
@@ -108,88 +168,63 @@ def data_generator(asset_from: str, asset_to: str, interval_minutes: int = 1, da
                 yield tuple(float(split[i]) for i in indices)
 
 
-def merge():
-    interval_timestamp = 60000
+def merge_generator(
+        pairs: Iterable[Tuple[str, str]],
+        timestamp_start: int = -1,
+        timestamp_end: int = -1,
+        interval_minutes: int = 1,
+        header: Tuple[str, ...] = ("close",)) -> Generator[Sequence[Union[int, float]], None, None]:
+
+    indices = tuple(stats.index(x) for x in ("open_time", "close_time", ) + header)
 
     directory_data = "../../data/"
-
     directory_csv = directory_data + "binance/"
-    files = sorted(glob.glob(directory_csv + "*.csv"))
+    files = sorted(f"{directory_csv:s}{each_pair[0].upper():s}{each_pair[-1].upper():s}.csv" for each_pair in pairs)
 
-    directory_merged = directory_data + "merged/"
+    if 0 < timestamp_start and 0 < timestamp_end:
+        assert timestamp_start < timestamp_end
 
-    ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
-    timestamp_from = round_down_timestamp(ts_close_min, interval_timestamp) + interval_timestamp
-    timestamp_to = round_down_timestamp(ts_close_max, interval_timestamp) + 2 * interval_timestamp
+    else:
+        print(f"determining timestamp boundaries...")
+        ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
+        timestamp_start = ts_close_min if timestamp_start < 0 else timestamp_start
+        timestamp_end = ts_close_max if timestamp_end < 0 else timestamp_end
 
-    generators_all = tuple(generator_file(each_file) for each_file in files)
-    stats_all = [next(each_generator) for each_generator in generators_all]
+    timestamp_range = timestamp_start, timestamp_end
+    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
 
-    proceed = [False for _ in generators_all]
+    no_generators = len(generators_all)
+    while True:
+        stats_all = tuple(next(each_generator, None) for each_generator in generators_all)
+        no_nones = stats_all.count(None)
+        if no_nones == no_generators:
+            break
 
-    pairs = get_pairs(files)
-    header = ("timestamp_close", "timestamp_open") + get_header(pairs)
+        assert no_nones == 0
 
-    length_segment = 100000
-    no_entries = (timestamp_to - timestamp_from) // interval_timestamp + 1
-    print(f"total number of entries: {no_entries:d}")
-    ranges = tuple(
-        (i * length_segment, min((i + 1) * length_segment, no_entries))
-        for i in range(no_entries // length_segment + 1)
-    )
+        yield stats_all
 
-    for j, each_range in enumerate(ranges):
-        print(f"writing entries # {each_range[0]:d} to {each_range[1]:d}...")
-        path_merged = directory_merged + f"merged_{j:05d}.csv"
 
-        print(f"from timestamps {each_range[0] * interval_timestamp + timestamp_from:d} to {each_range[0] * interval_timestamp + timestamp_from:d}...")
-
-        with open(path_merged, mode="a") as file:
-            file.write("\t".join(header) + "\n")
-
-            for reference_timestamp_close in range(*each_range):
-                reference_timestamp_close *= interval_timestamp
-                reference_timestamp_close += timestamp_from
-
-                reference_timestamp_open = reference_timestamp_close - interval_timestamp
-
-                values = [reference_timestamp_close, reference_timestamp_open]
-
-                for i, each_stat in enumerate(stats_all):
-                    each_timestamp_close = each_stat[6]
-                    if reference_timestamp_open < each_timestamp_close <= reference_timestamp_close:
-                        values.extend(each_stat)
-                        proceed[i] = True
-
-                    elif each_timestamp_close < reference_timestamp_open:
-                        values.extend(stat_empty)
-                        proceed[i] = True
-
-                    elif reference_timestamp_close < each_timestamp_close:
-                        values.extend(stat_empty)
-
-                for i, p in enumerate(proceed):
-                    if not p:
-                        continue
-                    proceed[i] = False
-                    stats_all[i] = next(generators_all[i])
-
-                file.write("\t".join(str(x) for x in values) + "\n")
-
-                if Timer.time_passed(2000):
-                    print(f"finished {j+1:d}/{len(ranges):d} {(reference_timestamp_close - timestamp_from) * 100. / (timestamp_to - timestamp_from):5.2f}%...")
+def main_single():
+    g = generator_file("../../data/binance/ADAETH.csv", (1577836620000, 1577837220000), 1, (0, 6, 4,))
+    for v in g:
+        print(v)
 
 
 def main():
-    g = data_generator("ada", "eth", interval_minutes=100, data=("close",))
-    s = []
-    for v in g:
-        s.append(v[1])
+    g = merge_generator(
+        (("ada", "eth"), ("adx", "eth")),
+        interval_minutes=1,
+        header=("close",),
+        # timestamp_start=1512044700000,
+        # timestamp_end=1512045300000,
+    )
+    v = None
+    for i, v in enumerate(g):
+        # print(v)
         if Timer.time_passed(2000):
-            print(f"length so far {len(s):d}")
-
-    print(s)
-
+            print(f"iterated over {i:d} elements")
+    print(v)
 
 if __name__ == "__main__":
     main()
