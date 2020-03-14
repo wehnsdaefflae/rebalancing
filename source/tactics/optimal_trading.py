@@ -10,7 +10,7 @@ from source.data.merge_csv import merge_generator
 from source.tools.timer import Timer
 
 
-def get_sequence(start_value: float, length: int) -> Sequence[float]:
+def get_random_sequence(start_value: float, length: int) -> Sequence[float]:
     s = [-1. for _ in range(length)]
     s[0] = start_value
 
@@ -31,7 +31,7 @@ def forward(
     len_path = len_sequence - 1
 
     values_objective = [1. for _ in rates]
-    paths = tuple([] for _ in rates)
+    matrix = tuple([] for _ in rates)
 
     iterations_total = len_path * no_assets * no_assets
     iterations_done = 0
@@ -47,19 +47,20 @@ def forward(
             value_max = -1.
             for asset_tmp in range(no_assets):
                 if Timer.time_passed(2000):
-                    print(f"path finding finished by {iterations_done * 100. / iterations_total:5.2}%...")
+                    print(f"matrix built by {iterations_done * 100. / iterations_total:5.2f}%...")
                 iterations_done += 1
 
                 value_tmp = values_objective[asset_tmp] * change
                 value_tmp -= fees(value_tmp, asset_tmp, asset_to)
                 if value_tmp < 0.:
                     continue
+
                 if value_max < value_tmp or (value_max == value_tmp and asset_tmp == asset_to):  # additional condition can be removed for fees
                     asset_from = asset_tmp
                     value_max = value_tmp
 
-            asset_path = paths[asset_to]
-            asset_path.append(asset_from)
+            asset_row = matrix[asset_to]
+            asset_row.append(asset_from)
             values_tmp[asset_to] = value_max
 
         values_objective = values_tmp
@@ -70,8 +71,70 @@ def forward(
     asset_last, roi = max(enumerate(values_objective), key=lambda x: x[1])
     path = [asset_last]
     for i in range(len_path - 1, 0, -1):
-        asset_path = paths[asset_last]
-        asset_last = asset_path[i]
+        asset_row = matrix[asset_last]
+        asset_last = asset_row[i]
+        path.insert(0, asset_last)
+        if Timer.time_passed(2000):
+            print(f"finished {(len_path - 1 - i) * 100. / (len_path - 1):5.2f}% of backwards pass...")
+
+    return path, roi
+
+
+def forward_negative(
+        rates: Sequence[Sequence[float]],
+        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[int], float]:
+    print(f"forward pass...")
+    no_assets = len(rates)
+    len_sequence, = set(len(x) for x in rates)
+    len_path = len_sequence - 1
+
+    values_objective = [1. for _ in rates]
+    matrix = tuple([] for _ in rates)
+
+    iterations_total = len_path * no_assets * no_assets
+    iterations_done = 0
+
+    for t in range(len_path):
+        rates_now = tuple(x[t] for x in rates)
+        rates_next = tuple(x[t + 1] for x in rates)
+        values_tmp = values_objective[:]
+        for asset_to, (rate_to_now, rate_to_next) in enumerate(zip(rates_now, rates_next)):
+            asset_from = asset_to
+
+            invalid = 0. >= rate_to_next or 0. >= rate_to_now
+            if not invalid:
+                change = rate_to_next / rate_to_now
+
+                value_max = -1.
+                for asset_tmp in range(no_assets):
+                    if Timer.time_passed(2000):
+                        print(f"matrix built by {iterations_done * 100. / iterations_total:5.2f}%...")
+                    iterations_done += 1
+
+                    value_tmp = values_objective[asset_tmp] * (1. if invalid else change)
+                    value_tmp -= fees(value_tmp, asset_tmp, asset_to)
+                    if value_tmp < 0.:
+                        continue
+
+                    if value_max < value_tmp or (value_max == value_tmp and asset_tmp == asset_to):  # additional condition can be removed for fees
+                        asset_from = asset_tmp
+                        value_max = value_tmp
+
+                values_tmp[asset_to] = value_max
+
+            asset_row = matrix[asset_to]
+            asset_row.append(asset_from)
+
+        values_objective = values_tmp
+
+        continue
+
+    print(f"backwards pass...")
+    asset_last, roi = max(enumerate(values_objective), key=lambda x: x[1])
+    path = [asset_last]
+    for i in range(len_path - 1, 0, -1):
+        asset_row = matrix[asset_last]
+        asset_last = asset_row[i]
         path.insert(0, asset_last)
         if Timer.time_passed(2000):
             print(f"finished {(len_path - 1 - i) * 100. / (len_path - 1):5.2f}% of backwards pass...")
@@ -186,9 +249,24 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Tuple[Sequence[int]
     random.seed(235235)
 
     return list(range(size)), tuple(
-        get_sequence(random.uniform(10., 60.), size)
+        get_random_sequence(random.uniform(10., 60.), size)
         for _ in range(no_assets)
     )
+
+
+def get_decreasing_rates(size: int = 20, no_assets: int = 10) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
+    random.seed(235235)
+
+    rates = tuple([] for _ in range(no_assets))
+
+    for each_rate in rates:
+        each_rate.append(random.uniform(10., 60.))
+
+    for each_rate in rates:
+        for _ in range(size):
+            each_rate.append(each_rate[-1] * .9)
+
+    return list(range(size)), rates
 
 
 def get_crypto_rates(interval_minutes: int = 1) -> Tuple[Sequence[int], Sequence[Sequence[float]]]:
@@ -216,15 +294,20 @@ def get_crypto_rates(interval_minutes: int = 1) -> Tuple[Sequence[int], Sequence
 
 
 def main():
-    # timestamps, rates = get_random_rates(no_assets=3, size=5)
-    timestamps, rates = get_crypto_rates(interval_minutes=1)
+    # timestamps, rates = get_decreasing_rates(no_assets=3, size=5)
+    timestamps, rates = get_random_rates(no_assets=3, size=5)
+    # timestamps, rates = get_crypto_rates(interval_minutes=1)
+
+    rates = [list(x) for x in rates]
+    rates[0][1] = -1.
+    rates[1][1] = -1.
+    rates[1][2] = -1.
+    rates[2][1] = -1.
+    # rates.append([1. for _ in range(5)])
 
     size, = set(len(x) for x in rates)
 
-    path_trade, roi = forward(rates, fees=fees_debug)
-
-    history_a, amount_a = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
-    history_b, amount_b = simulate_alternative(path_trade, rates, objective_value=1., fees=fees_debug)
+    path_trade, roi = forward_negative(rates, fees=fees_debug)
 
     if size < 30:
         print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
@@ -233,14 +316,19 @@ def main():
             print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
         print()
         print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
+
+    history_a, amount_a = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
+    # history_b, amount_b = simulate_alternative(path_trade, rates, objective_value=1., fees=fees_debug)
+
+    if size < 30:
         print("ratio   " + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in history_a]))
         print()
         print()
         print(f"history simulation 0: {str(history_a):s}")
-        print(f"history simulation 0: {str(history_b):s}")
+        # print(f"history simulation 0: {str(history_b):s}")
 
     print(f"roi simulation 0: {amount_a:5.5f}.")
-    print(f"roi simulation 1: {amount_b:5.5f}.")
+    # print(f"roi simulation 1: {amount_b:5.5f}.")
     print()
 
     with open("../../data/examples/test.csv", mode="a") as file:
