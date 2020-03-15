@@ -105,6 +105,7 @@ def generate_positive_change() -> Generator[float, float, None]:
 
 
 def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Sequence[float], None, None]:
+    print(f"generating changes...")
     rates_now = next(generator_rates)
     no_rates = len(rates_now)
 
@@ -113,26 +114,33 @@ def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Se
         next(each_change_gen)               # initialize
         each_change_gen.send(first_rate)    # send first rate
 
-    for rates_now in generator_rates:
+    for i, rates_now in enumerate(generator_rates):
         assert len(rates_now) == no_rates
         yield tuple(x.send(r) for x, r in zip(generators_change, rates_now))
+        if Timer.time_passed(2000):
+            print(f"finished determining {i:d} rate changes...")
 
 
 def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float]) -> Generator[Sequence[float], None, None]:
     values_objective = [1. for _ in range(no_assets)]
     yield tuple(values_objective)
 
-    for changes_asset in changes:
+    for t, changes_asset in enumerate(changes):
         assert len(changes_asset) == no_assets
 
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
-            values_tmp[asset_to] = max((each_interest - fees(each_interest, asset_from, asset_to)) * each_change for asset_from, each_interest in enumerate(values_objective))
+            values_tmp[asset_to] = max(
+                (each_interest - fees(each_interest, asset_from, asset_to)) * (1. if each_change < 0. else each_change)
+                for asset_from, each_interest in enumerate(values_objective)
+            )
 
         for i, v in enumerate(values_tmp):
             values_objective[i] = v
 
         yield tuple(values_objective)
+        if Timer.time_passed(2000):
+            print(f"finished {t:d} time steps in roi matrix...")
 
 
 def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
@@ -146,32 +154,41 @@ def make_roi_matrix(
         rates: Iterator[Sequence[float]],
         fees: Callable[[float, int, int], float] = fees_debug) -> Sequence[Sequence[float]]:
 
+    """
     rates_full = [x for x in rates]
     rts = list(zip(*rates_full))
     print("rates")
     print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in rts]))
     print()
     rates = (x for x in rates_full)
+    """
 
     matrix_change = generate_changes(rates)
+    """
     matrix_full = [x for x in matrix_change]
     cng = list(zip(*matrix_full))
     print("changes")
     print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in ((-1.,) + x for x in cng)]))
     print()
     matrix_change = (x for x in matrix_full)
+    """
 
     matrix_accumulation = generate_matrix(no_assets, matrix_change, fees)
-    matrix_full = [x for x in matrix_accumulation]
+
+    print("converting matrix to list...")
+    matrix_full = list(matrix_accumulation)
+    """
     acc = list(zip(*matrix_full))
     print("roi matrix")
     print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in acc]))
     print()
+    """
 
     return matrix_full
 
 
 def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
+    print("determining optimal investment path...")
     len_path = len(roi_matrix)
     path = []
     for i in range(len_path - 1, -1, -1):
@@ -182,6 +199,8 @@ def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
                 v_max = v
                 i_max = j
         path.insert(0, i_max)
+        if Timer.time_passed(2000):
+            print(f"finished {(len_path - i) * 100. / len_path:5.2f}% of path...")
 
     return path
 
@@ -291,8 +310,10 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[int,
 
 
 def get_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
-    rate_a = 59.69, -1.,   -1., 65.73, 59.37
-    rate_b = 30.06, -1., 27.06, 27.09, 29.13
+    # rate_a = 59.69, -1.,   -1., 65.73, 59.37
+    # rate_b = 30.06, -1., 27.06, 27.09, 29.13
+    rate_a = -1., -1.,   -1., 65.73, 59.37
+    rate_b = -1., -1., 27.06, 27.09, 29.13
 
     return ((i, r) for i, r in enumerate(zip(rate_a, rate_b)))
 
@@ -319,14 +340,21 @@ def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[
         ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
     )
     generator = merge_generator(pairs, interval_minutes=interval_minutes, header=("close_time", "close", ))
-    return ((snapshot[0][0], tuple(each_data[1] for each_data in snapshot)) for snapshot in generator)
+    return (
+        (
+            snapshot[0][0],
+            tuple(each_data[1] for each_data in snapshot)
+        )
+        for snapshot in generator)
 
 
 def main():
-    # generate_rates = get_debug_rates()
+    # no_assets = 2
+    # generate_rates = (x[1] for x in get_random_rates(no_assets=no_assets, size=5))
+    # generate_rates = (x[1] for x in get_debug_rates())
 
-    no_assets = 2
-    generate_rates = (x[1] for x in get_random_rates(no_assets=no_assets, size=5))
+    no_assets = 12
+    generate_rates = (x[1] for x in get_crypto_rates(interval_minutes=1))
 
     matrix = make_roi_matrix(no_assets, generate_rates, fees=fees_debug)
     path = make_path(matrix)
