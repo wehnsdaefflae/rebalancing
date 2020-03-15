@@ -84,6 +84,10 @@ def forward(
 def generate_positive_change() -> Generator[float, float, None]:
     rate_last = yield
     each_rate = yield
+
+    # only returns -1. when
+    #   all last values have been negative
+    #   the new value is negative
     while True:
 
         if each_rate < 0.:
@@ -114,13 +118,72 @@ def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Se
         yield tuple(x.send(r) for x, r in zip(generators_change, rates_now))
 
 
-def forward_negative(
+def generate_accumulation(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float]) -> Generator[Sequence[float], None, None]:
+    values_objective = [1. for _ in range(no_assets)]
+    yield tuple(values_objective)
+
+    for changes_asset in changes:
+        assert len(changes_asset) == no_assets
+
+        values_tmp = values_objective[:]
+        for asset_to, each_change in enumerate(changes_asset):
+            values_tmp[asset_to] = max((each_interest - fees(each_interest, asset_from, asset_to)) * each_change for asset_from, each_interest in enumerate(values_objective))
+
+        for i, v in enumerate(values_tmp):
+            values_objective[i] = v
+
+        yield tuple(values_objective)
+
+
+def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
+    if asset_from == asset_to:
+        return 0.
+    return amount_from * .0
+
+
+def make_roi_matrix(
+        no_assets: int,
         rates: Iterator[Sequence[float]],
-        fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[int], float]:
+        fees: Callable[[float, int, int], float] = fees_debug) -> Sequence[Sequence[float]]:
+
+    rates_full = [x for x in rates]
+    rts = list(zip(*rates_full))
+    print("rates")
+    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in rts]))
+    print()
+    rates = (x for x in rates_full)
 
     matrix_change = generate_changes(rates)
+    matrix_full = [x for x in matrix_change]
+    cng = list(zip(*matrix_full))
+    print("changes")
+    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in ((-1.,) + x for x in cng)]))
+    print()
+    matrix_change = (x for x in matrix_full)
 
-    return [], -1.
+    matrix_accumulation = generate_accumulation(no_assets, matrix_change, fees)
+    matrix_full = [x for x in matrix_accumulation]
+    acc = list(zip(*matrix_full))
+    print("objective values")
+    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in acc]))
+    print()
+
+    return matrix_full
+
+
+def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
+    len_path = len(roi_matrix)
+    path = []
+    for i in range(len_path - 1, -1, -1):
+        v_max = -1.
+        i_max = -1
+        for j, v in enumerate(roi_matrix[i]):
+            if v_max < v or (v_max == v and i < len_path - 1 and j == path[0]):
+                v_max = v
+                i_max = j
+        path.insert(0, i_max)
+
+    return path
 
 
 def plot_trading(path_trade: Sequence[int], seq_ass: Sequence[float], seq_sec: Sequence[float]):
@@ -220,12 +283,6 @@ def simulate_alternative(
     return ratio_history, objective_value
 
 
-def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
-    if asset_from == asset_to:
-        return 0.
-    return amount_from * .0
-
-
 def get_random_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[int, Sequence[float]]]:
     random.seed(235235)
 
@@ -266,9 +323,21 @@ def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[
 
 
 def main():
+    # generate_rates = get_debug_rates()
+
+    no_assets = 2
+    generate_rates = (x[1] for x in get_random_rates(no_assets=no_assets, size=5))
+
+    matrix = make_roi_matrix(no_assets, generate_rates, fees=fees_debug)
+    path = make_path(matrix)
+
+    print(path)
+
+
+def main_old():
     # timestamps, rates = zip(*get_decreasing_rates(no_assets=3, size=5))
-    # timestamps, rates = zip(*get_random_rates(no_assets=3, size=5))
-    timestamps, rates = zip(*get_debug_rates())
+    timestamps, rates = zip(*get_random_rates(no_assets=3, size=5))
+    # timestamps, rates = zip(*get_debug_rates())
     # timestamps, rates = zip(*get_crypto_rates(interval_minutes=1))
 
     rates = list(zip(*rates))
