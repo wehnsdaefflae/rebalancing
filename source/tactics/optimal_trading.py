@@ -2,7 +2,7 @@
 import math
 import random
 from pprint import pprint
-from typing import Sequence, Tuple, Callable, Generator, Iterable, Iterator
+from typing import Sequence, Tuple, Callable, Generator, Iterable, Iterator, List
 
 # from matplotlib import pyplot
 from matplotlib import pyplot
@@ -121,7 +121,7 @@ def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Se
             print(f"finished determining {i:d} rate changes...")
 
 
-def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float]) -> Generator[Sequence[float], None, None]:
+def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float], bound: float = 0.) -> Generator[Sequence[float], None, None]:
     values_objective = [1. for _ in range(no_assets)]
     yield tuple(values_objective)
 
@@ -138,6 +138,10 @@ def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Ca
         for i, v in enumerate(values_tmp):
             values_objective[i] = v
 
+        if 0. < bound and any(x >= bound for x in values_objective):
+            for i, v in enumerate(values_objective):
+                values_objective[i] = v / bound
+
         yield tuple(values_objective)
         if Timer.time_passed(2000):
             print(f"finished {t:d} time steps in roi matrix...")
@@ -146,13 +150,14 @@ def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Ca
 def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
     if asset_from == asset_to:
         return 0.
-    return amount_from * .0
+    return amount_from * .02
 
 
 def make_roi_matrix(
         no_assets: int,
         rates: Iterator[Sequence[float]],
-        fees: Callable[[float, int, int], float] = fees_debug) -> Sequence[Sequence[float]]:
+        fees: Callable[[float, int, int], float] = fees_debug,
+        logarithmic_roi: bool = False) -> Sequence[Sequence[float]]:
 
     """
     rates_full = [x for x in rates]
@@ -173,7 +178,7 @@ def make_roi_matrix(
     matrix_change = (x for x in matrix_full)
     """
 
-    matrix_accumulation = generate_matrix(no_assets, matrix_change, fees)
+    matrix_accumulation = generate_matrix(no_assets, matrix_change, fees, bound=100)
 
     print("converting matrix to list...")
     matrix_full = list(matrix_accumulation)
@@ -187,7 +192,7 @@ def make_roi_matrix(
     return matrix_full
 
 
-def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
+def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[Tuple[int, float]]:
     print("determining optimal investment path...")
     len_path = len(roi_matrix)
     path = []
@@ -198,9 +203,9 @@ def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
             if v_max < v or (v_max == v and i < len_path - 1 and j == path[0]):
                 v_max = v
                 i_max = j
-        path.insert(0, i_max)
+        path.insert(0, (i_max, v_max))
         if Timer.time_passed(2000):
-            print(f"finished {(len_path - i) * 100. / len_path:5.2f}% of path...")
+            print(f"finished {(len_path - i) * 100. / len_path:5.2f}% of generating path...")
 
     return path
 
@@ -348,18 +353,31 @@ def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[
         for snapshot in generator)
 
 
+def split_time_and_data(input_data: Tuple[int, Sequence[float]], timestamp_storage: List[int]) -> Sequence[float]:
+    timestamp, data = input_data
+    timestamp_storage.append(timestamp)
+    return data
+
+
 def main():
     # no_assets = 2
     # generate_rates = (x[1] for x in get_random_rates(no_assets=no_assets, size=5))
     # generate_rates = (x[1] for x in get_debug_rates())
 
     no_assets = 12
-    generate_rates = (x[1] for x in get_crypto_rates(interval_minutes=1))
+    timestamps = []
+    generate_rates = (split_time_and_data(x, timestamps) for x in get_crypto_rates(interval_minutes=1))
 
-    matrix = make_roi_matrix(no_assets, generate_rates, fees=fees_debug)
+    matrix = make_roi_matrix(no_assets, generate_rates, fees=fees_debug, logarithmic_roi=True)
     path = make_path(matrix)
 
-    print(path)
+    with open("../../data/examples/test.csv", mode="a") as file:
+        header = "timestamp", "asset", "roi"
+        file.write("\t".join(header) + "\n")
+        for i, (ts, (asset, roi)) in enumerate(zip(timestamps, path)):
+            file.write(f"{ts:d}\t{asset:03d}\t{roi:.8f}\n")
+            if Timer.time_passed(2000):
+                print(f"finished {i * 100. / len(path):5.2f}% of writing path...")
 
 
 def main_old():
