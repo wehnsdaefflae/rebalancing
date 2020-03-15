@@ -118,7 +118,7 @@ def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Se
         yield tuple(x.send(r) for x, r in zip(generators_change, rates_now))
 
 
-def generate_accumulation(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float]) -> Generator[Sequence[float], None, None]:
+def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float]) -> Generator[Sequence[float], None, None]:
     values_objective = [1. for _ in range(no_assets)]
     yield tuple(values_objective)
 
@@ -161,10 +161,10 @@ def make_roi_matrix(
     print()
     matrix_change = (x for x in matrix_full)
 
-    matrix_accumulation = generate_accumulation(no_assets, matrix_change, fees)
+    matrix_accumulation = generate_matrix(no_assets, matrix_change, fees)
     matrix_full = [x for x in matrix_accumulation]
     acc = list(zip(*matrix_full))
-    print("objective values")
+    print("roi matrix")
     print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in acc]))
     print()
 
