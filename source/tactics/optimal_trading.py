@@ -408,15 +408,18 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
 
             # if switch
             else:
-                rate_other = rates_current[asset_next]
-                assert rate_other >= 0.  # never switch into unknown asset
                 amount_objective = amount_asset * rate_this
                 amount_objective = amount_objective * (1. - fees)
                 yield amount_objective
 
-                amount_asset = amount_objective / rate_other
-                rate_this = rate_other
-                asset_current = asset_next
+                rate_other = rates_current[asset_next]
+                if rate_other >= 0.:
+                    amount_asset = amount_objective / rate_other
+                    rate_this = rate_other
+                    asset_current = asset_next
+                else:
+                    # should actually never switch into unknown asset
+                    print(f"switching into unknown asset at rate {i:d}! why?!")
 
             last_rate = rate_this if rate_this >= 0. else last_rate
 
