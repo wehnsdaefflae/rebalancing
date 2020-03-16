@@ -1,14 +1,18 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
-import math
 import random
-from pprint import pprint
-from typing import Sequence, Tuple, Callable, Generator, Iterable, Iterator, List
+from typing import Sequence, Tuple, Callable, Generator, Iterator, List
 
 # from matplotlib import pyplot
 from matplotlib import pyplot
 
 from source.data.merge_csv import merge_generator
 from source.tools.timer import Timer
+
+
+def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
+    if asset_from == asset_to:
+        return 0.
+    return amount_from * .02
 
 
 def get_random_sequence(start_value: float, length: int) -> Iterator[float]:
@@ -33,6 +37,7 @@ def forward(
 
     values_objective = [1. for _ in rates]
     matrix = tuple([] for _ in rates)
+    value_matrix = [[1. for _ in rates]]
 
     iterations_total = len_path * no_assets * no_assets
     iterations_done = 0
@@ -41,6 +46,7 @@ def forward(
         rates_now = tuple(x[t] for x in rates)
         rates_next = tuple(x[t + 1] for x in rates)
         values_tmp = values_objective[:]
+
         for asset_to, (rate_to_now, rate_to_next) in enumerate(zip(rates_now, rates_next)):
             change = rate_to_next / rate_to_now
 
@@ -53,6 +59,7 @@ def forward(
 
                 value_tmp = values_objective[asset_tmp] * change
                 value_tmp -= fees(value_tmp, asset_tmp, asset_to)
+
                 if value_tmp < 0.:
                     continue
 
@@ -64,12 +71,22 @@ def forward(
             asset_row.append(asset_from)
             values_tmp[asset_to] = value_max
 
+        value_matrix.append(values_tmp[:])
+
         values_objective = values_tmp
 
         continue
 
+    print("roi matrix old")
+    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in zip(*value_matrix)]))
+    print()
+
+    print("source matrix old")
+    print("\n".join(["  ".join(f"{v: 7d}" for v in x) for x in matrix]))
+    print()
+
     print(f"backwards pass...")
-    asset_last, roi = max(enumerate(values_objective), key=lambda x: x[1])
+    asset_last, roi_final = max(enumerate(values_objective), key=lambda x: x[1])
     path = [asset_last]
     for i in range(len_path - 1, 0, -1):
         asset_row = matrix[asset_last]
@@ -78,7 +95,7 @@ def forward(
         if Timer.time_passed(2000):
             print(f"finished {(len_path - 1 - i) * 100. / (len_path - 1):5.2f}% of backwards pass...")
 
-    return path, roi
+    return path, roi_final
 
 
 def generate_positive_change() -> Generator[float, float, None]:
@@ -121,19 +138,27 @@ def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Se
             print(f"finished determining {i:d} rate changes...")
 
 
-def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float], bound: float = 0.) -> Generator[Sequence[float], None, None]:
+def generate_matrix(
+        no_assets: int,
+        changes: Iterator[Sequence[float]], fees: Callable[[float, int, int], float],
+        bound: float = 0.) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
+
     values_objective = [1. for _ in range(no_assets)]
-    yield tuple(values_objective)
 
     for t, changes_asset in enumerate(changes):
         assert len(changes_asset) == no_assets
 
+        asset_sources = list(range(no_assets))
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
-            values_tmp[asset_to] = max(
-                (each_interest - fees(each_interest, asset_from, asset_to)) * (1. if each_change < 0. else each_change)
+            tmp = tuple(
+                (asset_from, (each_interest - fees(each_interest, asset_from, asset_to)) * (1. if each_change < 0. else each_change))
                 for asset_from, each_interest in enumerate(values_objective)
             )
+            a_s, v_t = max(
+                tmp, key=lambda x: x[1]
+            )
+            asset_sources[asset_to], values_tmp[asset_to] = a_s, v_t
 
         for i, v in enumerate(values_tmp):
             values_objective[i] = v
@@ -142,22 +167,16 @@ def generate_matrix(no_assets: int, changes: Iterator[Sequence[float]], fees: Ca
             for i, v in enumerate(values_objective):
                 values_objective[i] = v / bound
 
-        yield tuple(values_objective)
+        yield tuple(asset_sources), max(enumerate(values_tmp), key=lambda x: x[1])
         if Timer.time_passed(2000):
             print(f"finished {t:d} time steps in roi matrix...")
 
 
-def fees_debug(amount_from: float, asset_from: int, asset_to: int) -> float:
-    if asset_from == asset_to:
-        return 0.
-    return amount_from * .02
-
-
-def make_roi_matrix(
+def make_source_matrix(
         no_assets: int,
         rates: Iterator[Sequence[float]],
         fees: Callable[[float, int, int], float] = fees_debug,
-        logarithmic_roi: bool = False) -> Sequence[Sequence[float]]:
+        ) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
 
     """
     rates_full = [x for x in rates]
@@ -178,21 +197,21 @@ def make_roi_matrix(
     matrix_change = (x for x in matrix_full)
     """
 
-    matrix_accumulation = generate_matrix(no_assets, matrix_change, fees, bound=100)
+    matrix_source = generate_matrix(no_assets, matrix_change, fees, bound=100)
 
+    """
     print("converting matrix to list...")
-    matrix_full = list(matrix_accumulation)
-    """
-    acc = list(zip(*matrix_full))
-    print("roi matrix")
-    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in acc]))
+    matrix_full = list(x for x in matrix_source)
+    acc = list(zip(*[x[0] for x in matrix_full]))
+    print("source matrix new")
+    print("\n".join(["  ".join(f"ass_{v:8d}" for v in x) for x in acc]))
     print()
-    """
+    #"""
 
-    return matrix_full
+    return matrix_source
 
 
-def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[Tuple[int, float]]:
+def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
     print("determining optimal investment path...")
     len_path = len(roi_matrix)
     path = []
@@ -203,9 +222,25 @@ def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[Tuple[int, floa
             if v_max < v or (v_max == v and i < len_path - 1 and j == path[0]):
                 v_max = v
                 i_max = j
-        path.insert(0, (i_max, v_max))
+        path.insert(0, i_max)
         if Timer.time_passed(2000):
             print(f"finished {(len_path - i) * 100. / len_path:5.2f}% of generating path...")
+
+    return path
+
+
+def make_path_from_sourcematrix(matrix: Sequence[Tuple[Sequence[int], Tuple[int, float]]]) -> Sequence[int]:
+    print(f"backwards pass...")
+    len_path = len(matrix)
+
+    snapshot, (asset_last, _) = matrix[-1]
+    path = [asset_last]
+    i = len_path - 2
+    while i >= 0:
+        asset_last = snapshot[asset_last]
+        path.insert(0, asset_last)
+        snapshot, (_, _) = matrix[i]
+        i -= 1
 
     return path
 
@@ -245,12 +280,12 @@ def simulate(
 
     # TODO: return by step return of interest
     print(f"simulating trading strategy...")
-    no_rates, =  set(len(x) for x in rates)
+    no_rates = len(rates)
     assert no_rates - 1 == len(path_trading)
 
+    rates_current = rates[0]
     asset_current = path_trading[0]
-    rates_asset = rates[asset_current]
-    amount_asset = objective_value / rates_asset[0]
+    amount_asset = objective_value / rates_current[asset_current]
 
     ratio_history = []
     for i, asset_target in enumerate(path_trading):
@@ -259,7 +294,7 @@ def simulate(
         if amount_asset < 0.:
             raise ValueError(f"Trade at time index {i:d} not possible due to fees!")
 
-        each_rates = tuple(each_sequence[i] for each_sequence in rates)
+        each_rates = rates[i]
 
         # objective value does not change
         rate_current = each_rates[asset_current]
@@ -268,12 +303,12 @@ def simulate(
         ratio_conversion = rate_current / rate_target
         amount_asset *= ratio_conversion
 
-        ratio_history.append(rates[asset_target][i+1] / rate_target)
+        ratio_history.append(rates[i+1][asset_target] / rate_target)
 
         asset_current = asset_target
 
-    rates_asset = rates[asset_current]
-    objective_result = amount_asset * rates_asset[-1]
+    rates_last = rates[-1]
+    objective_result = amount_asset * rates_last[asset_current]
     return ratio_history, objective_result
 
 
@@ -285,7 +320,7 @@ def simulate_alternative(
 
     # TODO: return by step return of interest
     print(f"simulating trading strategy...")
-    no_rates, =  set(len(x) for x in rates)
+    no_rates = len(rates)
     assert no_rates - 1 == len(path_trading)
 
     ratio_history = []
@@ -297,10 +332,11 @@ def simulate_alternative(
             if objective_value < 0.:
                 raise ValueError(f"Trade at time index {i:d} not possible due to fees!")
 
-        rates_asset = rates[asset_target]
+        current_rates = rates[i]
+        next_rates = rates[i+1]
 
         # amount of asset changes
-        ratio_rates = rates_asset[i + 1] / rates_asset[i]
+        ratio_rates = next_rates[asset_target] / current_rates[asset_target]
         objective_value *= ratio_rates
         ratio_history.append(ratio_rates)
 
@@ -315,10 +351,10 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[int,
 
 
 def get_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
-    # rate_a = 59.69, -1.,   -1., 65.73, 59.37
-    # rate_b = 30.06, -1., 27.06, 27.09, 29.13
-    rate_a = -1., -1.,   -1., 65.73, 59.37
-    rate_b = -1., -1., 27.06, 27.09, 29.13
+    rate_a = 59.69, 65.07, 61.44, 65.73, 59.37
+    rate_b = 30.06, 29.96, 27.06, 27.09, 29.13
+    #rate_a = -1., -1.,   -1., 65.73, 59.37
+    #rate_b = -1., -1., 27.06, 27.09, 29.13
 
     return ((i, r) for i, r in enumerate(zip(rate_a, rate_b)))
 
@@ -353,87 +389,47 @@ def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[
         for snapshot in generator)
 
 
-def split_time_and_data(input_data: Tuple[int, Sequence[float]], timestamp_storage: List[int]) -> Sequence[float]:
+def split_time_and_data(input_data: Tuple[int, Sequence[float]], timestamp_storage: List[int], rate_storage: List[Sequence[float]]) -> Sequence[float]:
     timestamp, data = input_data
     timestamp_storage.append(timestamp)
+    rate_storage.append(data)
+
     return data
 
 
-def main():
-    # no_assets = 2
-    # generate_rates = (x[1] for x in get_random_rates(no_assets=no_assets, size=5))
-    # generate_rates = (x[1] for x in get_debug_rates())
+def compare():
+    no_assets = 5
+    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
+    # get_rates = get_debug_rates
 
-    no_assets = 12
+    # new
     timestamps = []
-    generate_rates = (split_time_and_data(x, timestamps) for x in get_crypto_rates(interval_minutes=1))
+    rates = []
+    generate_rates = (split_time_and_data(x, timestamps, rates) for x in get_rates())
 
-    matrix = make_roi_matrix(no_assets, generate_rates, fees=fees_debug, logarithmic_roi=True)
-    path = make_path(matrix)
+    matrix = make_source_matrix(no_assets, generate_rates, fees=fees_debug)
+    print("fixing matrix...")
+    matrix_fix = tuple(matrix)
 
-    with open("../../data/examples/test.csv", mode="a") as file:
-        header = "timestamp", "asset", "roi"
-        file.write("\t".join(header) + "\n")
-        for i, (ts, (asset, roi)) in enumerate(zip(timestamps, path)):
-            file.write(f"{ts:d}\t{asset:03d}\t{roi:.8f}\n")
-            if Timer.time_passed(2000):
-                print(f"finished {i * 100. / len(path):5.2f}% of writing path...")
-
-
-def main_old():
-    # timestamps, rates = zip(*get_decreasing_rates(no_assets=3, size=5))
-    timestamps, rates = zip(*get_random_rates(no_assets=3, size=5))
-    # timestamps, rates = zip(*get_debug_rates())
-    # timestamps, rates = zip(*get_crypto_rates(interval_minutes=1))
-
-    rates = list(zip(*rates))
-    rates = [list(x) for x in rates]
-    #rates[0][1] = -1.
-    #rates[1][1] = -1.
-    #rates[1][2] = -1.
-    #rates[2][1] = -1.
-    # rates.append([1. for _ in range(5)])
-
-    size, = set(len(x) for x in rates)
-
-    path_trade, roi = forward(rates, fees=fees_debug)
-
-    if size < 30:
-        print("tick    " + "".join(f"{i: 9d}" for i in range(size)))
-        print()
-        for i, each_rate in enumerate(rates):
-            print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
-        print()
-        print("get     " + "".join([f"  ass_{x:03d}" for x in path_trade] + [f" {roi:8.2f} times investment returned"]))
-
-    exit()
-    history_a, amount_a = simulate(path_trade, rates, objective_value=1., fees=fees_debug)
-    # history_b, amount_b = simulate_alternative(path_trade, rates, objective_value=1., fees=fees_debug)
-
-    if size < 30:
-        print("ratio   " + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in history_a]))
-        print()
-        print()
-        print(f"history simulation 0: {str(history_a):s}")
-        # print(f"history simulation 0: {str(history_b):s}")
-
-    print(f"roi simulation 0: {amount_a:5.5f}.")
-    # print(f"roi simulation 1: {amount_b:5.5f}.")
+    print("source matrix new")
+    print("\n".join(["  ".join(f"{v: 7d}" for v in x) for x in zip(*[y[0] for y in matrix_fix])]))
     print()
 
-    with open("../../data/examples/test.csv", mode="a") as file:
-        header = "timestamp", "rates", "action", "intensity"
-        file.write("\t".join(header) + "\n")
-        for i in range(len(path_trade)):
-            ts = timestamps[i]
-            r = tuple(each_rates[i] for each_rates in rates)
-            a = path_trade[i]
-            i = history_a[i]
-            values = f"{ts:d}", f"{', '.join(f'{x:.8f}' for x in r):s}", f"ass_{a:03d}", f"{i:.8f}"
-            file.write("\t".join(values) + "\n")
-            if Timer.time_passed(2000):
-                print(f"finished {i * 100. / len(path_trade):5.2f}% of example generation...")
+    path_new = make_path_from_sourcematrix(matrix_fix)
+
+    sim_a_new, amount_a_new = simulate(path_new, rates, objective_value=1., fees=fees_debug)
+    sim_b_new, amount_b_new = simulate_alternative(path_new, rates, objective_value=1., fees=fees_debug)
+
+    print("tick    " + "".join(f"{i: 9d}" for i in range(len(rates))))
+    print()
+    for i, each_rate in enumerate(zip(*rates)):
+        print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
+    print()
+    print("path new" + "".join(f"  ass_{x:03d}" for x in path_new))
+    print("sim. a n" + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in sim_a_new]) + f"  roi: {amount_a_new:5.5f}.")
+    print("sim. b n" + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in sim_b_new]) + f"  roi: {amount_b_new:5.5f}.")
+    print()
 
 
 if __name__ == "__main__":
-    main()
+    compare()
