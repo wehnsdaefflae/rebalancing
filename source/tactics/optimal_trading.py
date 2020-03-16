@@ -389,6 +389,8 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
     asset_current = -1
     last_rate = -1.
 
+    amount_last = -1.
+
     for i, rates_current in enumerate(rates):
         if i < len_path:
             asset_next = path[i]
@@ -402,19 +404,24 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
             rate_this = rates_current[asset_current]
             if asset_next == asset_current:
                 if rate_this < 0.:
-                    yield -1. if last_rate < 0. else amount_asset * last_rate
+                    amount = -1. if last_rate < 0. else amount_asset * last_rate
+                    yield 0. if amount < 0. or amount_last < 0. else amount - amount_last
+                    amount_last = amount
                 else:
-                    yield amount_asset * rate_this
+                    amount = amount_asset * rate_this
+                    yield 0. if amount < 0. or amount_last < 0. else amount - amount_last
+                    amount_last = amount
 
             # if switch
             else:
-                amount_objective = amount_asset * rate_this
-                amount_objective = amount_objective * (1. - fees)
-                yield amount_objective
+                amount = amount_asset * rate_this
+                amount = amount * (1. - fees)
+                yield 0. if amount < 0. or amount_last < 0. else amount - amount_last
+                amount_last = amount
 
                 rate_other = rates_current[asset_next]
                 if rate_other >= 0.:
-                    amount_asset = amount_objective / rate_other
+                    amount_asset = amount / rate_other
                     rate_this = rate_other
                     asset_current = asset_next
                 else:
@@ -427,10 +434,14 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
             asset_current = path[-1]
             rate_this = rates_current[asset_current]
             if rate_this < 0.:
-                yield amount_asset * last_rate
+                amount = amount_asset * last_rate
+                yield 0. if amount < 0. or amount_last < 0. else amount - amount_last
+                amount_last = amount
 
             else:
-                yield amount_asset * rate_this
+                amount = amount_asset * rate_this
+                yield 0. if amount < 0. or amount_last < 0. else amount - amount_last
+                amount_last = amount
 
             break
 
@@ -455,12 +466,12 @@ def split_time_and_data(
 
 
 def compare():
-    #no_assets = 2
-    #get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
+    no_assets = 2
+    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
     #no_assets = 2
     #get_rates = get_debug_rates
-    no_assets = 3
-    get_rates = get_crypto_debug_rates
+    #no_assets = 3
+    #get_rates = get_crypto_debug_rates
     fees = .01
 
     # new
@@ -487,8 +498,9 @@ def compare():
     path_new = make_path_from_sourcematrix(matrix_fix)
 
     roi_path = simulate(rates, path_new, fees)
-    print("path new" + "".join(f"  ass_{x:03d}" for x in path_new))
-    print("roi new " + "".join(f"{x:9.2f}" for x in roi_path))
+    next(roi_path)
+    print("path    " + "".join(f"  ass_{x:03d}" for x in path_new))
+    print("reward  " + "".join(f"{x:9.2f}" for x in roi_path))
     print()
 
 

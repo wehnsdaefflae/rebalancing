@@ -31,6 +31,7 @@ def main():
     with open("../../data/examples/binance.csv", mode="a") as file:
         header = ("timestamp",) + names_pairs + ("target", "gain")
         file.write("\t".join(header) + "\n")
+        next(roi_path)  # skip the first gain
         for i, (ts, rates, target, gain) in enumerate(zip(timestamps, generate_rates_c, path, roi_path)):
             line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target], f"{gain:.8f}"]
             file.write("\t".join(line) + "\n")
