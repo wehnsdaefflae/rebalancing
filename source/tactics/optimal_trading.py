@@ -373,6 +373,23 @@ def get_decreasing_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[
     return ((i, x) for i, x in enumerate(rates))
 
 
+def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
+    generator = merge_generator(
+        (
+            ("bcc", "eth"), ("bnb", "eth"), ("tusd", "eth"),
+        ),
+        interval_minutes=1,
+        header=("close_time", "close",),
+        timestamp_range=(1527000000000, 1527000600000),
+    )
+    return (
+        (
+            snapshot[0][0],
+            tuple(each_data[1] for each_data in snapshot)
+        )
+        for snapshot in generator)
+
+
 def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
     pairs = (
         ("bcc", "eth"), ("bnb", "eth"), ("dash", "eth"), ("icx", "eth"),
@@ -449,12 +466,13 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
             break
 
 
-
 def compare():
-    no_assets = 2
-    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
+    #no_assets = 2
+    #get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
     #no_assets = 2
     #get_rates = get_debug_rates
+    no_assets = 3
+    get_rates = get_crypto_debug_rates
     fees = .01
 
     # new
