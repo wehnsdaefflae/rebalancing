@@ -399,53 +399,62 @@ def split_time_and_data(input_data: Tuple[int, Sequence[float]], timestamp_stora
 def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float) -> Generator[float, None, None]:
     len_path = len(path)
 
-    roi = 1.
-    rate_buy = -1.
+    amount_asset = -1.
     asset_current = -1
+    last_rate = -1.
 
-    i = 0
-    for rates_current in rates:
+    for i, rates_current in enumerate(rates):
         if i < len_path:
             asset_next = path[i]
-            if asset_current < 0:
+
+            # first iteration, initialize stuff
+            if i == 0:
                 asset_current = asset_next
-                rate_buy = rates_current[asset_current]
+                amount_asset = 1. / rates_current[asset_current]
 
-            elif asset_next == asset_current:
-                rate_current = rates_current[asset_current]
-                if rate_current < 0.:
-                    rate_current = rate_buy
+            # if hold
+            rate_this = rates_current[asset_current]
+            if asset_next == asset_current:
+                if rate_this < 0.:
+                    yield -1. if last_rate < 0. else amount_asset * last_rate
+                else:
+                    yield amount_asset * rate_this
 
-                yield roi * rate_current / rate_buy
-
+            # if switch
             else:
-                rate_sell = rates_current[asset_current]
-                roi = roi * (1. - fees) * rate_sell / rate_buy
-                yield roi
-                rate_buy = rates_current[asset_next]
+                rate_other = rates_current[asset_next]
+                assert rate_other >= 0.  # never switch into unknown asset
+                amount_objective = amount_asset * rate_this
+                amount_objective = amount_objective * (1. - fees)
+                yield amount_objective
 
-            i += 1
+                amount_asset = amount_objective / rate_other
+                rate_this = rate_other
+                asset_current = asset_next
+
+            last_rate = rate_this if rate_this >= 0. else last_rate
 
         elif i == len_path:
             asset_current = path[-1]
-            rate_current = rates_current[asset_current]
-            if rate_current < 0.:
-                yield roi
+            rate_this = rates_current[asset_current]
+            if rate_this < 0.:
+                yield amount_asset * last_rate
 
             else:
-                yield roi * rate_current / rate_buy
+                yield amount_asset * rate_this
 
-            return
+            break
 
         elif len_path < i:
-            return
+            break
+
 
 
 def compare():
-    # no_assets = 5
-    # get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
     no_assets = 2
-    get_rates = get_debug_rates
+    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
+    #no_assets = 2
+    #get_rates = get_debug_rates
     fees = .01
 
     # new
@@ -473,7 +482,7 @@ def compare():
 
     roi_path = simulate(rates, path_new, fees)
     print("path new" + "".join(f"  ass_{x:03d}" for x in path_new))
-    print("roi new " + "".join([f"{1.:9.2f}"] + [f"{x:9.2f}" for x in roi_path]))
+    print("roi new " + "".join(f"{x:9.2f}" for x in roi_path))
     print()
 
 
