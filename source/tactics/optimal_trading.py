@@ -1,6 +1,6 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
 import random
-from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable
+from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable, Optional
 
 # from matplotlib import pyplot
 from matplotlib import pyplot
@@ -170,37 +170,8 @@ def make_source_matrix(
         fees: float = .01,
         ) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
 
-    """
-    rates_full = [x for x in rates]
-    rts = list(zip(*rates_full))
-    print("rates")
-    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in rts]))
-    print()
-    rates = (x for x in rates_full)
-    """
-
     matrix_change = generate_changes(rates)
-    """
-    matrix_full = [x for x in matrix_change]
-    cng = list(zip(*matrix_full))
-    print("changes")
-    print("\n".join(["  ".join(f"{v:7.4f}" for v in x) for x in ((-1.,) + x for x in cng)]))
-    print()
-    matrix_change = (x for x in matrix_full)
-    """
-
-    matrix_source = generate_matrix(no_assets, matrix_change, fees, bound=100)
-
-    """
-    print("converting matrix to list...")
-    matrix_full = list(x for x in matrix_source)
-    acc = list(zip(*[x[0] for x in matrix_full]))
-    print("source matrix new")
-    print("\n".join(["  ".join(f"ass_{v:8d}" for v in x) for x in acc]))
-    print()
-    #"""
-
-    return matrix_source
+    return generate_matrix(no_assets, matrix_change, fees, bound=100)
 
 
 def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
@@ -222,7 +193,7 @@ def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
 
 
 def make_path_from_sourcematrix(matrix: Sequence[Tuple[Sequence[int], Tuple[int, float]]]) -> Sequence[int]:
-    print(f"backwards pass...")
+    print(f"finding path in matrix...")
     len_path = len(matrix)
 
     snapshot, (asset_last, _) = matrix[-1]
@@ -233,6 +204,8 @@ def make_path_from_sourcematrix(matrix: Sequence[Tuple[Sequence[int], Tuple[int,
         path.insert(0, asset_last)
         snapshot, (_, _) = matrix[i]
         i -= 1
+        if Timer.time_passed(2000):
+            print(f"finished {(len_path - i) * 100. / len_path:5.2f}% of making path...")
 
     return path
 
@@ -390,12 +363,16 @@ def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
         for snapshot in generator)
 
 
-def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
+def get_selected_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
     pairs = (
         ("bcc", "eth"), ("bnb", "eth"), ("dash", "eth"), ("icx", "eth"),
         ("iota", "eth"), ("ltc", "eth"), ("nano", "eth"), ("poa", "eth"),
         ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
     )
+    return get_crypto_rates(pairs, interval_minutes=interval_minutes)
+
+
+def get_crypto_rates(pairs: Sequence[Tuple[str, str]], interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
     generator = merge_generator(pairs, interval_minutes=interval_minutes, header=("close_time", "close", ))
     return (
         (
@@ -403,14 +380,6 @@ def get_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[
             tuple(each_data[1] for each_data in snapshot)
         )
         for snapshot in generator)
-
-
-def split_time_and_data(input_data: Tuple[int, Sequence[float]], timestamp_storage: List[int], rate_storage: List[Sequence[float]]) -> Sequence[float]:
-    timestamp, data = input_data
-    timestamp_storage.append(timestamp)
-    rate_storage.append(data)
-
-    return data
 
 
 def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float) -> Generator[float, None, None]:
@@ -464,6 +433,22 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
 
         elif len_path < i:
             break
+
+
+def split_time_and_data(
+        input_data: Tuple[int, Sequence[float]],
+        timestamp_storage: Optional[List[int]] = None,
+        rate_storage: Optional[List[Sequence[float]]] = None) -> Sequence[float]:
+
+    timestamp, data = input_data
+
+    if timestamp_storage is not None:
+        timestamp_storage.append(timestamp)
+
+    if rate_storage is not None:
+        rate_storage.append(data)
+
+    return data
 
 
 def compare():

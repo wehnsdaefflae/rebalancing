@@ -158,6 +158,7 @@ def merge_generator(
         print(f"determining timestamp boundaries...")
         timestamp_range = get_timestamp_close_boundaries(files)
         print(f"timestamp start {timestamp_range[0]:d}, timestamp end {timestamp_range[1]:d}")
+
     else:
         assert timestamp_range[0] < timestamp_range[1]
 
