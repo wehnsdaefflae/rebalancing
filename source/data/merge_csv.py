@@ -146,28 +146,22 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
 
 def merge_generator(
         pairs: Iterable[Tuple[str, str]],
-        timestamp_start: int = -1,
-        timestamp_end: int = -1,
+        timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
-        header: Tuple[str, ...] = ("close_time", "close", )) -> Generator[Sequence[Union[int, float]], None, None]:
-
-    indices = tuple(stats.index(x) for x in header)
+        header: Tuple[str, ...] = ("close_time", "close", )) -> Generator[Sequence[Sequence[Union[int, float]]], None, None]:
 
     directory_data = "../../data/"
     directory_csv = directory_data + "binance/"
     files = sorted(f"{directory_csv:s}{each_pair[0].upper():s}{each_pair[-1].upper():s}.csv" for each_pair in pairs)
 
-    if 0 < timestamp_start and 0 < timestamp_end:
-        assert timestamp_start < timestamp_end
-
-    else:
+    if timestamp_range is None:
         print(f"determining timestamp boundaries...")
-        ts_close_min, ts_close_max = get_timestamp_close_boundaries(files)
-        timestamp_start = ts_close_min if timestamp_start < 0 else timestamp_start
-        timestamp_end = ts_close_max if timestamp_end < 0 else timestamp_end
-        print(f"timestamp start {timestamp_start:d}, timestamp end {timestamp_end:d}")
+        timestamp_range = get_timestamp_close_boundaries(files)
+        print(f"timestamp start {timestamp_range[0]:d}, timestamp end {timestamp_range[1]:d}")
+    else:
+        assert timestamp_range[0] < timestamp_range[1]
 
-    timestamp_range = timestamp_start, timestamp_end
+    indices = tuple(stats.index(x) for x in header)
     generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
 
     yield from zip(*generators_all)
@@ -202,12 +196,11 @@ def main():
         ),
         interval_minutes=1,
         header=("close_time", "close",),
-        timestamp_start=1501113780000,
-        timestamp_end=1577836860000,
+        timestamp_range=(1577836260000, 1577836860000),
     )
     v = None
     for i, v in enumerate(g):
-        # print(v)
+        print(v)
         if Timer.time_passed(2000):
             print(f"iterated over {i:d} elements")
     print(v)

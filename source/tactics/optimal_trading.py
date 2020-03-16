@@ -1,6 +1,6 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
 import random
-from typing import Sequence, Tuple, Callable, Generator, Iterator, List
+from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable
 
 # from matplotlib import pyplot
 from matplotlib import pyplot
