@@ -22,8 +22,8 @@ def main():
 
     path = make_path_from_sourcematrix(matrix_fix)
 
-    generate_rates_b = (split_time_and_data(x) for x in get_selected_crypto_rates())
-    roi_path = simulate(generate_rates_b, path, fees)
+    # generate_rates_b = (split_time_and_data(x) for x in get_selected_crypto_rates())
+    # roi_path = simulate(generate_rates_b, path, fees)
 
     generate_rates_c = (split_time_and_data(x) for x in get_selected_crypto_rates())
 
@@ -31,10 +31,16 @@ def main():
     with open("../../data/examples/binance.csv", mode="a") as file:
         header = ("timestamp",) + names_pairs + ("target", "gain")
         file.write("\t".join(header) + "\n")
-        next(roi_path)  # skip the first gain
-        for i, (ts, rates, target, gain) in enumerate(zip(timestamps, generate_rates_c, path, roi_path)):
-            line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target], f"{gain:.8f}"]
-            file.write("\t".join(line) + "\n")
+        rates_last = None
+        line_last = ""
+        for i, (ts, rates, target) in enumerate(zip(timestamps, generate_rates_c, path)):
+            line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target]]
+            if rates_last is not None:
+                gain = (1. - fees) * rates[target] / rates_last[target] - 1.
+                file.write("\t".join(line_last) + f"\t{gain:.8f}" + "\n")
+
+            rates_last = rates[:]
+            line_last = line
 
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")
