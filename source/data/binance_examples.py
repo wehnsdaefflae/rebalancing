@@ -31,16 +31,23 @@ def main():
     with open("../../data/examples/binance.csv", mode="a") as file:
         header = ("timestamp",) + names_pairs + ("target", "gain")
         file.write("\t".join(header) + "\n")
+
+        target_last = None
         rates_last = None
         line_last = ""
+
         for i, (ts, rates, target) in enumerate(zip(timestamps, generate_rates_c, path)):
             line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target]]
             if rates_last is not None:
-                gain = (1. - fees) * rates[target] / rates_last[target] - 1.
+                if target_last == target:
+                    gain = rates[target] / rates_last[target] - 1.
+                else:
+                    gain = (1. - fees) * rates[target] / rates_last[target] - 1.
                 file.write("\t".join(line_last) + f"\t{gain:.8f}" + "\n")
 
             rates_last = rates[:]
             line_last = line
+            target_last = target
 
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")
