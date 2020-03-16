@@ -27,6 +27,7 @@ def main():
 
     generate_rates_c = (split_time_and_data(x) for x in get_selected_crypto_rates())
 
+    print("writing examples...")
     with open("../../data/examples/binance.csv", mode="a") as file:
         header = ("timestamp",) + names_pairs + ("target", "gain")
         file.write("\t".join(header) + "\n")
