@@ -180,7 +180,7 @@ def main():
                     seconds_remaining = (len_path - i) // speed
                     min_str = f"{seconds_remaining // 60:d}"
 
-                print(f"finished {i * 100. / len_path:5.2f}% of writing examples. {min_str:s} remaining...")
+                print(f"finished {i * 100. / len_path:5.2f}% of writing examples. {min_str:s} minutes remaining...")
                 last_i = i
 
 
