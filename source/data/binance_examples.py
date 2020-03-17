@@ -81,6 +81,7 @@ def generate_path(path_file: str) -> Sequence[int]:
     #with open(path_file, mode="r") as file:
 
     size_total = os.path.getsize(path_file)
+    size_read_last = -1
     size_read = 0
     for i, line in enumerate(read_reverse_order(path_file)):
         #for i, line in enumerate(base.readline(file, reverse=True)):
@@ -101,7 +102,14 @@ def generate_path(path_file: str) -> Sequence[int]:
         size_read += len(line)
 
         if Timer.time_passed(2000):
-            print(f"finished reading {100. * size_read / size_total:5.2f}% percent of path...")
+            if size_read_last < 0:
+                min_str = "??"
+            else:
+                speed = (size_read - size_read_last) // (2 * 60)
+                minutes_remaining = (size_total - size_read) * speed
+                min_str = f"{minutes_remaining:d}"
+            print(f"finished reading {100. * size_read / size_total:5.2f}% percent of path. {min_str:s} minutes remaining...")
+            size_read_last = size_read
 
     return path
 
