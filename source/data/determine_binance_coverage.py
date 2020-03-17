@@ -148,8 +148,8 @@ def main():
     directory_data = "../../data/"
     directory_csv = directory_data + "binance/"
 
-    files = glob.glob(directory_csv + "*.csv")
-    names_assets = sorted(os.path.splitext(os.path.basename(x))[0] for x in files)[:3]
+    files = glob.glob(directory_csv + "*.csv")[150:]
+    names_assets = sorted(os.path.splitext(os.path.basename(x))[0] for x in files)
 
     intervals = get_intervals(names_assets)
     plot_intervals(intervals, names_assets)

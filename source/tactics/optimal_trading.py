@@ -21,7 +21,7 @@ def get_random_sequence(start_value: float, length: int) -> Iterator[float]:
     return (v for v in s)
 
 
-def forward(
+def forward_deprecated(
         rates: Sequence[Sequence[float]],
         fees: Callable[[float, int, int], float] = lambda _amount_from, _asset_from, _asset_to: 0.) -> Tuple[Sequence[int], float]:
     print(f"forward pass...")
@@ -145,12 +145,15 @@ def generate_matrix(
         asset_sources = list(range(no_assets))
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
-            asset_sources[asset_to], values_tmp[asset_to] = max(
-                (
-                    (asset_from, each_interest * (1. - float(asset_from != asset_to) * fees) * (1. if each_change < 0. else each_change))
-                    for asset_from, each_interest in enumerate(values_objective)
-                ), key=lambda x: x[1]
-            )
+            if each_change < 0.:
+                values_tmp[asset_to] = -1.
+            else:
+                asset_sources[asset_to], values_tmp[asset_to] = max(
+                    (
+                        (asset_from, each_interest * (1. - float(asset_from != asset_to) * fees) * each_change)
+                        for asset_from, each_interest in enumerate(values_objective)
+                    ), key=lambda x: x[1]
+                )
 
         for i, v in enumerate(values_tmp):
             values_objective[i] = v
@@ -208,33 +211,6 @@ def make_path_from_sourcematrix(matrix: Sequence[Tuple[Sequence[int], Tuple[int,
             print(f"finished {(len_path - i) * 100. / len_path:5.2f}% of making path...")
 
     return path
-
-
-def plot_trading(path_trade: Sequence[int], seq_ass: Sequence[float], seq_sec: Sequence[float]):
-    size = len(seq_ass)
-    assert len(seq_sec) == size
-
-    fig, ax = pyplot.subplots()
-    ax.plot(range(size), seq_ass, label="asset")
-    label_buy = True
-    ax.plot(range(size), seq_sec, label="security")
-    label_sell = True
-    for i in range(len(path_trade) - 1):
-        if path_trade[i] == 0 and path_trade[i + 1] == 1:
-            if label_buy:
-                ax.axvline(i, label="buy", color="red")
-                label_buy = False
-            else:
-                ax.axvline(i, color="red")
-
-        elif path_trade[i] == 1 and path_trade[i + 1] == 0:
-            if label_sell:
-                ax.axvline(i, label="sell", color="green")
-                label_sell = False
-            else:
-                ax.axvline(i, color="green")
-    pyplot.legend()
-    pyplot.show()
 
 
 def simulate_deprecated(
@@ -323,10 +299,14 @@ def get_random_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[int,
 
 
 def get_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
-    # rate_a = 59.69, 65.07, 61.44, 65.73, 59.37
-    # rate_b = 30.06, 29.96, 27.06, 27.09, 29.13
-    rate_a = 60.98, -1.,   -1., 65.73, 59.37
-    rate_b = -1., -1., 27.06, 27.09, 29.13
+    rate_a = 59.69, 65.07, 61.44, 65.73, 59.37
+    rate_b =   -1.,   -1.,   -1.,   -1.,   -1.
+
+    #rate_a = 59.69, 65.07, 61.44, 65.73, 59.37
+    #rate_b = 30.06, 29.96, 27.06, 27.09, 29.13
+
+    #rate_a = 60.98, -1.,   -1., 65.73, 59.37
+    #rate_b = -1., -1., 27.06, 29.2, 29.13
 
     return ((i, r) for i, r in enumerate(zip(rate_a, rate_b)))
 
@@ -363,16 +343,7 @@ def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
         for snapshot in generator)
 
 
-def get_selected_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
-    pairs = (
-        ("bcc", "eth"), ("bnb", "eth"), ("dash", "eth"), ("icx", "eth"),
-        ("iota", "eth"), ("ltc", "eth"), ("nano", "eth"), ("poa", "eth"),
-        ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
-    )
-    return get_crypto_data(pairs, ("close",), interval_minutes=interval_minutes)
-
-
-def get_crypto_data(pairs: Sequence[Tuple[str, str]], header: Tuple[str, ...], interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
+def get_crypto_rates(pairs: Sequence[Tuple[str, str]], header: Tuple[str, ...], interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
     generator = merge_generator(pairs=pairs, interval_minutes=interval_minutes, header=("close_time",) + header)
     return (
         (
@@ -466,10 +437,10 @@ def split_time_and_data(
 
 
 def compare():
-    no_assets = 2
-    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
     #no_assets = 2
-    #get_rates = get_debug_rates
+    #get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
+    no_assets = 2
+    get_rates = get_debug_rates
     #no_assets = 3
     #get_rates = get_crypto_debug_rates
     fees = .01
