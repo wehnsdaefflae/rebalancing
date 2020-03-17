@@ -146,7 +146,7 @@ def generate_matrix(
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
             if each_change < 0.:
-                values_tmp[asset_to] = -1.
+                values_tmp[asset_to] = .1
 
             else:
                 asset_sources[asset_to], values_tmp[asset_to] = max(

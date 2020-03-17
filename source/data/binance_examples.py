@@ -23,7 +23,7 @@ def get_pairs() -> Sequence[Tuple[str, str]]:
 
 
 def main():
-    pairs = get_pairs()[:10]
+    pairs = get_pairs()
 
     stats = (
         # "open_time",
@@ -46,7 +46,7 @@ def main():
     # time_range = 1532491200000, 1532491800000
 
     interval_minutes = 1
-    no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60)
+    no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)
 
     timestamps = []
     no_assets = len(pairs)
@@ -56,13 +56,19 @@ def main():
     )
 
     matrix = make_source_matrix(no_assets, generate_rates_for_actions, fees=.01)
+    t_last = 0
     with open("../../data/examples/matrix.csv", mode="a") as file:
         for t, (snapshot, (best, roi)) in enumerate(matrix):
             line = "\t".join(f"{a:d}" for a in snapshot) + f", {best:d}: {roi:.8f}\n"
             file.write(line)
 
             if Timer.time_passed(2000):
-                print(f"finished {100. * t / no_datapoints:5.2f}% of saving matrix ({t:d} of {no_datapoints:d} total)...")
+                speed_per_sec = (t - t_last) // 2
+                secs_remaining = (no_datapoints - t) // speed_per_sec
+                mins_remaining = secs_remaining // 60
+
+                print(f"finished {100. * t / no_datapoints:5.2f}% of saving matrix ({t:d} of {no_datapoints:d} total). {mins_remaining:d} minutes remaining...")
+                t_last = t
 
     """
     names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
@@ -87,6 +93,7 @@ def main():
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")
     """
+
 
 if __name__ == "__main__":
     main()
