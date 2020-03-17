@@ -150,9 +150,9 @@ def merge_generator(
         pairs: Optional[Iterable[Tuple[str, str]]] = None,
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
-        header: Tuple[str, ...] = ("close_time", "close", )) -> Generator[Sequence[Sequence[Union[int, float]]], None, None]:
+        header: Tuple[str, ...] = ("close_time", "close", ),
+        directory_data: str = "../../data/") -> Generator[Sequence[Sequence[Union[int, float]]], None, None]:
 
-    directory_data = "../../data/"
     directory_csv = directory_data + "binance/"
     if pairs is None:
         files = sorted(glob.glob(f"{directory_csv:s}*.csv"))

@@ -147,6 +147,7 @@ def generate_matrix(
         for asset_to, each_change in enumerate(changes_asset):
             if each_change < 0.:
                 values_tmp[asset_to] = -1.
+
             else:
                 asset_sources[asset_to], values_tmp[asset_to] = max(
                     (
@@ -155,16 +156,16 @@ def generate_matrix(
                     ), key=lambda x: x[1]
                 )
 
-        for i, v in enumerate(values_tmp):
-            values_objective[i] = v
-
         if 0. < bound and any(x >= bound for x in values_objective):
-            for i, v in enumerate(values_objective):
+            for i, v in enumerate(values_tmp):
                 values_objective[i] = v / bound
+        else:
+            for i, v in enumerate(values_tmp):
+                values_objective[i] = v
 
         yield tuple(asset_sources), max(enumerate(values_objective), key=lambda x: x[1])
         if Timer.time_passed(2000):
-            print(f"finished {t:d} time steps in roi matrix...")
+            print(f"finished {t:d} time steps in matrix...")
 
 
 def make_source_matrix(
@@ -173,7 +174,9 @@ def make_source_matrix(
         fees: float = .01,
         ) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
 
+    assert 1. >= fees >= 0.
     matrix_change = generate_changes(rates)
+    # returns source assets for each asset, (best asset, estimated roi)
     return generate_matrix(no_assets, matrix_change, fees, bound=100)
 
 
@@ -343,8 +346,19 @@ def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
         for snapshot in generator)
 
 
-def get_crypto_rates(pairs: Sequence[Tuple[str, str]], header: Tuple[str, ...], interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
-    generator = merge_generator(pairs=pairs, interval_minutes=interval_minutes, header=("close_time",) + header)
+def get_crypto_rates(
+        pairs: Sequence[Tuple[str, str]],
+        header: Tuple[str, ...],
+        timestamp_range: Optional[Tuple[int, int]] = None,
+        interval_minutes: int = 1,
+        directory_data: str = "../../data/") -> Iterator[Tuple[int, Sequence[float]]]:
+
+    generator = merge_generator(
+        pairs=pairs,
+        timestamp_range=timestamp_range,
+        interval_minutes=interval_minutes,
+        directory_data=directory_data,
+        header=("close_time",) + header)
     return (
         (
             snapshot[0][0],                                 # timestamp

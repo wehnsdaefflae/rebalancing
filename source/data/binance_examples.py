@@ -23,48 +23,70 @@ def get_pairs() -> Sequence[Tuple[str, str]]:
 
 
 def main():
-    pairs = get_pairs()[:2]
+    pairs = get_pairs()[:10]
 
     stats = (
-        ## "open_time",
-        #"open",
-        #"high",
-        #"low",
+        # "open_time",
+        "open",
+        "high",
+        "low",
         "close",
-        #"volume",
-        ## "close_time",
-        #"quote_asset_volume",
-        #"number_of_trades",
-        #"taker_buy_base_asset_volume",
-        #"taker_buy_quote_asset_volume",
-        #"ignore",
+        "volume",
+        # "close_time",
+        "quote_asset_volume",
+        "number_of_trades",
+        "taker_buy_base_asset_volume",
+        "taker_buy_quote_asset_volume",
+        "ignore",
     )
 
-    names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
+    path_directory = "../../data/"
+
+    time_range = 1532491200000, 1577836856000
+    # time_range = 1532491200000, 1532491800000
+
+    interval_minutes = 1
+    no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60)
 
     timestamps = []
     no_assets = len(pairs)
-    generate_rates_a = (split_time_and_data(x, timestamp_storage=timestamps) for x in get_crypto_rates(pairs, ("close", ), interval_minutes=1))
+    generate_rates_for_actions = (
+        split_time_and_data(x, timestamp_storage=timestamps)
+        for x in get_crypto_rates(pairs, ("close", ), timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=path_directory)
+    )
 
-    matrix = make_source_matrix(no_assets, generate_rates_a, fees=.01)
-    print("fixing matrix...")
-    matrix_fix = tuple(matrix)
+    matrix = make_source_matrix(no_assets, generate_rates_for_actions, fees=.01)
+    with open("../../data/examples/matrix.csv", mode="a") as file:
+        for t, (snapshot, (best, roi)) in enumerate(matrix):
+            line = "\t".join(f"{a:d}" for a in snapshot) + f", {best:d}: {roi:.8f}\n"
+            file.write(line)
+
+            if Timer.time_passed(2000):
+                print(f"finished {100. * t / no_datapoints:5.2f}% of saving matrix ({t:d} of {no_datapoints:d} total)...")
+
+    """
+    names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
+
     path = make_path_from_sourcematrix(matrix_fix)
-
-    generate_rates_b = (split_time_and_data(x) for x in get_crypto_rates(pairs, stats, interval_minutes=1))
+    del matrix_fix
+    generate_rates_for_examples = (
+        split_time_and_data(x)
+        for x in get_crypto_rates(pairs, stats, timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=path_directory)
+    )
 
     print("writing examples...")
     header = ("timestamp",) + tuple(f"{each_pair:s}_{each_column:s}" for each_pair in names_pairs for each_column in stats) + ("target",)  # todo: reward at some point?
     with open("../../data/examples/binance.csv", mode="a") as file:
         file.write("\t".join(header) + "\n")
 
-        for i, (ts, rates, target) in enumerate(zip(timestamps, generate_rates_b, path)):
+        for i, (ts, rates, target) in enumerate(zip(timestamps, generate_rates_for_examples, path)):
             line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target]]
             file.write("\t".join(line) + "\n")
+            del line
 
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")
-
+    """
 
 if __name__ == "__main__":
     main()
