@@ -1,9 +1,11 @@
 import glob
 import os
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Iterable
 
 from source.tactics.optimal_trading import split_time_and_data, make_source_matrix, make_path_from_sourcematrix, get_crypto_rates
 from source.tools.timer import Timer
+
+from flyingcircus import base
 
 
 def get_pairs() -> Sequence[Tuple[str, str]]:
@@ -20,6 +22,45 @@ def get_pairs() -> Sequence[Tuple[str, str]]:
     names_first = (os.path.splitext(x)[0] for x in names_base)
     pairs = tuple((x[:-3], x[-3:]) for x in names_first)
     return pairs
+
+
+def store_matrix(path_file: str, matrix: Iterable[Tuple[Sequence[int], Tuple[int, float]]], no_datapoints: int):
+    t_last = 0
+    with open(path_file, mode="a") as file:
+        for t, (snapshot, (best, roi)) in enumerate(matrix):
+            line = "\t".join(f"{a:d}" for a in snapshot) + f", {best:d}: {roi:.8f}\n"
+            file.write(line)
+
+            if Timer.time_passed(2000):
+                speed_per_sec = (t - t_last) // 2
+                secs_remaining = (no_datapoints - t) // speed_per_sec
+                minutes_remaining = secs_remaining // 60
+
+                print(f"finished {100. * t / no_datapoints:5.2f}% of saving matrix ({t:d} of {no_datapoints:d} total). {minutes_remaining:d} minutes remaining...")
+                t_last = t
+
+
+def generate_path(path_file: str) -> Sequence[int]:
+    path = []
+    with open(path_file, mode="a") as file:
+        asset_last = -1
+        for i, line in enumerate(base.readline(file, reverse=True)):
+            stripped = line.strip()
+            snapshot_str, rest_str = stripped.split(", ")
+            snapshot_split = snapshot_str.split("\t")
+            rest = rest.split(": ")
+
+            if i < 1:
+                asset_last = int(rest[0])
+                path.append(asset_last)
+
+            asset_last = int(snapshot_split[asset_last])
+            path.insert(0, asset_last)
+
+        if Timer.time_passed(2000):
+            print(f"finished reading {i:d} time steps of path...")
+
+    return path
 
 
 def main():
@@ -56,25 +97,11 @@ def main():
     )
 
     matrix = make_source_matrix(no_assets, generate_rates_for_actions, fees=.01)
-    t_last = 0
-    with open("../../data/examples/matrix.csv", mode="a") as file:
-        for t, (snapshot, (best, roi)) in enumerate(matrix):
-            line = "\t".join(f"{a:d}" for a in snapshot) + f", {best:d}: {roi:.8f}\n"
-            file.write(line)
+    store_matrix("../../data/examples/matrix.csv", matrix, no_datapoints)
+    path = generate_path("../../data/examples/matrix.csv")
 
-            if Timer.time_passed(2000):
-                speed_per_sec = (t - t_last) // 2
-                secs_remaining = (no_datapoints - t) // speed_per_sec
-                mins_remaining = secs_remaining // 60
-
-                print(f"finished {100. * t / no_datapoints:5.2f}% of saving matrix ({t:d} of {no_datapoints:d} total). {mins_remaining:d} minutes remaining...")
-                t_last = t
-
-    """
     names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
 
-    path = make_path_from_sourcematrix(matrix_fix)
-    del matrix_fix
     generate_rates_for_examples = (
         split_time_and_data(x)
         for x in get_crypto_rates(pairs, stats, timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=path_directory)
@@ -92,7 +119,6 @@ def main():
 
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")
-    """
 
 
 if __name__ == "__main__":
