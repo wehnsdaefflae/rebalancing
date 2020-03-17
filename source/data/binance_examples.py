@@ -168,8 +168,8 @@ def main():
         file.write("\t".join(header) + "\n")
 
         last_i = -1
-        for i, ((ts, rates), target) in enumerate(zip(generate_rates_for_examples, path)):
-            line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target]]
+        for i, ((ts, data), target) in enumerate(zip(generate_rates_for_examples, path)):
+            line = [f"{ts:d}"] + [f"{x:.8f}" for x in data] + [names_pairs[target]]
             file.write("\t".join(line) + "\n")
 
             if Timer.time_passed(2000):
