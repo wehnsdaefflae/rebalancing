@@ -139,9 +139,8 @@ def main():
 
     interval_minutes = 1
 
-    timestamps = []
-
     """
+    timestamps = []
     no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)
 
     no_assets = len(pairs)
@@ -156,8 +155,8 @@ def main():
     """
 
     path = generate_path(path_directory + "examples/matrix.csv")
-
-    print(f"length path: {len(path):d}")
+    len_path = len(path)
+    print(f"length path: {len_path:d}")
 
     names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
 
@@ -168,13 +167,21 @@ def main():
     with open(path_directory + "examples/binance.csv", mode="a") as file:
         file.write("\t".join(header) + "\n")
 
+        last_i = -1
         for i, ((ts, rates), target) in enumerate(zip(generate_rates_for_examples, path)):
             line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target]]
             file.write("\t".join(line) + "\n")
-            del line
 
             if Timer.time_passed(2000):
-                print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")
+                if last_i < 0:
+                    min_str = "??"
+                else:
+                    speed = (i - last_i) // (2 * 60)
+                    minutes_remaining = (len_path - i) // speed
+                    min_str = f"{minutes_remaining:d}"
+
+                print(f"finished {i * 100. / len_path:5.2f}% of writing examples. {min_str:s} remaining...")
+                last_i = i
 
 
 if __name__ == "__main__":
