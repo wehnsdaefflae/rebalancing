@@ -1,4 +1,4 @@
-from source.tactics.optimal_trading import get_selected_crypto_rates, split_time_and_data, make_source_matrix, make_path_from_sourcematrix, simulate, get_crypto_rates
+from source.tactics.optimal_trading import get_selected_crypto_rates, split_time_and_data, make_source_matrix, make_path_from_sourcematrix, simulate, get_crypto_data
 from source.tools.timer import Timer
 
 
@@ -9,12 +9,29 @@ def main():
         ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
     )
 
+    stats = (
+        # "open_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        # "close_time",
+        "quote_asset_volume",
+        "number_of_trades",
+        "taker_buy_base_asset_volume",
+        "taker_buy_quote_asset_volume",
+        "ignore",
+    )
+
     names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
+
+    header = ("timestamp",) + tuple(f"{each_pair:s}_{each_column:s}" for each_pair in names_pairs for each_column in stats) + ("target",)  # todo: reward at some point?
 
     timestamps = []
     no_assets = 12
     fees = .01
-    generate_rates_a = (split_time_and_data(x, timestamp_storage=timestamps) for x in get_crypto_rates(interval_minutes=1, pairs=pairs))
+    generate_rates_a = (split_time_and_data(x, timestamp_storage=timestamps) for x in get_crypto_data(pairs, stats, interval_minutes=1))
 
     matrix = make_source_matrix(no_assets, generate_rates_a, fees=.01)
     print("fixing matrix...")
@@ -28,26 +45,13 @@ def main():
     generate_rates_c = (split_time_and_data(x) for x in get_selected_crypto_rates())
 
     print("writing examples...")
+    header = ("timestamp",) + tuple(f"{each_pair:s}_{each_column:s}" for each_pair in names_pairs for each_column in stats) + ("target",)  # todo: reward at some point?
     with open("../../data/examples/binance.csv", mode="a") as file:
-        header = ("timestamp",) + names_pairs + ("target", "gain")
         file.write("\t".join(header) + "\n")
-
-        target_last = None
-        rates_last = None
-        line_last = ""
 
         for i, (ts, rates, target) in enumerate(zip(timestamps, generate_rates_c, path)):
             line = [f"{ts:d}"] + [f"{x:.8f}" for x in rates] + [names_pairs[target]]
-            if rates_last is not None:
-                if target_last == target:
-                    gain = rates[target] / rates_last[target] - 1.
-                else:
-                    gain = (1. - fees) * rates[target] / rates_last[target] - 1.
-                file.write("\t".join(line_last) + f"\t{gain:.8f}" + "\n")
-
-            rates_last = rates[:]
-            line_last = line
-            target_last = target
+            file.write("\t".join(line) + "\n")
 
             if Timer.time_passed(2000):
                 print(f"finished {i * 100. / len(timestamps):5.2f}% of writing examples...")

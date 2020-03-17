@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import glob
 import os
 from typing import Tuple, Sequence, Generator, Union, Optional, Iterable
 
@@ -145,14 +147,17 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
 
 
 def merge_generator(
-        pairs: Iterable[Tuple[str, str]],
+        pairs: Optional[Iterable[Tuple[str, str]]] = None,
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
         header: Tuple[str, ...] = ("close_time", "close", )) -> Generator[Sequence[Sequence[Union[int, float]]], None, None]:
 
     directory_data = "../../data/"
     directory_csv = directory_data + "binance/"
-    files = sorted(f"{directory_csv:s}{each_pair[0].upper():s}{each_pair[-1].upper():s}.csv" for each_pair in pairs)
+    if pairs is None:
+        files = sorted(glob.glob(f"{directory_csv:s}*.csv"))
+    else:
+        files = sorted(f"{directory_csv:s}{each_pair[0].upper():s}{each_pair[-1].upper():s}.csv" for each_pair in pairs)
 
     if timestamp_range is None:
         print(f"determining timestamp boundaries...")

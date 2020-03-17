@@ -369,15 +369,15 @@ def get_selected_crypto_rates(interval_minutes: int = 1) -> Iterator[Tuple[int, 
         ("iota", "eth"), ("ltc", "eth"), ("nano", "eth"), ("poa", "eth"),
         ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
     )
-    return get_crypto_rates(pairs, interval_minutes=interval_minutes)
+    return get_crypto_data(pairs, ("close",), interval_minutes=interval_minutes)
 
 
-def get_crypto_rates(pairs: Sequence[Tuple[str, str]], interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
-    generator = merge_generator(pairs, interval_minutes=interval_minutes, header=("close_time", "close", ))
+def get_crypto_data(pairs: Sequence[Tuple[str, str]], header: Tuple[str, ...], interval_minutes: int = 1) -> Iterator[Tuple[int, Sequence[float]]]:
+    generator = merge_generator(pairs=pairs, interval_minutes=interval_minutes, header=("close_time",) + header)
     return (
         (
-            snapshot[0][0],
-            tuple(each_data[1] for each_data in snapshot)
+            snapshot[0][0],                                 # timestamp
+            tuple(each_data[1] for each_data in snapshot)   # rest of data
         )
         for snapshot in generator)
 
