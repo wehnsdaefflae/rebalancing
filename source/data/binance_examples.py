@@ -106,7 +106,7 @@ def generate_path(path_file: str) -> Sequence[int]:
                 min_str = "??"
             else:
                 speed = (size_read - size_read_last) // (2 * 60)
-                minutes_remaining = (size_total - size_read) * speed
+                minutes_remaining = (size_total - size_read) // speed
                 min_str = f"{minutes_remaining:d}"
             print(f"finished reading {100. * size_read / size_total:5.2f}% percent of path. {min_str:s} minutes remaining...")
             size_read_last = size_read
