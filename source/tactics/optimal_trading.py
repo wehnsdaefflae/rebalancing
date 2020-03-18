@@ -160,15 +160,17 @@ def generate_matrix(
     assert 1. >= fees >= 0.
     values_objective = [1. for _ in range(no_assets)]
 
+    changes_asset_prev = [-1. for _ in range(no_assets)]
     for t, changes_asset in enumerate(changes):
         assert len(changes_asset) == no_assets
 
         asset_sources = list(range(no_assets))
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
-            if each_change < 0. and False:
+            if each_change < 0. and changes_asset_prev[asset_to] >= 0. and False:
+                # reduce changes to be source for next iteration
                 best_predecessor = asset_to
-                value_max = 0.
+                value_max = .1
 
             else:
                 best_predecessor, value_max = max(
@@ -199,6 +201,8 @@ def generate_matrix(
         yield tuple(asset_sources), max(enumerate(values_objective), key=lambda x: x[1])
         if Timer.time_passed(2000):
             print(f"finished {t:d} time steps in matrix...")
+
+        changes_asset_prev = changes_asset
 
 
 def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
