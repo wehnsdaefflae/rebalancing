@@ -166,23 +166,28 @@ def generate_matrix(
         asset_sources = list(range(no_assets))
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
-            if each_change < 0.:
-                asset_sources[asset_to] = asset_to
-                values_tmp[asset_to] = -1.
+            if each_change < 0. and False:
+                best_predecessor = asset_to
+                value_max = 0.
 
             else:
-                asset_sources[asset_to], values_tmp[asset_to] = max(
+                best_predecessor, value_max = max(
                     (
-                        (asset_from, -1. if each_interest < 0. else (each_interest * (1. - float(asset_from != asset_to) * fees) * each_change))
+                        (asset_from, each_interest * (1. - float(asset_from != asset_to and 0 < t) * fees) * each_change)
                         for asset_from, each_interest in enumerate(values_objective)
                     ), key=lambda x: x[1]
                 )
+
+            asset_sources[asset_to], values_tmp[asset_to] = best_predecessor, value_max
+
+            if each_change < 0.:
+                values_tmp[asset_to] = 0.
 
         if 0. < bound < max(values_tmp):
             for i, v in enumerate(values_tmp):
                 values_objective[i] = v / bound
 
-        elif max(values_tmp) < 0.:
+        elif 0. >= max(values_tmp):
             print("all negative")
             for i in range(len(values_objective)):
                 values_objective[i] = 1.
