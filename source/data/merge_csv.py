@@ -59,12 +59,9 @@ def generator_file(
         path_file: str,
         timestamp_range: Optional[Tuple[int, int]],
         interval_minutes: int,
-        indices: Optional[Sequence[int]] = None) -> Generator[STATS, None, None]:
+        indices: Sequence[int],
+        data_difference_timestamp: int = 60000) -> Generator[STATS, None, None]:
 
-    if indices is None:
-        indices = 0, 6, 1, 4
-
-    data_difference_timestamp = 60000
     interval_timestamp = interval_minutes * data_difference_timestamp
     no_ranges = (timestamp_range[1] - timestamp_range[0]) // interval_timestamp
     ranges = tuple(
@@ -82,9 +79,14 @@ def generator_file(
             # get next lines until line fits
             while current_range[0] >= timestamp_close:
                 line = next(file, None)
+                if Timer.time_passed(2000):
+                    print(f"skipping lines in {os.path.basename(path_file):s} until reaching timestamp {current_range[0]:d}...")
+
                 if line is None:
                     break
+
                 timestamp_close = get_close_time(line)
+
             if line is None:
                 break
 
@@ -98,11 +100,18 @@ def generator_file(
                 yield make_empty(current_range[1] - data_difference_timestamp, current_range[1] - 1, indices)
                 index_next_range += 1
                 current_range = ranges[index_next_range]
+                if Timer.time_passed(2000):
+                    print(f"filling gaps in {os.path.basename(path_file):s} until reaching timestamp {timestamp_close:d}...")
+
+            if Timer.time_passed(2000):
+                print(f"generated {index_next_range:d} of {no_ranges:d} continual data points for {os.path.basename(path_file):s}...")
 
     # fill rest
     for index_current_range in range(index_next_range, no_ranges):
         current_range = ranges[index_current_range]
         yield make_empty(current_range[1] - data_difference_timestamp, current_range[1] - 1, indices)
+        if Timer.time_passed(2000):
+            print(f"finished filling {100. * index_current_range / (no_ranges - index_next_range):5.2f}% of final gaps...")
 
 
 def round_down_timestamp(timestamp: int, round_to: int) -> int:
@@ -168,7 +177,7 @@ def merge_generator(
         assert timestamp_range[0] < timestamp_range[1]
 
     indices = tuple(stats.index(x) for x in header)
-    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
+    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices) for each_file in files)
 
     yield from zip(*generators_all)
 

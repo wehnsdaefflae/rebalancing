@@ -1,6 +1,6 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
 import random
-from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable, Optional
+from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable, Optional, Union
 
 # from matplotlib import pyplot
 from matplotlib import pyplot
@@ -137,6 +137,7 @@ def generate_matrix(
         changes: Iterator[Sequence[float]], fees: float,
         bound: float = 0.) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
 
+    assert 1. >= fees >= 0.
     values_objective = [1. for _ in range(no_assets)]
 
     for t, changes_asset in enumerate(changes):
@@ -174,7 +175,6 @@ def make_source_matrix(
         fees: float = .01,
         ) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
 
-    assert 1. >= fees >= 0.
     matrix_change = generate_changes(rates)
     # returns source assets for each asset, (best asset, estimated roi)
     return generate_matrix(no_assets, matrix_change, fees, bound=100)
@@ -348,23 +348,27 @@ def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
 
 def get_crypto_rates(
         pairs: Sequence[Tuple[str, str]],
-        header: Tuple[str, ...],
+        stats: Sequence[str],
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
-        directory_data: str = "../../data/") -> Iterator[Tuple[int, Sequence[float]]]:
+        directory_data: str = "../../data/") -> Iterator[Tuple[int, Tuple[Sequence[Union[int, float]], ...]]]:
 
+    # returns (timestamp, tuple of (tuple of int and float values))
     generator = merge_generator(
         pairs=pairs,
         timestamp_range=timestamp_range,
         interval_minutes=interval_minutes,
         directory_data=directory_data,
-        header=("close_time",) + header)
-    return (
+        header=("close_time",) + tuple(stats))
+
+    generator_modified = (
         (
-            snapshot[0][0],                                 # timestamp
-            tuple(each_data[1] for each_data in snapshot)   # rest of data
+            int(snapshot[0][0]),                                # timestamp
+            tuple(each_asset[1:] for each_asset in snapshot)      # rest of data without timestamp
         )
         for snapshot in generator)
+
+    return generator_modified
 
 
 def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float) -> Generator[float, None, None]:

@@ -2,21 +2,17 @@ import glob
 import os
 from typing import Tuple, Sequence, Iterable, Generator
 
-from source.tactics.optimal_trading import split_time_and_data, make_source_matrix, make_path_from_sourcematrix, get_crypto_rates
+from source.tactics.optimal_trading import get_crypto_rates, generate_changes, generate_matrix
 from source.tools.timer import Timer
 
-from flyingcircus import base
+# from flyingcircus import base
+
+PATH_DIRECTORY_DATA = "../../data/"
+RAW_BINANCE_DIR = PATH_DIRECTORY_DATA + "binance/"
 
 
 def get_pairs() -> Sequence[Tuple[str, str]]:
-    pairs = (
-        ("bcc", "eth"), ("bnb", "eth"), ("dash", "eth"), ("icx", "eth"),
-        ("iota", "eth"), ("ltc", "eth"), ("nano", "eth"), ("poa", "eth"),
-        ("qtum", "eth"), ("theta", "eth"), ("tusd", "eth"), ("xmr", "eth")
-    )
-
-    directory = "../../data/binance/"
-    files = sorted(glob.glob(directory + "*.csv"))
+    files = sorted(glob.glob(RAW_BINANCE_DIR + "*.csv"))
 
     names_base = (os.path.basename(x) for x in files)
     names_first = (os.path.splitext(x)[0] for x in names_base)
@@ -104,18 +100,65 @@ def generate_path(path_file: str) -> Sequence[int]:
         if Timer.time_passed(2000):
             if size_read_last < 0:
                 min_str = "??"
+
             else:
                 speed = (size_read - size_read_last) // 2
                 seconds_remaining = (size_total - size_read) // speed
                 min_str = f"{seconds_remaining // 60:d}"
+
             print(f"finished reading {100. * size_read / size_total:5.2f}% percent of path. {min_str:s} minutes remaining...")
             size_read_last = size_read
 
     return path
 
 
+def binance_matrix(pairs: Sequence[Tuple[str, str]], time_range: Tuple[int, int], interval_minutes: int) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
+    no_assets = len(pairs)
+    rates_no_timestamps = (
+        tuple(each_asset[0] for each_asset in snapshot)
+        for timestamp, snapshot in get_crypto_rates(pairs, ("close", ), timestamp_range=time_range, interval_minutes=interval_minutes)
+    )
+    matrix_change = generate_changes(rates_no_timestamps)
+    return generate_matrix(no_assets, matrix_change, .01, bound=100)
+
+
+def write_examples(interval_minutes: int, pairs: Sequence[Tuple[str, str]], path_investment: Sequence[int], file_path: str, stats: Sequence[str], time_range: Tuple[int, int]):
+    len_path = len(path_investment)
+    print(f"length path: {len_path:d}")
+
+    generate_stats = get_crypto_rates(pairs, stats, timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=PATH_DIRECTORY_DATA)
+
+    print("writing examples...")
+    names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
+    header = ("timestamp",) + tuple(f"{each_pair:s}_{each_column:s}" for each_pair in names_pairs for each_column in stats) + ("target",)  # todo: reward at some point?
+    with open(file_path, mode="a") as file:
+        file.write("\t".join(header) + "\n")
+
+        last_i = -1
+        for i, ((ts, snapshot), target) in enumerate(zip(generate_stats, path_investment)):
+            segment_data = [
+                f"{each_value:d}" if stats[i] in ("open_time", "close_time", "number_of_trades") else f"{each_value:.8f}"
+                for each_asset in snapshot
+                for i, each_value in enumerate(each_asset)
+            ]
+            line = [f"{ts:d}"] + segment_data + [names_pairs[target]]
+            file.write("\t".join(line) + "\n")
+
+            if Timer.time_passed(2000):
+                if last_i < 0:
+                    min_str = "??"
+                else:
+                    speed = (i - last_i) // 2
+                    seconds_remaining = (len_path - i) // speed
+                    min_str = f"{seconds_remaining // 60:d}"
+
+                print(f"finished {i * 100. / len_path:5.2f}% of writing examples. {min_str:s} minutes remaining...")
+                last_i = i
+
+
 def main():
     pairs = get_pairs()
+    pairs = pairs[:5]
 
     stats = (
         # "open_time",
@@ -132,56 +175,20 @@ def main():
         "ignore",
     )
 
-    path_directory = "../../data/"
-
-    time_range = 1532491200000, 1577836856000
-    # time_range = 1532491200000, 1532491800000
+    # time_range = 1532491200000, 1577836856000     # full
+    time_range = 1532491200000, 1532491800000       # short
 
     interval_minutes = 1
-
-    """
-    timestamps = []
     no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)
 
-    no_assets = len(pairs)
-    generate_rates_for_actions = (
-        split_time_and_data(x, timestamp_storage=timestamps)
-        for x in get_crypto_rates(pairs, ("close", ), timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=path_directory)
-    )
+    matrix = binance_matrix(pairs, time_range, interval_minutes)
 
-    matrix = make_source_matrix(no_assets, generate_rates_for_actions, fees=.01)
-    store_matrix(path_directory + "examples/matrix.csv", matrix, no_datapoints)
-    timestamps.clear()
-    """
+    file_path_matrix = PATH_DIRECTORY_DATA + "examples/matrix.csv"
+    store_matrix(file_path_matrix, matrix, no_datapoints)
 
-    path = generate_path(path_directory + "examples/matrix.csv")
-    len_path = len(path)
-    print(f"length path: {len_path:d}")
+    path = generate_path(file_path_matrix)
 
-    names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
-
-    generate_rates_for_examples = get_crypto_rates(pairs, stats, timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=path_directory)
-
-    print("writing examples...")
-    header = ("timestamp",) + tuple(f"{each_pair:s}_{each_column:s}" for each_pair in names_pairs for each_column in stats) + ("target",)  # todo: reward at some point?
-    with open(path_directory + "examples/binance.csv", mode="a") as file:
-        file.write("\t".join(header) + "\n")
-
-        last_i = -1
-        for i, ((ts, data), target) in enumerate(zip(generate_rates_for_examples, path)):
-            line = [f"{ts:d}"] + [f"{x:.8f}" for x in data] + [names_pairs[target]]
-            file.write("\t".join(line) + "\n")
-
-            if Timer.time_passed(2000):
-                if last_i < 0:
-                    min_str = "??"
-                else:
-                    speed = (i - last_i) // 2
-                    seconds_remaining = (len_path - i) // speed
-                    min_str = f"{seconds_remaining // 60:d}"
-
-                print(f"finished {i * 100. / len_path:5.2f}% of writing examples. {min_str:s} minutes remaining...")
-                last_i = i
+    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance.csv", stats, time_range)
 
 
 if __name__ == "__main__":
