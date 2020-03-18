@@ -2,7 +2,7 @@ import glob
 import os
 from typing import Tuple, Sequence, Iterable, Generator
 
-from source.tactics.optimal_trading import get_crypto_rates, generate_changes, generate_matrix
+from source.tactics.optimal_trading import get_crypto_rates, generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 # from flyingcircus import base
@@ -118,7 +118,7 @@ def binance_matrix(pairs: Sequence[Tuple[str, str]], time_range: Tuple[int, int]
         tuple(each_asset[0] for each_asset in snapshot)
         for timestamp, snapshot in get_crypto_rates(pairs, ("close", ), timestamp_range=time_range, interval_minutes=interval_minutes)
     )
-    matrix_change = generate_changes(rates_no_timestamps)
+    matrix_change = generate_multiple_changes(rates_no_timestamps)
     return generate_matrix(no_assets, matrix_change, .01, bound=100)
 
 
@@ -158,7 +158,7 @@ def write_examples(interval_minutes: int, pairs: Sequence[Tuple[str, str]], path
 
 def main():
     pairs = get_pairs()
-    pairs = pairs[:5]
+    # pairs = pairs[:5]
 
     stats = (
         # "open_time",
@@ -175,15 +175,15 @@ def main():
         "ignore",
     )
 
-    # time_range = 1532491200000, 1577836856000     # full
-    time_range = 1532491200000, 1532491800000       # short
+    time_range = 1532491200000, 1577836856000     # full
+    # time_range = 1532491200000, 1532491800000       # short
 
     interval_minutes = 1
     no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)
 
     matrix = binance_matrix(pairs, time_range, interval_minutes)
 
-    file_path_matrix = PATH_DIRECTORY_DATA + "examples/matrix.csv"
+    file_path_matrix = PATH_DIRECTORY_DATA + "examples/binance_matrix.csv"
     store_matrix(file_path_matrix, matrix, no_datapoints)
 
     path = generate_path(file_path_matrix)

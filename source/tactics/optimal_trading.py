@@ -115,12 +115,32 @@ def generate_positive_change() -> Generator[float, float, None]:
         each_rate = yield change
 
 
-def generate_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Sequence[float], None, None]:
+def generate_change() -> Generator[float, float, None]:
+    rate_last = yield
+    each_rate = yield
+
+    # only returns -1. when
+    #   all last values have been negative
+    #   the new value is negative
+    while True:
+
+        if each_rate < 0. or rate_last < 0.:
+            change = -1.
+
+        else:
+            change = each_rate / rate_last
+
+        rate_last = each_rate
+        each_rate = yield change
+
+
+def generate_multiple_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Sequence[float], None, None]:
     print(f"generating changes...")
     rates_now = next(generator_rates)
     no_rates = len(rates_now)
 
-    generators_change = tuple(generate_positive_change() for _ in rates_now)
+    generators_change = tuple(generate_change() for _ in rates_now)
+    # generators_change = tuple(generate_positive_change() for _ in rates_now)
     for each_change_gen, first_rate in zip(generators_change, rates_now):
         next(each_change_gen)               # initialize
         each_change_gen.send(first_rate)    # send first rate
@@ -147,19 +167,26 @@ def generate_matrix(
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
             if each_change < 0.:
-                values_tmp[asset_to] = .1
+                asset_sources[asset_to] = asset_to
+                values_tmp[asset_to] = -1.
 
             else:
                 asset_sources[asset_to], values_tmp[asset_to] = max(
                     (
-                        (asset_from, each_interest * (1. - float(asset_from != asset_to) * fees) * each_change)
+                        (asset_from, -1. if each_interest < 0. else (each_interest * (1. - float(asset_from != asset_to) * fees) * each_change))
                         for asset_from, each_interest in enumerate(values_objective)
                     ), key=lambda x: x[1]
                 )
 
-        if 0. < bound and any(x >= bound for x in values_objective):
+        if 0. < bound < max(values_tmp):
             for i, v in enumerate(values_tmp):
                 values_objective[i] = v / bound
+
+        elif max(values_tmp) < 0.:
+            print("all negative")
+            for i in range(len(values_objective)):
+                values_objective[i] = 1.
+
         else:
             for i, v in enumerate(values_tmp):
                 values_objective[i] = v
@@ -167,17 +194,6 @@ def generate_matrix(
         yield tuple(asset_sources), max(enumerate(values_objective), key=lambda x: x[1])
         if Timer.time_passed(2000):
             print(f"finished {t:d} time steps in matrix...")
-
-
-def make_source_matrix(
-        no_assets: int,
-        rates: Iterator[Sequence[float]],
-        fees: float = .01,
-        ) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
-
-    matrix_change = generate_changes(rates)
-    # returns source assets for each asset, (best asset, estimated roi)
-    return generate_matrix(no_assets, matrix_change, fees, bound=100)
 
 
 def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
@@ -294,10 +310,15 @@ def simulate_alternative_deprecated(
     return ratio_history, objective_value
 
 
-def get_random_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[int, Sequence[float]]]:
-    random.seed(235235)
+def get_random_rates(size: int = 20, no_assets: int = 10, gaps: float = 0.) -> Iterator[Tuple[int, Sequence[float]]]:
+    random.seed(25235)
 
-    sequences = tuple(get_random_sequence(random.uniform(10., 60.), size) for _ in range(no_assets))
+    sequences = list(list(get_random_sequence(random.uniform(10., 60.), size)) for _ in range(no_assets))
+    for each_list in sequences:
+        for i in range(len(each_list)):
+            if random.random() < gaps:
+                each_list[i] = -1.
+
     return ((i, x) for i, x in enumerate(zip(*sequences)))
 
 
@@ -413,6 +434,7 @@ def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float)
                     amount_asset = amount / rate_other
                     rate_this = rate_other
                     asset_current = asset_next
+
                 else:
                     # should actually never switch into unknown asset
                     print(f"switching into unknown asset at rate {i:d}! why?!")
@@ -455,33 +477,36 @@ def split_time_and_data(
 
 
 def compare():
-    #no_assets = 2
-    #get_rates = lambda: get_random_rates(size=10, no_assets=no_assets)
-    no_assets = 2
-    get_rates = get_debug_rates
-    #no_assets = 3
-    #get_rates = get_crypto_debug_rates
+    no_assets = 3
+    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets, gaps=.4)
     fees = .01
 
     # new
     timestamps = []
     rates = []
     generate_rates = (split_time_and_data(x, timestamps, rates) for x in get_rates())
-
-    matrix = make_source_matrix(no_assets, generate_rates, fees=.01)
-    print("fixing matrix...")
-    matrix_fix = tuple(matrix)
-
-    print("source matrix new")
-    print("\n".join(["  ".join(f"{v: 7d}" for v in x) for x in zip(*[y[0] for y in matrix_fix])]))
-    print()
-    print(f"roi: {matrix_fix[-1][1][1]:5.5f}")
-    print()
+    generate_rates_fix = list(generate_rates)
+    generate_rates = (x for x in generate_rates_fix)
 
     print("tick    " + "".join(f"{i: 9d}" for i in range(len(rates))))
     print()
     for i, each_rate in enumerate(zip(*rates)):
         print(f"ass_{i:03d} " + "".join(f"{x:9.2f}" for x in each_rate))
+    print()
+
+    matrix_change = generate_multiple_changes(generate_rates)
+    matrix_change_fix = list(matrix_change)
+    print("change matrix new")
+    print("\n".join(["    ".join(["        "] + [f"{v:5.2f}" for v in x]) for x in zip(*[y for y in matrix_change_fix])]))
+    print()
+
+    matrix = generate_matrix(no_assets, matrix_change_fix, .01, bound=100)
+    matrix_fix = tuple(matrix)
+
+    print("asset source matrix new")
+    print("\n".join(["".join(["     "] + [f"{v: 9d}" for v in x]) for x in zip(*[y[0] for y in matrix_fix])]))
+    print()
+    print(f"roi: {matrix_fix[-1][1][1]:5.5f}")
     print()
 
     path_new = make_path_from_sourcematrix(matrix_fix)
