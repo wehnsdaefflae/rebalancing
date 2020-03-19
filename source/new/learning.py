@@ -288,8 +288,8 @@ class RecurrentClassification(MultivariateRecurrentRegression, Classification):
 
 class RecurrentPolynomialClassification(RecurrentClassification):
     def __init__(self, no_arguments: int, degree: int, no_classes: int):
-        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments, degree)
-        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments, degree)
+        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
+        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
         super().__init__(no_classes, addends_basic, addends_memory)
 
 
