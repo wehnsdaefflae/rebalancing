@@ -92,40 +92,13 @@ def forward_deprecated(
     return path, roi_final
 
 
-def generate_positive_change() -> Generator[float, float, None]:
+def generate_change_send() -> Generator[float, float, None]:
     rate_last = yield
     each_rate = yield
 
-    # only returns -1. when
-    #   all last values have been negative
-    #   the new value is negative
     while True:
-
-        if each_rate < 0.:
-            change = -1.
-
-        elif 0. >= rate_last:
-            change = -1.
-            rate_last = each_rate
-
-        else:
-            change = each_rate / rate_last
-            rate_last = each_rate
-
-        each_rate = yield change
-
-
-def generate_change() -> Generator[float, float, None]:
-    rate_last = yield
-    each_rate = yield
-
-    # only returns -1. when
-    #   all last values have been negative
-    #   the new value is negative
-    while True:
-
-        if each_rate < 0. or rate_last < 0.:
-            change = -1.
+        if rate_last == 0.:
+            change = float("inf")
 
         else:
             change = each_rate / rate_last
@@ -139,7 +112,7 @@ def generate_multiple_changes(generator_rates: Iterator[Sequence[float]]) -> Gen
     rates_now = next(generator_rates)
     no_rates = len(rates_now)
 
-    generators_change = tuple(generate_change() for _ in rates_now)
+    generators_change = tuple(generate_change_send() for _ in rates_now)
     # generators_change = tuple(generate_positive_change() for _ in rates_now)
     for each_change_gen, first_rate in zip(generators_change, rates_now):
         next(each_change_gen)               # initialize
@@ -160,30 +133,25 @@ def generate_matrix(
     assert 1. >= fees >= 0.
     values_objective = [1. for _ in range(no_assets)]
 
-    changes_asset_prev = [-1. for _ in range(no_assets)]
     for t, changes_asset in enumerate(changes):
         assert len(changes_asset) == no_assets
 
         asset_sources = list(range(no_assets))
         values_tmp = values_objective[:]
         for asset_to, each_change in enumerate(changes_asset):
-            if each_change < 0. and changes_asset_prev[asset_to] >= 0. and False:
-                # reduce changes to be source for next iteration
-                best_predecessor = asset_to
-                value_max = .1
+            each_change = max(each_change, 0.)
 
-            else:
-                best_predecessor, value_max = max(
-                    (
-                        (asset_from, each_interest * (1. - float(asset_from != asset_to and 0 < t) * fees) * each_change)
-                        for asset_from, each_interest in enumerate(values_objective)
-                    ), key=lambda x: x[1]
-                )
+            best_predecessor, value_max = max(
+                (
+                    (asset_from, each_interest * (1. - float(asset_from != asset_to and 0 < t) * fees) * each_change)
+                    for asset_from, each_interest in enumerate(values_objective)
+                ), key=lambda x: x[1]
+            )
+
+            if value_max == values_objective[asset_to] * each_change:
+                best_predecessor = asset_to
 
             asset_sources[asset_to], values_tmp[asset_to] = best_predecessor, value_max
-
-            if each_change < 0.:
-                values_tmp[asset_to] = 0.
 
         if 0. < bound < max(values_tmp):
             for i, v in enumerate(values_tmp):
@@ -201,8 +169,6 @@ def generate_matrix(
         yield tuple(asset_sources), max(enumerate(values_objective), key=lambda x: x[1])
         if Timer.time_passed(2000):
             print(f"finished {t:d} time steps in matrix...")
-
-        changes_asset_prev = changes_asset
 
 
 def make_path(roi_matrix: Sequence[Sequence[float]]) -> Sequence[int]:
@@ -506,7 +472,7 @@ def compare():
     matrix_change = generate_multiple_changes(generate_rates)
     matrix_change_fix = list(matrix_change)
     print("change matrix new")
-    print("\n".join(["    ".join(["        "] + [f"{v:5.2f}" for v in x]) for x in zip(*[y for y in matrix_change_fix])]))
+    print("\n".join(["    ".join(["        "] + [f"{max(0., v):5.2f}" for v in x]) for x in zip(*[y for y in matrix_change_fix])]))
     print()
 
     matrix = generate_matrix(no_assets, matrix_change_fix, .01, bound=100)
