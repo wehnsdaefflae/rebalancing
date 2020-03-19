@@ -188,7 +188,7 @@ def main():
 
     path = generate_path(file_path_matrix)
 
-    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance.csv", stats, time_range)
+    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples.csv", stats, time_range)
 
 
 if __name__ == "__main__":
