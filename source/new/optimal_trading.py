@@ -1,6 +1,6 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
 import random
-from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable, Optional, Union
+from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable, Optional, Union, Collection
 
 # from matplotlib import pyplot
 
@@ -342,7 +342,7 @@ def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
 
 
 def get_crypto_rates(
-        pairs: Sequence[Tuple[str, str]],
+        pairs: Collection[Tuple[str, str]],
         stats: Sequence[str],
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,

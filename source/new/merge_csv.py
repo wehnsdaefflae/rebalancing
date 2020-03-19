@@ -6,9 +6,9 @@ from typing import Tuple, Sequence, Generator, Union, Optional, Iterable
 
 from source.tools.timer import Timer
 
-STATS = Tuple[Union[int, float], ...]
+STATS_TYPES = Tuple[Union[int, float], ...]
 
-stats = (
+STAT_COLUMNS = (
     "open_time",
     "open",
     "high",
@@ -28,7 +28,7 @@ stat_empty = -1, -1., -1., -1., -1., -1., -1, -1., -1, -1., -1., -1.
 indices_ints = 0, 6, 8
 
 
-def stat_from_line(line: str, indices: Optional[Sequence[int]] = None) -> STATS:
+def stat_from_line(line: str, indices: Optional[Sequence[int]] = None) -> STATS_TYPES:
     stripped = line.strip()
     split = stripped.split("\t")
     if indices is None:
@@ -60,7 +60,7 @@ def generator_file(
         timestamp_range: Optional[Tuple[int, int]],
         interval_minutes: int,
         indices: Sequence[int],
-        data_difference_timestamp: int = 60000) -> Generator[STATS, None, None]:
+        data_difference_timestamp: int = 60000) -> Generator[STATS_TYPES, None, None]:
 
     interval_timestamp = interval_minutes * data_difference_timestamp
     no_ranges = (timestamp_range[1] - timestamp_range[0]) // interval_timestamp
@@ -138,21 +138,8 @@ def get_timestamp_close_boundaries(files: Sequence[str]) -> Tuple[int, int]:
     return timestamp_close_min, timestamp_close_max
 
 
-def get_pairs(files: Sequence[str]) -> Sequence[Tuple[str, str]]:
-    print(f"getting pairs...")
-    pairs = []
-    for each_file in files:
-        name_base = os.path.basename(each_file)
-        name_first = os.path.splitext(name_base)[0]
-        asset_from = name_first[:-3]
-        asset_to = name_first[-3:]
-        each_pair = asset_from, asset_to
-        pairs.append(each_pair)
-    return pairs
-
-
 def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
-    return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in stats)
+    return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in STAT_COLUMNS)
 
 
 def merge_generator(
@@ -176,7 +163,7 @@ def merge_generator(
     else:
         assert timestamp_range[0] < timestamp_range[1]
 
-    indices = tuple(stats.index(x) for x in header)
+    indices = tuple(STAT_COLUMNS.index(x) for x in header)
     generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices) for each_file in files)
 
     yield from zip(*generators_all)

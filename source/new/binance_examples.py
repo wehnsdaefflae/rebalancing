@@ -1,6 +1,6 @@
 import glob
 import os
-from typing import Tuple, Sequence, Iterable, Generator
+from typing import Tuple, Sequence, Iterable, Generator, Collection
 
 from source.new.optimal_trading import get_crypto_rates, generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
@@ -11,7 +11,23 @@ PATH_DIRECTORY_DATA = "../../data/"
 RAW_BINANCE_DIR = PATH_DIRECTORY_DATA + "binance/"
 
 
-def get_pairs() -> Sequence[Tuple[str, str]]:
+STATS = (
+    # "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    # "close_time",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    "ignore",
+)
+
+
+def get_pairs() -> Collection[Tuple[str, str]]:
     files = sorted(glob.glob(RAW_BINANCE_DIR + "*.csv"))
 
     names_base = (os.path.basename(x) for x in files)
@@ -112,7 +128,7 @@ def generate_path(path_file: str) -> Sequence[int]:
     return path
 
 
-def binance_matrix(pairs: Sequence[Tuple[str, str]], time_range: Tuple[int, int], interval_minutes: int) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
+def binance_matrix(pairs: Collection[Tuple[str, str]], time_range: Tuple[int, int], interval_minutes: int) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
     no_assets = len(pairs)
     rates_no_timestamps = (
         tuple(each_asset[0] for each_asset in snapshot)
@@ -122,7 +138,7 @@ def binance_matrix(pairs: Sequence[Tuple[str, str]], time_range: Tuple[int, int]
     return generate_matrix(no_assets, matrix_change, .01, bound=100)
 
 
-def write_examples(interval_minutes: int, pairs: Sequence[Tuple[str, str]], path_investment: Sequence[int], file_path: str, stats: Sequence[str], time_range: Tuple[int, int]):
+def write_examples(interval_minutes: int, pairs: Collection[Tuple[str, str]], path_investment: Sequence[int], file_path: str, stats: Sequence[str], time_range: Tuple[int, int]):
     len_path = len(path_investment)
     print(f"length path: {len_path:d}")
 
@@ -160,21 +176,6 @@ def main():
     pairs = get_pairs()
     # pairs = pairs[:5]
 
-    stats = (
-        # "open_time",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        # "close_time",
-        "quote_asset_volume",
-        "number_of_trades",
-        "taker_buy_base_asset_volume",
-        "taker_buy_quote_asset_volume",
-        "ignore",
-    )
-
     time_range = 1532491200000, 1577836856000     # full
     # time_range = 1532491200000, 1532491800000       # short
 
@@ -188,7 +189,7 @@ def main():
 
     path = generate_path(file_path_matrix)
 
-    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples.csv", stats, time_range)
+    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples.csv", STATS, time_range)
 
 
 if __name__ == "__main__":
