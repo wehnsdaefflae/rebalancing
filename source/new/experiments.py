@@ -68,7 +68,7 @@ INFO = Tuple[int, int, int, float, float, float]        # timestamp, output, tar
 
 
 def binance_time_series(classification: Classification, examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str]) -> Generator[INFO, None, None]:
-    for snapshot in examples:
+    for i, snapshot in enumerate(examples):
         timestamp = snapshot[0]
         rates = snapshot[1:len(names_assets) + 1]
         target = snapshot[-1]
@@ -80,7 +80,9 @@ def binance_time_series(classification: Classification, examples: Iterable[SNAPS
         output_raw = details["raw output"]
         error = MultivariateRegression.error(output_raw, tuple(float(i == index_target) for i in output_raw))
 
-        yield timestamp, output_class, index_target, error, details["knowledgeability"], details["decidedness"]
+        classification.fit(rates, index_target, i + 1)
+
+        yield timestamp, names_assets[output_class], names_assets[index_target], error, details["knowledgeability"], details["decidedness"]
 
 
 def save_info():
@@ -97,7 +99,7 @@ def main():
     columns = binance_columns(names_assets, stats)
 
     # all assets polynomial for all assets is too much
-    classification = PolynomialClassification(len(pairs), 2, len(pairs))
+    classification = PolynomialClassification(len(pairs), 1, len(pairs))
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
     time_series = binance_time_series(classification, examples, names_assets)
 
