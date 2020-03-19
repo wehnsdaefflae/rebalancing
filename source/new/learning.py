@@ -191,29 +191,31 @@ class MultivariateRecurrentRegression(MultivariateRegression):
         self.last_input = None
 
     def _get_memory(self, in_values: Sequence[float]) -> float:
-        if self.last_input is None:
-            return 0.
         return self.regression_memory.output(in_values)
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        memory = self._get_memory(self.last_input)
+        prev_in = tuple(0. for _ in range(len(in_value) + 1)) if self.last_input is None else self.last_input
+
+        memory = self._get_memory(prev_in)
         input_contextualized = tuple(in_value) + (memory, )
         return super().output(input_contextualized)
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        memory = self._get_memory(self.last_input)
-        input_contextualized = tuple(in_value) + (memory, )
-        output_value = self.output(input_contextualized)
+        prev_in = tuple(0. for _ in range(len(in_value) + 1)) if self.last_input is None else self.last_input
+
+        output_value = self.output(in_value)
 
         e = MultivariateRegression.error(output_value, target_value)
         p = 1. / (1. + e)   # probability of keeping memory
         if random.random() >= p:
             memory = random.random()
+        else:
+            memory = self._get_memory(prev_in)
 
-        self.regression_memory.fit(self.last_input, memory, drag)  # smaller, fixed drag?
+        self.regression_memory.fit(prev_in, memory, drag)  # smaller, fixed drag?
 
         input_contextualized = tuple(in_value) + (memory, )
-        self.fit(input_contextualized, target_value, drag)
+        super().fit(input_contextualized, target_value, drag)
         self.last_input = input_contextualized
 
     def get_parameters(self) -> Sequence[float]:
@@ -222,8 +224,8 @@ class MultivariateRecurrentRegression(MultivariateRegression):
 
 class MultivariatePolynomialRecurrentRegression(MultivariateRecurrentRegression):
     def __init__(self, no_arguments: int, degree: int, no_outputs: int):
-        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments, degree)
-        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments, degree)
+        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
+        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
         super().__init__(no_outputs, addends_basic, addends_memory)
 
 
@@ -311,12 +313,16 @@ def classification():
 
 def regression():
     r = MultivariatePolynomialRecurrentRegression(1, 1, 1)
-    for t in range(10):
+    for t in range(100):
         input_values = [random.random()]
         output_values = r.output(input_values)
 
         target_values = [random.random()]
         r.fit(output_values, target_values, t + 1)
+
+        print(output_values)
+        print(target_values)
+        print()
 
 
 def main():
