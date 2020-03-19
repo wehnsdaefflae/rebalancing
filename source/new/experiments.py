@@ -1,4 +1,4 @@
-from typing import Iterable, Sequence, Tuple, Generator, Sized, Union, Collection, Callable, Type
+from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type
 
 from source.new.binance_examples import STATS, get_pairs
 from source.new.learning import Classification, MultivariateRegression, PolynomialClassification
@@ -64,16 +64,25 @@ INPUT_VALUES = Sequence[float]
 TARGET_CLASS = int
 EXAMPLE = Tuple[INPUT_VALUES, TARGET_CLASS]
 
-INFO = Tuple[int, int, int, float, float, float]        # timestamp, output, target, error, knowledgeability, decidedness
+INFO = Tuple[int, int, int, float, float, float, float]        # timestamp, output, target, error, knowledgeability, decidedness, roi
 
 
-def binance_time_series(classification: Classification, examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str]) -> Generator[INFO, None, None]:
+def binance_time_series(classification: Classification, examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str], fees: float) -> Generator[INFO, None, None]:
+    amount_asset = 1.
+    index_asset = -1
     for i, snapshot in enumerate(examples):
         timestamp = snapshot[0]
         rates = snapshot[1:len(names_assets) + 1]
         target = snapshot[-1]
-
         index_target = names_assets.index(target)
+        rate_hold = rates[index_asset]
+        rate_switch = rates[index_target]
+        if index_asset < 0:
+            index_asset = index_target
+            amount_asset = (1. - fees) * amount_asset / rate_switch
+        elif index_asset != index_target:
+            amount_asset = amount_asset * (1. - fees) * rate_hold / rate_switch
+            index_asset = index_target
 
         output_class = classification.output(rates)
         details = classification.get_details_last_output()
@@ -82,7 +91,9 @@ def binance_time_series(classification: Classification, examples: Iterable[SNAPS
 
         classification.fit(rates, index_target, i + 1)
 
-        yield timestamp, names_assets[output_class], names_assets[index_target], error, details["knowledgeability"], details["decidedness"]
+        roi = amount_asset * rates[index_asset]
+
+        yield timestamp, names_assets[output_class], names_assets[index_target], error, details["knowledgeability"], details["decidedness"], roi
 
 
 def save_info():
@@ -101,7 +112,7 @@ def main():
     # all assets polynomial for all assets is too much
     classification = PolynomialClassification(len(pairs), 1, len(pairs))
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
-    time_series = binance_time_series(classification, examples, names_assets)
+    time_series = binance_time_series(classification, examples, names_assets, .01)
 
     for i, snapshot in enumerate(time_series):
         print(snapshot)
