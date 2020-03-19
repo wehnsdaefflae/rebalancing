@@ -162,6 +162,12 @@ class MultivariateRegression(Approximation[Sequence[float]]):
     def __init__(self, addends_per_output: Sequence[Sequence[Callable[[Sequence[float]], float]]]):
         self.regressions = tuple(MultipleRegression(addends) for addends in addends_per_output)
 
+    @staticmethod
+    def error(output: Sequence[float], target: Sequence[float]) -> float:
+        len_target = len(target)
+        assert len(output) == len_target
+        return math.sqrt(sum((a - b) ** 2. for a, b in zip(output, target)))
+
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
         return tuple(each_regression.output(in_value) for each_regression in self.regressions)
 
@@ -181,14 +187,8 @@ class MultivariatePolynomialRegression(MultivariateRegression):
 class MultivariateRecurrentRegression(MultivariateRegression):
     def __init__(self, addends_per_output: Sequence[Sequence[Callable[[Sequence[float]], float]]], addends_memory: Sequence[Callable[[Sequence[float]], float]]):
         super().__init__(addends_per_output)
-        random.seed(234234525)
         self.regression_memory = MultipleRegression(addends_memory)
         self.last_input = None
-
-    def error(self, output: Sequence[float], target: Sequence[float]) -> float:
-        len_target = len(target)
-        assert len(output) == len_target
-        return math.sqrt(sum((a - b) ** 2. for a, b in zip(output, target)))
 
     def _get_memory(self, in_values: Sequence[float]) -> float:
         if self.last_input is None:
@@ -205,7 +205,7 @@ class MultivariateRecurrentRegression(MultivariateRegression):
         input_contextualized = tuple(in_value) + (memory, )
         output_value = self.output(input_contextualized)
 
-        e = self.error(output_value, target_value)
+        e = MultivariateRegression.error(output_value, target_value)
         p = 1. / (1. + e)   # probability of keeping memory
         if random.random() >= p:
             memory = random.random()
@@ -218,3 +218,28 @@ class MultivariateRecurrentRegression(MultivariateRegression):
 
     def get_parameters(self) -> Sequence[float]:
         return tuple(super().get_parameters()) + tuple(self.regression_memory.get_parameters())
+
+
+def get_examples() -> Iterable[Tuple[float, float]]:
+    return ((x, math.floor(4. * x)) for x in (random.random() for _ in range(1000)))
+
+
+def main():
+    random.seed(234234525)
+
+    examples = list(get_examples())
+
+    no_classes = 4
+    r = MultivariatePolynomialRegression(1, 3, no_classes)
+
+    for i, (input_value, target_class) in enumerate(examples):
+        target_value = tuple(float(i == target_class) for i in range(no_classes))
+        output_value = r.output([input_value])
+        error = MultivariateRegression.error(target_value, output_value)
+        output_class, _ = max(enumerate(output_value), key=lambda x: x[1])
+        print(f"{input_value:3.3f} => ({', '.join(f'{o:5.2f}' for o in output_value):s} / {', '.join(f'{o:5.2f}' for o in target_value):s} ({error:.5f})) => {output_class:02d} / {target_class:02d}")
+        r.fit([input_value], target_value, i)
+
+
+if __name__ == "__main__":
+    main()
