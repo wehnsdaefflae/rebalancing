@@ -1,7 +1,7 @@
 from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type
 
 from source.new.binance_examples import STATS, get_pairs
-from source.new.learning import Classification, MultivariateRegression, PolynomialClassification
+from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification
 from source.tools.timer import Timer
 
 
@@ -75,11 +75,14 @@ def binance_time_series(classification: Classification, examples: Iterable[SNAPS
         rates = snapshot[1:len(names_assets) + 1]
         target = snapshot[-1]
         index_target = names_assets.index(target)
+
         rate_hold = rates[index_asset]
         rate_switch = rates[index_target]
+
         if index_asset < 0:
             index_asset = index_target
             amount_asset = (1. - fees) * amount_asset / rate_switch
+
         elif index_asset != index_target:
             amount_asset = amount_asset * (1. - fees) * rate_hold / rate_switch
             index_asset = index_target
@@ -110,7 +113,9 @@ def main():
     columns = binance_columns(names_assets, stats)
 
     # all assets polynomial for all assets is too much
-    classification = PolynomialClassification(len(pairs), 1, len(pairs))
+    #classification = PolynomialClassification(len(pairs), 1, len(pairs))
+    classification = RecurrentPolynomialClassification(len(pairs), 1, len(pairs))
+
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
     time_series = binance_time_series(classification, examples, names_assets, .01)
 

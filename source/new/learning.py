@@ -309,8 +309,19 @@ def classification():
         r.fit(input_value, target_class, i)
 
 
+def regression():
+    r = MultivariatePolynomialRecurrentRegression(1, 1, 1)
+    for t in range(10):
+        input_values = [random.random()]
+        output_values = r.output(input_values)
+
+        target_values = [random.random()]
+        r.fit(output_values, target_values, t + 1)
+
+
 def main():
-    classification()
+    # classification()
+    regression()
 
 
 if __name__ == "__main__":
