@@ -4,14 +4,14 @@ from typing import Sequence, Tuple
 
 from matplotlib import pyplot, colors
 
-from source.data.merge_csv import merge_generator
+from source.new.merge_csv import merge_generator
 from source.tools.timer import Timer
 
 
 def template():
     # https://stackoverflow.com/questions/7684475/plotting-labeled-intervals-in-matplotlib-gnuplot
     from matplotlib import pyplot
-    from matplotlib.dates import DateFormatter, MinuteLocator, SecondLocator
+    from matplotlib.dates import DateFormatter, SecondLocator
     import numpy as np
     import datetime as dt
 

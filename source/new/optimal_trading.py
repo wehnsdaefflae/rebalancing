@@ -3,9 +3,8 @@ import random
 from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterable, Optional, Union
 
 # from matplotlib import pyplot
-from matplotlib import pyplot
 
-from source.data.merge_csv import merge_generator
+from source.new.merge_csv import merge_generator
 from source.tools.timer import Timer
 
 

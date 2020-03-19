@@ -2,7 +2,7 @@ import glob
 import os
 from typing import Tuple, Sequence, Iterable, Generator
 
-from source.tactics.optimal_trading import get_crypto_rates, generate_multiple_changes, generate_matrix
+from source.new.optimal_trading import get_crypto_rates, generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 # from flyingcircus import base
