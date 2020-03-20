@@ -96,15 +96,12 @@ def simulate_investment(
     index_asset = -1
 
     indices_rates = range(1, len(names_assets) + 1)
-    examples_changes = extract_changes(examples, indices_rates)
+    # examples_changes = extract_changes(examples, indices_rates)
 
-    timestamp_min = -1
-    timestamp_max = -1
-    for i, snapshot_changes in enumerate(examples_changes):
-        timestamp = snapshot_changes[0]
+    snapshot_last = None
 
-        timestamp_min = timestamp if timestamp_min < 0 else min(timestamp_min, timestamp)
-        timestamp_max = timestamp if timestamp_max < 0 else max(timestamp_max, timestamp)
+    for i, snapshot in enumerate(examples):
+        timestamp = snapshot[0]
 
         if time_range is not None:
             if time_range[0] < timestamp < time_range[1]:
@@ -112,10 +109,13 @@ def simulate_investment(
             else:
                 continue
 
-        rates = [snapshot_changes[i] for i in indices_rates]
-        target = snapshot_changes[-1]
+        rate_changes = [1. for _ in indices_rates] if snapshot_last is None \
+            else [float("inf") if 0. >= snapshot_last[i] else snapshot[i] / snapshot_last[i] for i in indices_rates]
+
+        target = snapshot[-1]
         index_target = names_assets.index(target)
 
+        rates = [snapshot[i] for i in indices_rates]
         rate_hold = rates[index_asset]
         rate_switch = rates[index_target]
 
@@ -129,7 +129,7 @@ def simulate_investment(
 
         classification_stats = []
         for j, each_classification in enumerate(classifications):
-            output_class = each_classification.output(rates)
+            output_class = each_classification.output(rate_changes)
 
             details = each_classification.get_details_last_output()
             output_raw = details["raw output"]
@@ -137,7 +137,7 @@ def simulate_investment(
 
             roi = amount_asset * rates[index_asset]
 
-            each_classification.fit(rates, index_target, i + 1)
+            each_classification.fit(rate_changes, index_target, i + 1)
 
             stats = names_assets[output_class], error, details["knowledgeability"], details["decidedness"], roi
             classification_stats.append(stats)
