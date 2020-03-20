@@ -130,7 +130,7 @@ def simulate_investment(
             output_raw = details["raw output"]
             error = MultivariateRegression.error_distance(output_raw, tuple(float(i == index_target) for i in output_raw))
 
-            roi = amount_asset * rates[index_asset[j]]
+            roi = amount_asset[j] * rates[index_asset[j]]
 
             if -1 >= stop_training_at or timestamp < stop_training_at:
                 each_classification.fit(rate_changes, index_target, i + 1)
