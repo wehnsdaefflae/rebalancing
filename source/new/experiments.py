@@ -1,12 +1,11 @@
 import queue
-from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, TypeVar
+from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any
 
 from matplotlib import pyplot
 
 from source.new.binance_examples import STATS, get_pairs
 from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification, Approximation, smear, \
     MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
-from source.new.optimal_trading import generate_multiple_changes
 from source.tools.timer import Timer
 
 
@@ -46,7 +45,7 @@ def binance_columns(assets: Collection[str], columns_available: Collection[str])
         f"{each_asset.upper():s}_{each_stat.lower():s}"
         for each_asset in assets
         for each_stat in columns_available
-    ) + ("target", )
+    )
 
 
 SNAPSHOT_BINANCE = Tuple[Union[float, int, str], ...]  # timestamp, rates, action
@@ -62,7 +61,8 @@ def iterate_snapshots(path_file: str, columns: Collection[str], get_column_type:
         for line in file:
             stripped = line.strip()
             split = stripped.split("\t")
-            yield tuple(t(split[i]) for t, i in zip(types, indices))
+            y = tuple(t(split[i]) for t, i in zip(types, indices))
+            yield y
 
 
 def extract_changes(generator: Iterable[Sequence[Any]], indices_float: Collection[int]) -> Iterable[Sequence[Any]]:
@@ -74,22 +74,25 @@ def extract_changes(generator: Iterable[Sequence[Any]], indices_float: Collectio
             len_each = len(each)
             continue
         assert len(each) == len_each
-        yield tuple(each[i] if i not in indices_float else 0. if 0. >= float(last[i]) or 0. >= float(each[i]) else float(each[i] / last[i]) for i in range(len_each))
+        y = tuple(each[i] if i not in indices_float else 0. if 0. >= float(last[i]) or 0. >= float(each[i]) else float(each[i] / last[i]) for i in range(len_each))
+        yield y
 
 
 INPUT_VALUES = Sequence[float]
 TARGET_CLASS = int
 EXAMPLE = Tuple[INPUT_VALUES, TARGET_CLASS]
 
-INFO_INVESTMENT = Tuple[int, int, int, float, float, float, float]        # timestamp, output, target, error, knowledgeability, decidedness, roi
+INFO_INVESTMENT = Tuple[int, int, Sequence[Tuple[int, float, float, float, float]]]        # timestamp, target, (output, error, knowledgeability, decidedness, roi)
 
 
-def simulate_investment(classification: Classification, examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str], fees: float) -> Generator[INFO_INVESTMENT, None, None]:
+def simulate_investment(classifications: Sequence[Classification], examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str], fees: float) -> Generator[INFO_INVESTMENT, None, None]:
     amount_asset = 1.
     index_asset = -1
 
     indices_rates = range(1, len(names_assets) + 1)
     examples_changes = extract_changes(examples, indices_rates)
+
+    classification_stats = []
 
     for i, snapshot_changes in enumerate(examples_changes):
         timestamp = snapshot_changes[0]
@@ -108,24 +111,29 @@ def simulate_investment(classification: Classification, examples: Iterable[SNAPS
             amount_asset = amount_asset * (1. - fees) * rate_hold / rate_switch
             index_asset = index_target
 
-        output_class = classification.output(rates)
+        for j, each_classification in enumerate(classifications):
+            output_class = each_classification.output(rates)
 
-        details = classification.get_details_last_output()
-        output_raw = details["raw output"]
-        error = MultivariateRegression.error(output_raw, tuple(float(i == index_target) for i in output_raw))
-        roi = amount_asset * rates[index_asset]
+            details = each_classification.get_details_last_output()
+            output_raw = details["raw output"]
+            error = MultivariateRegression.error(output_raw, tuple(float(i == index_target) for i in output_raw))
 
-        classification.fit(rates, index_target, i + 1)
+            roi = amount_asset * rates[index_asset]
 
-        yield timestamp, names_assets[output_class], names_assets[index_target], error, details["knowledgeability"], details["decidedness"], roi
+            each_classification.fit(rates, index_target, i + 1)
+
+            stats = names_assets[output_class], error, details["knowledgeability"], details["decidedness"], roi
+            classification_stats.append(stats)
+
+        y = timestamp, target, classification_stats
+        yield y
 
 
-INFO_PREDICTION = Tuple[int, int, int, float, float]        # timestamp, output, target, error, knowledgeability, decidedness
+INFO_PREDICTION = Tuple[int, Sequence[float], Sequence[Tuple[Sequence[float], float]]]        # timestamp, output, target, error
 
 
-def predict_rate(regression: Approximation[Sequence[float]], examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str]) -> Generator[INFO_PREDICTION, None, None]:
+def predict_rate(approximations: Sequence[Approximation[Sequence[float]]], examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str]) -> Generator[INFO_PREDICTION, None, None]:
     last_snapshot = None
-    error_total = -1.
 
     indices_rates = range(1, len(names_assets) + 1)
     example_changes = extract_changes(examples, indices_rates)
@@ -135,21 +143,25 @@ def predict_rate(regression: Approximation[Sequence[float]], examples: Iterable[
             last_snapshot = snapshot_changes
             continue
         input_values = tuple(last_snapshot[i] for i in indices_rates)
-        output_values = regression.output(input_values)
         target_values = tuple(snapshot_changes[i] for i in indices_rates)
 
-        error = MultivariateRegression.error(output_values, target_values)
+        approximator_stats = []
+        for j, each_approximation in enumerate(approximations):
+            output_values = each_approximation.output(input_values)
+            error = MultivariateRegression.error(output_values, target_values)
+            # error = float((1. < output_values[0]) != (1. < target_values[0]))
+
+            each_approximation.fit(input_values, target_values, i)
+            approximator_stats.append((output_values, error))
 
         timestamp = last_snapshot[0]
-        error_total = smear(error_total, error, i - 1)
 
-        regression.fit(input_values, target_values, i)
-
-        yield timestamp, output_values, target_values, error, error_total
+        y = timestamp, target_values, approximator_stats
+        yield y
 
 
 def learn_timeseries():
-    pairs = ("EOS", "ETH"),
+    pairs = ("AGI", "ETH"),
     stats = "close",
 
     names_assets = tuple(f"{each_pair[0].upper():s}-{each_pair[1].upper()}" for each_pair in pairs)
@@ -158,66 +170,100 @@ def learn_timeseries():
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
 
     regression_non_recurrent = MultivariatePolynomialRegression(1, 4, 1)
-    simulation_non_recurrent = predict_rate(regression_non_recurrent, examples, names_assets)
-
     regression_recurrent = MultivariatePolynomialRecurrentRegression(1, 4, 1)
-    simulation_recurrent = predict_rate(regression_recurrent, examples, names_assets)
+    learners = regression_non_recurrent, regression_recurrent
+
+    approximations = predict_rate(learners, examples, names_assets)
 
     fig, ax = pyplot.subplots()
+    max_size = 20
+    times = []
+    error = [[] for _ in learners]
+    error_total = [-1. for _ in learners]
 
-    times = queue.Queue(maxsize=100)
-    error_a = queue.Queue(maxsize=100)
-    error_b = queue.Queue(maxsize=100)
-
-    print_legend = True
     # pyplot.ion()
-    for i, (snapshot_a, snapshot_b) in enumerate(zip(simulation_non_recurrent, simulation_recurrent)):
+    for i, (timestamp, target_values, approximator_stats) in enumerate(approximations):
         # print(snapshot)
 
         if Timer.time_passed(1000):
             print(f"finished reading {i:d} examples...")
+            print(f"{timestamp:d}: {str(target_values):s}")
 
-            times.put(i)
-            error_a.put(snapshot_a[-1])
-            error_b.put(snapshot_b[-1])
+            times.append(i)
+            for j, (each_output, each_error) in enumerate(approximator_stats):
+                error_total[j] = each_error if len(times) < 2 else smear(error_total[j], each_error, 10)
+                error[j].append(error_total[j])
+
+            if max_size < len(times):
+                times = times[-max_size:]
+                for j, each_error in enumerate(error):
+                    error[j] = each_error[-max_size:]
 
             ax.clear()
-            t = list(times.queue)
-            ax.plot(t, list(error_a.queue), label="non recurrent", color="black", alpha=.5)
-            ax.plot(t, list(error_b.queue), label="recurrent", color="blue", alpha=.5)
+            for j, each_error in enumerate(error):
+                ax.plot(times, each_error, label=f"{learners[j].__class__.__name__:s}", alpha=.5)
 
-            if print_legend:
-                pyplot.legend()
-                print_legend = False
+            ax.set_ylim([0, min(max(each_error) for each_error in error) * 1.2])
+
+            pyplot.legend()
             pyplot.pause(.05)
-
-            #print(print("non_recurrent: " + str(snapshot_a)))
-            #print(print("recurrent: " + str(snapshot_b)))
 
 
 def learn_investment():
     pairs = get_pairs()
 
     stats = STATS
-    stats = "close",
+    stats = "close", "target"
 
     names_assets = tuple(f"{each_pair[0].upper():s}-{each_pair[1].upper()}" for each_pair in pairs)
     columns = binance_columns(names_assets, stats)
 
     # all assets polynomial for all assets is too much
-    # classification = PolynomialClassification(len(pairs), 1, len(pairs))
-    classification = RecurrentPolynomialClassification(len(pairs), 2, len(pairs))
+    classifications = PolynomialClassification(len(pairs), 1, len(pairs)), RecurrentPolynomialClassification(len(pairs), 1, len(pairs))
 
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
-    simulation = simulate_investment(classification, examples, names_assets, .01)
+    simulation = simulate_investment(classifications, examples, names_assets, .01)
 
-    for i, snapshot in enumerate(simulation):
-        print(snapshot)
+    fig, ax = pyplot.subplots()
+    max_size = 20
+    times = []
+    error = [[] for _ in classifications]
+    error_total = [-1. for _ in classifications]
+    roi = [[] for _ in classifications]
+    roi_total = [-1. for _ in classifications]
 
-        if Timer.time_passed(2000):
+    for i, (timestamp, target_asset, classification_stats) in enumerate(simulation):
+        if Timer.time_passed(1000):
             print(f"finished reading {i:d} examples...")
+
+            print(f"{timestamp:d}: {target_asset:s}")
+
+            times.append(i)
+            for j, (each_output, each_error, each_k, each_d, each_roi) in enumerate(classification_stats):
+                error_total[j] = each_error if len(times) < 2 else smear(error_total[j], each_error, 10)
+                error[j].append(error_total[j])
+
+                roi_total[j] = each_roi if len(times) < 2 else smear(roi_total[j], each_roi, 10)
+                roi[j].append(roi_total[j])
+
+            if max_size < len(times):
+                times = times[-max_size:]
+                for j in range(len(classifications)):
+                    error[j] = error[j][-max_size:]
+                    roi[j] = roi[j][-max_size:]
+
+            ax.clear()
+            for j in range(len(classifications)):
+                # ax.plot(times, error[j], label=f"error {classifications[j].__class__.__name__:s}", alpha=.5)
+                ax.plot(times, roi[j], label=f"roi {classifications[j].__class__.__name__:s}", alpha=.5)
+
+            # ax.set_ylim([0, min(max(each_error) for each_error in error) * 1.2])
+            ax.set_ylim([0, min(max(each_roi) for each_roi in roi) * 1.2])
+
+            pyplot.legend()
+            pyplot.pause(.05)
 
 
 if __name__ == "__main__":
-    # learn_investment()
-    learn_timeseries()
+    learn_investment()
+    # learn_timeseries()
