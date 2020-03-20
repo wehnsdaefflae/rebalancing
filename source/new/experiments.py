@@ -1,7 +1,8 @@
-from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type
+from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, TypeVar
 
 from source.new.binance_examples import STATS, get_pairs
 from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification
+from source.new.optimal_trading import generate_multiple_changes
 from source.tools.timer import Timer
 
 
@@ -60,6 +61,18 @@ def iterate_snapshots(path_file: str, columns: Collection[str], get_column_type:
             yield tuple(t(split[i]) for t, i in zip(types, indices))
 
 
+def extract_changes(generator: Iterable[Sequence[Any]], indices_float: Collection[int]) -> Iterable[Sequence[Any]]:
+    len_each = -1
+    last = None
+    for each in generator:
+        if last is None:
+            last = each
+            len_each = len(each)
+            continue
+        assert len(each) == len_each
+        yield tuple(each[i] if i not in indices_float else 0. if 0. >= float(last[i]) or 0. >= float(each[i]) else float(each[i] / last[i]) for i in range(len_each))
+
+
 INPUT_VALUES = Sequence[float]
 TARGET_CLASS = int
 EXAMPLE = Tuple[INPUT_VALUES, TARGET_CLASS]
@@ -70,10 +83,14 @@ INFO = Tuple[int, int, int, float, float, float, float]        # timestamp, outp
 def binance_time_series(classification: Classification, examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str], fees: float) -> Generator[INFO, None, None]:
     amount_asset = 1.
     index_asset = -1
-    for i, snapshot in enumerate(examples):
-        timestamp = snapshot[0]
-        rates = snapshot[1:len(names_assets) + 1]
-        target = snapshot[-1]
+
+    indices_rates = range(1, len(names_assets) + 1)
+    examples_changes = extract_changes(examples, indices_rates)
+
+    for i, snapshot_changes in enumerate(examples_changes):
+        timestamp = snapshot_changes[0]
+        rates = [snapshot_changes[i] for i in indices_rates]
+        target = snapshot_changes[-1]
         index_target = names_assets.index(target)
 
         rate_hold = rates[index_asset]
@@ -113,7 +130,7 @@ def main():
     columns = binance_columns(names_assets, stats)
 
     # all assets polynomial for all assets is too much
-    #classification = PolynomialClassification(len(pairs), 1, len(pairs))
+    # classification = PolynomialClassification(len(pairs), 1, len(pairs))
     classification = RecurrentPolynomialClassification(len(pairs), 1, len(pairs))
 
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)

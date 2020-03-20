@@ -4,7 +4,7 @@ import itertools
 import json
 import math
 import random
-from typing import TypeVar, Sequence, Generic, Dict, Any, Callable, Iterable, Tuple, Generator, Union
+from typing import TypeVar, Sequence, Generic, Dict, Any, Callable, Iterable, Tuple, Generator, Union, Type
 
 import numpy
 
@@ -229,7 +229,7 @@ class MultivariatePolynomialRecurrentRegression(MultivariateRecurrentRegression)
         super().__init__(no_outputs, addends_basic, addends_memory)
 
 
-class Classification(MultivariateRegression, Approximation[int]):
+class Classification(Approximation[int]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         pass
@@ -237,8 +237,8 @@ class Classification(MultivariateRegression, Approximation[int]):
     def to_dict(self) -> Dict[str, Any]:
         pass
 
-    def __init__(self, no_classes: int, addends: Sequence[Callable[[Sequence[float]], float]]):
-        super().__init__(no_classes, addends)
+    def __init__(self, regression: MultivariateRegression, no_classes: int):
+        self.regression = regression
         self.no_classes = no_classes
         self.last_output = None
 
@@ -263,13 +263,13 @@ class Classification(MultivariateRegression, Approximation[int]):
         }
 
     def output(self, in_value: Sequence[float]) -> int:
-        self.last_output = super().output(in_value)
+        self.last_output = self.regression.output(in_value)
         output_class = self.one_hot_to_class(self.last_output)
         return output_class
 
     def fit(self, in_value: Sequence[float], target_class: int, drag: int):
         target_values = self.class_to_one_hot(target_class)
-        super().fit(in_value, target_values, drag)
+        self.regression.fit(in_value, target_values, drag)
 
     def get_parameters(self) -> Sequence[float]:
         return self.get_parameters()
@@ -277,13 +277,14 @@ class Classification(MultivariateRegression, Approximation[int]):
 
 class PolynomialClassification(Classification):
     def __init__(self, no_arguments: int, degree: int, no_classes: int):
-        addends = MultiplePolynomialRegression.polynomial_addends(no_arguments, degree)
-        super().__init__(no_classes, addends)
+        regression = MultivariatePolynomialRegression(no_arguments, degree, no_classes)
+        super().__init__(regression, no_classes)
 
 
-class RecurrentClassification(MultivariateRecurrentRegression, Classification):
+class RecurrentClassification(Classification):
     def __init__(self, no_classes: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]]):
-        super().__init__(no_classes, addends, addends_memory)
+        regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory)
+        super().__init__(regression, no_classes)
 
 
 class RecurrentPolynomialClassification(RecurrentClassification):
@@ -297,7 +298,7 @@ def get_classification_examples() -> Iterable[Tuple[Tuple[float, ...], int]]:
     return (((x, ), math.floor(4. * x)) for x in (random.random() for _ in range(1000)))
 
 
-def classification():
+def classification_test():
     random.seed(234234525)
 
     examples = list(get_classification_examples())
@@ -311,7 +312,7 @@ def classification():
         r.fit(input_value, target_class, i)
 
 
-def regression():
+def regression_test():
     r = MultivariatePolynomialRecurrentRegression(1, 1, 1)
     for t in range(100):
         input_values = [random.random()]
@@ -326,8 +327,8 @@ def regression():
 
 
 def main():
-    # classification()
-    regression()
+    # classification_test()
+    regression_test()
 
 
 if __name__ == "__main__":
