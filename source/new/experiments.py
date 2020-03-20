@@ -131,7 +131,7 @@ def main():
 
     # all assets polynomial for all assets is too much
     # classification = PolynomialClassification(len(pairs), 1, len(pairs))
-    classification = RecurrentPolynomialClassification(len(pairs), 1, len(pairs))
+    classification = RecurrentPolynomialClassification(len(pairs), 2, len(pairs))
 
     examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
     time_series = binance_time_series(classification, examples, names_assets, .01)
