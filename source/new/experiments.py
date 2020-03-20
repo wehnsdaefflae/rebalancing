@@ -92,8 +92,6 @@ def simulate_investment(classifications: Sequence[Classification], examples: Ite
     indices_rates = range(1, len(names_assets) + 1)
     examples_changes = extract_changes(examples, indices_rates)
 
-    classification_stats = []
-
     for i, snapshot_changes in enumerate(examples_changes):
         timestamp = snapshot_changes[0]
         rates = [snapshot_changes[i] for i in indices_rates]
@@ -111,6 +109,7 @@ def simulate_investment(classifications: Sequence[Classification], examples: Ite
             amount_asset = amount_asset * (1. - fees) * rate_hold / rate_switch
             index_asset = index_target
 
+        classification_stats = []
         for j, each_classification in enumerate(classifications):
             output_class = each_classification.output(rates)
 
@@ -213,10 +212,10 @@ def learn_investment():
     pairs = get_pairs()
 
     stats = STATS
-    stats = "close", "target"
+    stats = "close",
 
     names_assets = tuple(f"{each_pair[0].upper():s}-{each_pair[1].upper()}" for each_pair in pairs)
-    columns = binance_columns(names_assets, stats)
+    columns = tuple(binance_columns(names_assets, stats)) + ("target", )
 
     # all assets polynomial for all assets is too much
     classifications = PolynomialClassification(len(pairs), 1, len(pairs)), RecurrentPolynomialClassification(len(pairs), 1, len(pairs))
