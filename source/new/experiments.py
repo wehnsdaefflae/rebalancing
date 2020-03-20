@@ -246,7 +246,6 @@ def learn_investment(time_range: Optional[Tuple[int, int]] = None):
     error = [[] for _ in classifications]
     error_total = [-1. for _ in classifications]
     roi = [[] for _ in classifications]
-    roi_total = [-1. for _ in classifications]
 
     for i, (timestamp, target_asset, classification_stats) in enumerate(simulation):
         if Timer.time_passed(1000):
@@ -258,9 +257,7 @@ def learn_investment(time_range: Optional[Tuple[int, int]] = None):
             for j, (each_output, each_error, each_k, each_d, each_roi) in enumerate(classification_stats):
                 error_total[j] = each_error if len(times) < 2 else smear(error_total[j], each_error, 10)
                 error[j].append(error_total[j])
-
-                roi_total[j] = each_roi if len(times) < 2 else smear(roi_total[j], each_roi, 10)
-                roi[j].append(roi_total[j])
+                roi[j].append(each_roi)
 
             if max_size < len(times):
                 times = times[-max_size:]
