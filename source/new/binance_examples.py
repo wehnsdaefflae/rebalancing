@@ -173,10 +173,11 @@ def write_examples(interval_minutes: int, pairs: Collection[Tuple[str, str]], pa
 
 
 def main():
-    pairs = get_pairs()
+    pairs = get_pairs()[:10]
     # pairs = pairs[:5]
 
     time_range = 1532491200000, 1577836856000     # full
+    # time_range = 1532491200000, 1554710537999     # 7/10ths
     # time_range = 1532491200000, 1532491800000       # short
 
     interval_minutes = 1
@@ -184,12 +185,12 @@ def main():
 
     matrix = binance_matrix(pairs, time_range, interval_minutes)
 
-    file_path_matrix = PATH_DIRECTORY_DATA + "examples/binance_matrix.csv"
+    file_path_matrix = PATH_DIRECTORY_DATA + "examples/binance_matrix_small.csv"
     store_matrix(file_path_matrix, matrix, no_datapoints)
 
     path = generate_path(file_path_matrix)
 
-    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples.csv", STATS, time_range)
+    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples_small.csv", STATS, time_range)
 
 
 if __name__ == "__main__":

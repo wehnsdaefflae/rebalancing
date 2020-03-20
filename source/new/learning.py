@@ -163,7 +163,7 @@ class MultivariateRegression(Approximation[Sequence[float]]):
         self.regressions = tuple(MultipleRegression(addends) for _ in range(no_outputs))
 
     @staticmethod
-    def error(output: Sequence[float], target: Sequence[float]) -> float:
+    def error_distance(output: Sequence[float], target: Sequence[float]) -> float:
         len_target = len(target)
         assert len(output) == len_target
         return math.sqrt(sum((a - b) ** 2. for a, b in zip(output, target)))
@@ -205,7 +205,7 @@ class MultivariateRecurrentRegression(MultivariateRegression):
 
         output_value = self.output(in_value)
 
-        e = MultivariateRegression.error(output_value, target_value)
+        e = MultivariateRegression.error_distance(output_value, target_value)
         p = 1. / (1. + e)   # probability of keeping memory
         if random.random() >= p:
             memory = random.random()

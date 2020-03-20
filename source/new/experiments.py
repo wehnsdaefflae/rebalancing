@@ -1,5 +1,5 @@
 import queue
-from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any
+from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, Optional
 
 from matplotlib import pyplot
 
@@ -85,15 +85,33 @@ EXAMPLE = Tuple[INPUT_VALUES, TARGET_CLASS]
 INFO_INVESTMENT = Tuple[int, int, Sequence[Tuple[int, float, float, float, float]]]        # timestamp, target, (output, error, knowledgeability, decidedness, roi)
 
 
-def simulate_investment(classifications: Sequence[Classification], examples: Iterable[SNAPSHOT_BINANCE], names_assets: Sequence[str], fees: float) -> Generator[INFO_INVESTMENT, None, None]:
+def simulate_investment(
+        classifications: Sequence[Classification],
+        examples: Iterable[SNAPSHOT_BINANCE],
+        names_assets: Sequence[str],
+        fees: float,
+        time_range: Optional[Tuple[int, int]] = None) -> Generator[INFO_INVESTMENT, None, None]:
+
     amount_asset = 1.
     index_asset = -1
 
     indices_rates = range(1, len(names_assets) + 1)
     examples_changes = extract_changes(examples, indices_rates)
 
+    timestamp_min = -1
+    timestamp_max = -1
     for i, snapshot_changes in enumerate(examples_changes):
         timestamp = snapshot_changes[0]
+
+        timestamp_min = timestamp if timestamp_min < 0 else min(timestamp_min, timestamp)
+        timestamp_max = timestamp if timestamp_max < 0 else max(timestamp_max, timestamp)
+
+        if time_range is not None:
+            if time_range[0] < timestamp < time_range[1]:
+                pass  # print()
+            else:
+                continue
+
         rates = [snapshot_changes[i] for i in indices_rates]
         target = snapshot_changes[-1]
         index_target = names_assets.index(target)
@@ -115,7 +133,7 @@ def simulate_investment(classifications: Sequence[Classification], examples: Ite
 
             details = each_classification.get_details_last_output()
             output_raw = details["raw output"]
-            error = MultivariateRegression.error(output_raw, tuple(float(i == index_target) for i in output_raw))
+            error = MultivariateRegression.error_distance(output_raw, tuple(float(i == index_target) for i in output_raw))
 
             roi = amount_asset * rates[index_asset]
 
@@ -126,6 +144,8 @@ def simulate_investment(classifications: Sequence[Classification], examples: Ite
 
         y = timestamp, target, classification_stats
         yield y
+
+    # print()
 
 
 INFO_PREDICTION = Tuple[int, Sequence[float], Sequence[Tuple[Sequence[float], float]]]        # timestamp, output, target, error
@@ -147,7 +167,7 @@ def predict_rate(approximations: Sequence[Approximation[Sequence[float]]], examp
         approximator_stats = []
         for j, each_approximation in enumerate(approximations):
             output_values = each_approximation.output(input_values)
-            error = MultivariateRegression.error(output_values, target_values)
+            error = MultivariateRegression.error_distance(output_values, target_values)
             # error = float((1. < output_values[0]) != (1. < target_values[0]))
 
             each_approximation.fit(input_values, target_values, i)
@@ -159,18 +179,17 @@ def predict_rate(approximations: Sequence[Approximation[Sequence[float]]], examp
         yield y
 
 
-def learn_timeseries():
+def learn_timeseries(time_range: Optional[Tuple[int, int]] = None):
     pairs = ("AGI", "ETH"),
     stats = "close",
 
     names_assets = tuple(f"{each_pair[0].upper():s}-{each_pair[1].upper()}" for each_pair in pairs)
     columns = binance_columns(names_assets, stats)
 
-    examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
+    examples = iterate_snapshots("../../data/examples/binance_examples_small.csv", columns, types_binance)
 
-    regression_non_recurrent = MultivariatePolynomialRegression(1, 4, 1)
-    regression_recurrent = MultivariatePolynomialRecurrentRegression(1, 4, 1)
-    learners = regression_non_recurrent, regression_recurrent
+    # learners = MultivariatePolynomialRegression(1, 3, 1), MultivariatePolynomialRecurrentRegression(1, 3, 1)
+    learners = MultivariatePolynomialRegression(1, 4, 1), MultivariatePolynomialRecurrentRegression(1, 4, 1)
 
     approximations = predict_rate(learners, examples, names_assets)
 
@@ -182,8 +201,6 @@ def learn_timeseries():
 
     # pyplot.ion()
     for i, (timestamp, target_values, approximator_stats) in enumerate(approximations):
-        # print(snapshot)
-
         if Timer.time_passed(1000):
             print(f"finished reading {i:d} examples...")
             print(f"{timestamp:d}: {str(target_values):s}")
@@ -200,7 +217,7 @@ def learn_timeseries():
 
             ax.clear()
             for j, each_error in enumerate(error):
-                ax.plot(times, each_error, label=f"{learners[j].__class__.__name__:s}", alpha=.5)
+                ax.plot(times, each_error, label=f"{learners[j].__class__.__name__:s} {j:d}", alpha=.5)
 
             ax.set_ylim([0, min(max(each_error) for each_error in error) * 1.2])
 
@@ -208,8 +225,8 @@ def learn_timeseries():
             pyplot.pause(.05)
 
 
-def learn_investment():
-    pairs = get_pairs()
+def learn_investment(time_range: Optional[Tuple[int, int]] = None):
+    pairs = get_pairs()[:10]
 
     stats = STATS
     stats = "close",
@@ -218,10 +235,10 @@ def learn_investment():
     columns = tuple(binance_columns(names_assets, stats)) + ("target", )
 
     # all assets polynomial for all assets is too much
-    classifications = PolynomialClassification(len(pairs), 1, len(pairs)), RecurrentPolynomialClassification(len(pairs), 1, len(pairs))
+    classifications = PolynomialClassification(len(pairs), 2, len(pairs)), RecurrentPolynomialClassification(len(pairs), 2, len(pairs))
 
-    examples = iterate_snapshots("../../data/examples/binance_examples.csv", columns, types_binance)
-    simulation = simulate_investment(classifications, examples, names_assets, .01)
+    examples = iterate_snapshots("../../data/examples/binance_examples_small.csv", columns, types_binance)
+    simulation = simulate_investment(classifications, examples, names_assets, .01, time_range=time_range)
 
     fig, ax = pyplot.subplots()
     max_size = 20
@@ -264,5 +281,5 @@ def learn_investment():
 
 
 if __name__ == "__main__":
-    learn_investment()
+    learn_investment(time_range=(1564233159200, 1577836856000))
     # learn_timeseries()
