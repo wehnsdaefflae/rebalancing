@@ -271,7 +271,7 @@ def learn_investment(time_range: Optional[Tuple[int, int]] = None):
                 ax.plot(times, roi[j], label=f"roi {classifications[j].__class__.__name__:s}", alpha=.5)
 
             # ax.set_ylim([0, min(max(each_error) for each_error in error) * 1.2])
-            ax.set_ylim([0, min(max(each_roi) for each_roi in roi) * 1.2])
+            ax.set_ylim([max(min(each_roi) for each_roi in roi) * .8, min(max(each_roi) for each_roi in roi) * 1.2])
 
             pyplot.legend()
             pyplot.pause(.05)
