@@ -90,7 +90,7 @@ def simulate_investment(
         examples: Iterable[SNAPSHOT_BINANCE],
         names_assets: Sequence[str],
         fees: float,
-        time_range: Optional[Tuple[int, int]] = None) -> Generator[INFO_INVESTMENT, None, None]:
+        stop_training_at: int = -1) -> Generator[INFO_INVESTMENT, None, None]:
 
     amount_asset = 1.
     index_asset = -1
@@ -102,12 +102,6 @@ def simulate_investment(
 
     for i, snapshot in enumerate(examples):
         timestamp = snapshot[0]
-
-        if time_range is not None:
-            if time_range[0] < timestamp < time_range[1]:
-                pass  # print()
-            else:
-                continue
 
         rate_changes = [1. for _ in indices_rates] if snapshot_last is None \
             else [float("inf") if 0. >= snapshot_last[i] else snapshot[i] / snapshot_last[i] for i in indices_rates]
@@ -137,7 +131,8 @@ def simulate_investment(
 
             roi = amount_asset * rates[index_asset]
 
-            each_classification.fit(rate_changes, index_target, i + 1)
+            if -1 >= stop_training_at or timestamp < stop_training_at:
+                each_classification.fit(rate_changes, index_target, i + 1)
 
             stats = names_assets[output_class], error, details["knowledgeability"], details["decidedness"], roi
             classification_stats.append(stats)
@@ -225,7 +220,7 @@ def learn_timeseries(time_range: Optional[Tuple[int, int]] = None):
             pyplot.pause(.05)
 
 
-def learn_investment(time_range: Optional[Tuple[int, int]] = None):
+def learn_investment(stop_training_at: int = -1):
     pairs = get_pairs()[:10]
 
     stats = STATS
@@ -238,7 +233,7 @@ def learn_investment(time_range: Optional[Tuple[int, int]] = None):
     classifications = PolynomialClassification(len(pairs), 2, len(pairs)), RecurrentPolynomialClassification(len(pairs), 2, len(pairs))
 
     examples = iterate_snapshots("../../data/examples/binance_examples_small.csv", columns, types_binance)
-    simulation = simulate_investment(classifications, examples, names_assets, .01, time_range=time_range)
+    simulation = simulate_investment(classifications, examples, names_assets, .01, stop_training_at=stop_training_at)
 
     fig, ax = pyplot.subplots()
     max_size = 20
@@ -252,6 +247,10 @@ def learn_investment(time_range: Optional[Tuple[int, int]] = None):
             print(f"finished reading {i:d} examples...")
 
             print(f"{timestamp:d}: {target_asset:s}")
+            if timestamp >= stop_training_at:
+                print("stopped training")
+            else:
+                print(f"stopping training in {stop_training_at - timestamp:d}")
 
             times.append(i)
             for j, (each_output, each_error, each_k, each_d, each_roi) in enumerate(classification_stats):
@@ -278,5 +277,5 @@ def learn_investment(time_range: Optional[Tuple[int, int]] = None):
 
 
 if __name__ == "__main__":
-    learn_investment(time_range=(1564233159200, 1577836856000))
+    learn_investment(stop_training_at=1532491200000 + (60000 * 60 * 24))
     # learn_timeseries()
