@@ -92,8 +92,8 @@ def simulate_investment(
         fees: float,
         stop_training_at: int = -1) -> Generator[INFO_INVESTMENT, None, None]:
 
-    amount_asset = 1.
-    index_asset = -1
+    amount_asset = [1. for _ in classifications]
+    index_asset = [-1 for _ in classifications]
 
     indices_rates = range(1, len(names_assets) + 1)
     # examples_changes = extract_changes(examples, indices_rates)
@@ -110,26 +110,27 @@ def simulate_investment(
         index_target = names_assets.index(target)
 
         rates = [snapshot[i] for i in indices_rates]
-        rate_hold = rates[index_asset]
-        rate_switch = rates[index_target]
-
-        if index_asset < 0:
-            index_asset = index_target
-            amount_asset = (1. - fees) * amount_asset / rate_switch
-
-        elif index_asset != index_target:
-            amount_asset = amount_asset * (1. - fees) * rate_hold / rate_switch
-            index_asset = index_target
 
         classification_stats = []
         for j, each_classification in enumerate(classifications):
             output_class = each_classification.output(rate_changes)
 
+            rate_hold = rates[index_asset[j]]
+            rate_switch = rates[output_class]
+
+            if index_asset[j] < 0:
+                index_asset[j] = output_class
+                amount_asset[j] = (1. - fees) * amount_asset[j] / rate_switch
+
+            elif index_asset[j] != output_class:
+                amount_asset[j] = amount_asset[j] * (1. - fees) * rate_hold / rate_switch
+                index_asset[j] = index_target[j]
+
             details = each_classification.get_details_last_output()
             output_raw = details["raw output"]
             error = MultivariateRegression.error_distance(output_raw, tuple(float(i == index_target) for i in output_raw))
 
-            roi = amount_asset * rates[index_asset]
+            roi = amount_asset * rates[index_asset[j]]
 
             if -1 >= stop_training_at or timestamp < stop_training_at:
                 each_classification.fit(rate_changes, index_target, i + 1)
