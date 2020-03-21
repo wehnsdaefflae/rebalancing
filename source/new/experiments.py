@@ -279,11 +279,9 @@ def learn_investment(stop_training_at: int = -1):
             pyplot.pause(.05)
 
 
-def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], no_assets: int):
+def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pairs: Sequence[Tuple[str, str]]):
     # todo: implement simple rate change predict from current rate change, take best, invest all
     # use error distance normalized as error, use recurrency
-
-    pairs = get_pairs_from_filesystem()[:no_assets]
 
     time_range = 1532491200000, 1577836856000     # full
 
@@ -300,6 +298,7 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], no_
     errors = [0. for _ in approximations]
 
     fee = .01
+    safety = 5.
 
     no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)
 
@@ -330,9 +329,9 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], no_
             target_values = ratios_this
 
             output_values = each_approximation.output(input_values)
-            # output_values = target_values  # also bad! if target is shit, output is shit too!
-            asset_output, _ = max(enumerate(output_values), key=lambda x: x[1])
-            if asset_output != assets_current[i]:
+
+            asset_output, asset_ratio = max(enumerate(output_values), key=lambda x: x[1])
+            if 1. + safety * fee < asset_ratio and asset_output != assets_current[i]:
                 amounts[i] *= (1. - fee)
                 assets_current[i] = asset_output
 
@@ -388,10 +387,10 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], no_
 
 
 def running_simple():
-    no_assets = 10
+    pairs = get_pairs_from_filesystem()[70:80]
+    no_assets = len(pairs)
     learners = MultivariatePolynomialRegression(no_assets, 2, no_assets), MultivariatePolynomialRecurrentRegression(no_assets, 2, no_assets)
-    # simple_predict(learners)
-    simple_predict(learners, no_assets)
+    simple_predict(learners, pairs)
 
 
 if __name__ == "__main__":
