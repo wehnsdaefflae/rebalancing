@@ -168,6 +168,23 @@ class MultivariateRegression(Approximation[Sequence[float]]):
         assert len(output) == len_target
         return math.sqrt(sum((a - b) ** 2. for a, b in zip(output, target)))
 
+    @staticmethod
+    def length(vector: Sequence[float]) -> float:
+        return math.sqrt(sum(x ** 2. for x in vector))
+
+    @staticmethod
+    def normalize(vector: Sequence[float]) -> Sequence[float]:
+        length = MultivariateRegression.length(vector)
+        if 0. >= length:
+            raise ValueError("Length of vector cannot be 0. or below.")
+        return tuple(x / length for x in vector)
+
+    @staticmethod
+    def error_distance_normalized(output: Sequence[float], target: Sequence[float]) -> float:
+        output_normalized = MultivariateRegression.normalize(output)
+        target_normalized = MultivariateRegression.normalize(target)
+        return MultivariateRegression.error_distance(output_normalized, target_normalized)
+
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
         return tuple(each_regression.output(in_value) for each_regression in self.regressions)
 
@@ -195,7 +212,7 @@ class MultivariateRecurrentRegression(MultivariateRegression):
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
         prev_in = tuple(0. for _ in range(len(in_value) + 1)) if self.last_input is None else self.last_input
-
+        # todo: needs to set self.last_input for non training phases
         memory = self._get_memory(prev_in)
         input_contextualized = tuple(in_value) + (memory, )
         return super().output(input_contextualized)

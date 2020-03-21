@@ -277,6 +277,12 @@ def learn_investment(stop_training_at: int = -1):
             pyplot.pause(.05)
 
 
+def simple_predict():
+    # todo: implement simple rate change predict from current rate change, take best, invest all (greedy?!)
+    # use error distance normalized as error, use recurrency, fix the setting of lastinput in output() of recurrent regression
+    pass
+
+
 if __name__ == "__main__":
     learn_investment(stop_training_at=1532491200000 + (60000 * 60 * 24 * 7))
     # learn_timeseries()
