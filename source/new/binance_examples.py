@@ -1,8 +1,9 @@
 import glob
 import os
-from typing import Tuple, Sequence, Iterable, Generator, Collection
+from typing import Tuple, Sequence, Iterable, Generator, Collection, Union
 
-from source.new.optimal_trading import get_crypto_rates, generate_multiple_changes, generate_matrix
+from source.new.snapshot_generation import merge_generator
+from source.new.optimal_trading import generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 # from flyingcircus import base
@@ -27,13 +28,17 @@ STATS = (
 )
 
 
-def get_pairs() -> Collection[Tuple[str, str]]:
-    files = sorted(glob.glob(RAW_BINANCE_DIR + "*.csv"))
-
-    names_base = (os.path.basename(x) for x in files)
-    names_first = (os.path.splitext(x)[0] for x in names_base)
-    pairs = tuple((x[:-3], x[-3:]) for x in names_first)
-    return pairs
+def get_pairs_from_filesystem() -> Sequence[Tuple[str, str]]:
+    return tuple(
+        (x[:-3], x[-3:])
+        for x in (
+            os.path.splitext(y)[0]
+            for y in (
+                os.path.basename(z)
+                for z in sorted(glob.glob(RAW_BINANCE_DIR + "*.csv"))
+            )
+        )
+    )
 
 
 def store_matrix(path_file: str, matrix: Iterable[Tuple[Sequence[int], Tuple[int, float]]], no_datapoints: int):
@@ -130,34 +135,45 @@ def generate_path(path_file: str) -> Sequence[int]:
 
 def binance_matrix(pairs: Collection[Tuple[str, str]], time_range: Tuple[int, int], interval_minutes: int) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
     no_assets = len(pairs)
-    rates_no_timestamps = (
-        tuple(each_asset[0] for each_asset in snapshot)
-        for timestamp, snapshot in get_crypto_rates(pairs, ("close", ), timestamp_range=time_range, interval_minutes=interval_minutes)
+
+    header_rates_only = tuple(f"{each_pair[0]:s}-{each_pair[1]:s}_close" for each_pair in pairs)
+    timestamps_n_rates = (
+        tuple(snapshot[x] for x in header_rates_only)
+        for snapshot in merge_generator(pairs=pairs, timestamp_range=time_range, interval_minutes=interval_minutes, header=("close_time", "close"))
     )
-    matrix_change = generate_multiple_changes(rates_no_timestamps)
+    matrix_change = generate_multiple_changes(timestamps_n_rates)
     return generate_matrix(no_assets, matrix_change, .01, bound=100)
 
 
-def write_examples(interval_minutes: int, pairs: Collection[Tuple[str, str]], path_investment: Sequence[int], file_path: str, stats: Sequence[str], time_range: Tuple[int, int]):
+def combine_assets_header(pairs: Sequence[Tuple[str, str]], header: Sequence[str]) -> Sequence[str]:
+    return ("close_time", ) + tuple(f"{each_pair[0]:s}-{each_pair[1]:s}_{column:s}" for each_pair in pairs for column in header if "close_time" not in column)
+
+
+def convert_to_string(value: Union[int, float]) -> str:
+    if isinstance(value, int):
+        return f"{value:d}"
+
+    elif isinstance(value, float):
+        return f"{value:.8f}"
+
+    raise ValueError("inconvertible")
+
+
+def write_examples(interval_minutes: int, pairs: Sequence[Tuple[str, str]], path_investment: Sequence[int], file_path: str, header: Sequence[str], time_range: Tuple[int, int]):
     len_path = len(path_investment)
     print(f"length path: {len_path:d}")
 
-    generate_stats = get_crypto_rates(pairs, stats, timestamp_range=time_range, interval_minutes=interval_minutes, directory_data=PATH_DIRECTORY_DATA)
+    generate_stats = merge_generator(pairs=pairs, timestamp_range=time_range, header=header, interval_minutes=interval_minutes, directory_data=PATH_DIRECTORY_DATA)
+    header_combined = tuple(combine_assets_header(pairs, header))
 
     print("writing examples...")
     names_pairs = tuple(f"{x[0]:s}-{x[1]}" for x in pairs)
-    header = ("timestamp",) + tuple(f"{each_pair:s}_{each_column:s}" for each_pair in names_pairs for each_column in stats) + ("target",)  # todo: reward at some point?
     with open(file_path, mode="a") as file:
-        file.write("\t".join(header) + "\n")
+        file.write("\t".join(header_combined + ("target", )) + "\n")
 
         last_i = -1
-        for i, ((ts, snapshot), target) in enumerate(zip(generate_stats, path_investment)):
-            segment_data = [
-                f"{each_value:d}" if stats[i] in ("open_time", "close_time", "number_of_trades") else f"{each_value:.8f}"
-                for each_asset in snapshot
-                for i, each_value in enumerate(each_asset)
-            ]
-            line = [f"{ts:d}"] + segment_data + [names_pairs[target]]
+        for i, (snapshot, target) in enumerate(zip(generate_stats, path_investment)):
+            line = tuple(convert_to_string(snapshot[column]) for column in header_combined) + (names_pairs[target], )
             file.write("\t".join(line) + "\n")
 
             if Timer.time_passed(2000):
@@ -173,12 +189,12 @@ def write_examples(interval_minutes: int, pairs: Collection[Tuple[str, str]], pa
 
 
 def main():
-    pairs = get_pairs()[:10]
+    pairs = get_pairs_from_filesystem()[:10]
     # pairs = pairs[:5]
 
-    time_range = 1532491200000, 1577836856000     # full
+    # time_range = 1532491200000, 1577836856000     # full
     # time_range = 1532491200000, 1554710537999     # 7/10ths
-    # time_range = 1532491200000, 1532491800000       # short
+    time_range = 1532491200000, 1532491800000       # short
 
     interval_minutes = 1
     no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)

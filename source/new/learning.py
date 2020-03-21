@@ -94,7 +94,7 @@ class MultipleRegression(Approximation[float]):
         self.var_matrix = tuple([0. for _ in addends] for _ in addends)
         self.cov_vector = [0. for _ in addends]
 
-    def fit(self, in_values: Sequence[float], out_value: float, drag: int):
+    def fit(self, in_values: Sequence[float], target_value: float, drag: int):
         assert drag >= 0
         components = tuple(f_a(in_values) for f_a in self.addends)
 
@@ -110,7 +110,7 @@ class MultipleRegression(Approximation[float]):
                 var_row_other = self.var_matrix[j]
                 var_row_other[i] = value
 
-            self.cov_vector[i] = smear(self.cov_vector[i], out_value * component_a, drag)
+            self.cov_vector[i] = smear(self.cov_vector[i], target_value * component_a, drag)
 
     def get_parameters(self) -> Sequence[float]:
         try:
@@ -175,15 +175,27 @@ class MultivariateRegression(Approximation[Sequence[float]]):
     @staticmethod
     def normalize(vector: Sequence[float]) -> Sequence[float]:
         length = MultivariateRegression.length(vector)
-        if 0. >= length:
-            raise ValueError("Length of vector cannot be 0. or below.")
+        if length < 0.:
+            raise ValueError("Length of vector cannot be negative.")
+        elif length == 0.:
+            return tuple(vector)
         return tuple(x / length for x in vector)
 
     @staticmethod
     def error_distance_normalized(output: Sequence[float], target: Sequence[float]) -> float:
         output_normalized = MultivariateRegression.normalize(output)
         target_normalized = MultivariateRegression.normalize(target)
-        return MultivariateRegression.error_distance(output_normalized, target_normalized)
+
+        sum_output = sum(output_normalized)
+        sum_target = sum(target_normalized)
+
+        if sum_output == sum_target == 0.:
+            return 1.
+
+        if 0. == sum_output or 0. == sum_target:
+            return 1.
+
+        return MultivariateRegression.error_distance(output_normalized, target_normalized) // 2.
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
         return tuple(each_regression.output(in_value) for each_regression in self.regressions)
@@ -205,35 +217,30 @@ class MultivariateRecurrentRegression(MultivariateRegression):
     def __init__(self, no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]]):
         super().__init__(no_outputs, addends)
         self.regression_memory = MultipleRegression(addends_memory)
+        self.memory = 0.
         self.last_input = None
 
     def _get_memory(self, in_values: Sequence[float]) -> float:
         return self.regression_memory.output(in_values)
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        prev_in = tuple(0. for _ in range(len(in_value) + 1)) if self.last_input is None else self.last_input
-        # todo: needs to set self.last_input for non training phases
-        memory = self._get_memory(prev_in)
-        input_contextualized = tuple(in_value) + (memory, )
+        input_contextualized = tuple(in_value) + (self.memory, )
+        self.memory = self._get_memory(input_contextualized)
         return super().output(input_contextualized)
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        prev_in = tuple(0. for _ in range(len(in_value) + 1)) if self.last_input is None else self.last_input
-
-        output_value = self.output(in_value)
+        output_value = super().output(tuple(in_value) + (self.memory, ))
 
         e = MultivariateRegression.error_distance(output_value, target_value)
         p = 1. / (1. + e)   # probability of keeping memory
         if random.random() >= p:
-            memory = random.random()
-        else:
-            memory = self._get_memory(prev_in)
+            self.memory = random.random()
 
-        self.regression_memory.fit(prev_in, memory, drag)  # smaller, fixed drag?
+        if self.last_input is not None:
+            self.regression_memory.fit(self.last_input, self.memory, drag)  # smaller, fixed drag?
 
-        input_contextualized = tuple(in_value) + (memory, )
+        input_contextualized = tuple(in_value) + (self.memory, )
         super().fit(input_contextualized, target_value, drag)
-        self.last_input = input_contextualized
 
     def get_parameters(self) -> Sequence[float]:
         return tuple(super().get_parameters()) + tuple(self.regression_memory.get_parameters())
@@ -330,13 +337,16 @@ def classification_test():
 
 
 def regression_test():
-    r = MultivariatePolynomialRecurrentRegression(1, 1, 1)
+    # r = MultiplePolynomialRegression(1, 1)
+    no_inputs = 10
+    no_outputs = 10
+    r = MultivariatePolynomialRecurrentRegression(no_inputs, 2, no_outputs)
     for t in range(100):
-        input_values = [random.random()]
+        input_values = [random.random() for _ in range(no_inputs)]
         output_values = r.output(input_values)
 
-        target_values = [random.random()]
-        r.fit(output_values, target_values, t + 1)
+        target_values = [random.random() for _ in range(no_outputs)]
+        r.fit(input_values, target_values, t + 1)
 
         print(output_values)
         print(target_values)

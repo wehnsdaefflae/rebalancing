@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import glob
 import os
-from typing import Tuple, Sequence, Generator, Union, Optional, Iterable
+from typing import Tuple, Sequence, Generator, Union, Optional, Iterable, Dict, Any, Collection
 
 from source.tools.timer import Timer
 
-STATS_TYPES = Tuple[Union[int, float], ...]
+STATS_TYPES = int, float, float, float, float, float, int, float, int, float, float, float
 
 STAT_COLUMNS = (
     "open_time",
@@ -55,7 +55,7 @@ def make_empty(timestamp_open: int, timestamp_close: int, indices: Sequence[int]
     return tuple(timestamp_open if i == 0 else timestamp_close if i == 6 else stat_empty[i] for i in indices)
 
 
-def generator_file(
+def generator_file_old(
         path_file: str,
         timestamp_range: Optional[Tuple[int, int]],
         interval_minutes: int,
@@ -114,6 +114,78 @@ def generator_file(
             print(f"finished filling {100. * index_current_range / (no_ranges - index_next_range):5.2f}% of final gaps...")
 
 
+def generator_file(
+        path_file: str,
+        timestamp_range: Optional[Tuple[int, int]],
+        interval_minutes: int,
+        header: Sequence[str],
+        data_difference_timestamp: int = 60000) -> Generator[Dict[str, Any], None, None]:
+
+    indices_columns = tuple(STAT_COLUMNS.index(x) for x in header)
+
+    interval_timestamp = interval_minutes * data_difference_timestamp
+    no_ranges = (timestamp_range[1] - timestamp_range[0]) // interval_timestamp
+    ranges = tuple(
+        (timestamp_range[0] + i * interval_timestamp, timestamp_range[0] + (i + 1) * interval_timestamp)
+        for i in range(no_ranges)
+    )
+
+    index_next_range = 0
+    with open(path_file, mode="r") as file:
+        line = next(file, None)
+        while line is not None and index_next_range < no_ranges:
+            current_range = ranges[index_next_range]
+            timestamp_close = get_close_time(line)
+
+            # get next lines until line fits
+            while current_range[0] >= timestamp_close:
+                line = next(file, None)
+                if Timer.time_passed(2000):
+                    print(f"skipping lines in {os.path.basename(path_file):s} until reaching timestamp {current_range[0]:d}...")
+
+                if line is None:
+                    break
+
+                timestamp_close = get_close_time(line)
+
+            if line is None:
+                break
+
+            # current line fits, yield it, proceed to next range
+            if current_range[0] < timestamp_close <= current_range[1]:
+                stripped = line.strip()
+                split = stripped.split("\t")
+                yield {column: STATS_TYPES[i](split[i]) for column, i in zip(header, indices_columns)}
+                index_next_range += 1
+
+            # yield empties for timestamps not covered by data
+            while current_range[1] < timestamp_close:
+                time_open = current_range[1] - data_difference_timestamp
+                time_close = current_range[1] - 1
+                yield {
+                    column: time_open if column == "open_time" else time_close if column == "close_time" else STATS_TYPES[i](False)
+                    for column, i in zip(header, indices_columns)
+                }
+                index_next_range += 1
+                current_range = ranges[index_next_range]
+                if Timer.time_passed(2000):
+                    print(f"filling gaps in {os.path.basename(path_file):s} until reaching timestamp {timestamp_close:d}...")
+
+            if Timer.time_passed(2000):
+                print(f"generated {index_next_range:d} of {no_ranges:d} continual data points for {os.path.basename(path_file):s}...")
+
+    # fill rest
+    for index_current_range in range(index_next_range, no_ranges):
+        time_open = current_range[1] - data_difference_timestamp
+        time_close = current_range[1] - 1
+        yield {
+            column: time_open if column == "time_open" else time_close if column == "time_close" else STATS_TYPES[i](False)
+            for column, i in zip(header, indices_columns)
+        }
+        if Timer.time_passed(2000):
+            print(f"finished filling {100. * index_current_range / (no_ranges - index_next_range):5.2f}% of final gaps...")
+
+
 def round_down_timestamp(timestamp: int, round_to: int) -> int:
     return timestamp // round_to * round_to
 
@@ -142,16 +214,34 @@ def get_header(pairs: Sequence[Tuple[str, str]]) -> Tuple[str, ...]:
     return tuple("_".join(each_pair) + "_" + each_stat for each_pair in pairs for each_stat in STAT_COLUMNS)
 
 
+def get_pairs_from_filenames(paths_files: Collection[str]) -> Collection[Tuple[str, str]]:
+    return tuple(
+        (x[:-3], x[-3:])
+
+        for x in (
+            os.path.splitext(y)[0]
+
+            for y in (
+                os.path.basename(z)
+
+                for z in paths_files
+            )
+        )
+    )
+
+
 def merge_generator(
         pairs: Optional[Iterable[Tuple[str, str]]] = None,
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
-        header: Tuple[str, ...] = ("close_time", "close", ),
-        directory_data: str = "../../data/") -> Generator[Sequence[Sequence[Union[int, float]]], None, None]:
+        header: Sequence[str] = ("close_time", "close", ),
+        directory_data: str = "../../data/") -> Generator[Dict[str, Any], None, None]:
 
     directory_csv = directory_data + "binance/"
     if pairs is None:
         files = sorted(glob.glob(f"{directory_csv:s}*.csv"))
+        pairs = get_pairs_from_filenames(files)
+
     else:
         files = sorted(f"{directory_csv:s}{each_pair[0].upper():s}{each_pair[-1].upper():s}.csv" for each_pair in pairs)
 
@@ -163,10 +253,17 @@ def merge_generator(
     else:
         assert timestamp_range[0] < timestamp_range[1]
 
-    indices = tuple(STAT_COLUMNS.index(x) for x in header)
-    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices) for each_file in files)
+    header = ("close_time", ) + tuple(header) if "close_time" not in header else header
+    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, header) for each_file in files)
 
-    yield from zip(*generators_all)
+    names_pair = tuple(f"{each_pair[0].upper():s}-{each_pair[1].upper():s}" for each_pair in pairs)
+    for snapshots in zip(*generators_all):
+        d = {}
+        for i, each_snapshot in enumerate(snapshots):
+            if i < 1:
+                d["close_time"] = each_snapshot["close_time"]
+            d.update({f"{names_pair[i]:s}_{k:s}": v for k, v in each_snapshot.items()})
+        yield d
 
 
 def main_single():
@@ -174,7 +271,7 @@ def main_single():
     timestamp_range = 1501113780000, 1577836860000
     interval_minutes = 1
     indices = 6, 4,
-    generators_all = tuple(generator_file(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
+    generators_all = tuple(generator_file_old(each_file, timestamp_range, interval_minutes, indices=indices) for each_file in files)
 
     value_lists = tuple([] for _ in generators_all)
 
@@ -190,23 +287,3 @@ def main_single():
     print([x[-1] for x in value_lists])
     print()
 
-
-def main():
-    g = merge_generator(
-        (
-            ("bcc", "eth"), ("bnb", "eth"), ("tusd", "eth"),
-        ),
-        interval_minutes=1,
-        header=("close_time", "close",),
-        timestamp_range=(1577836260000, 1577836860000),
-    )
-    v = None
-    for i, v in enumerate(g):
-        print(v)
-        if Timer.time_passed(2000):
-            print(f"iterated over {i:d} elements")
-    print(v)
-
-
-if __name__ == "__main__":
-    main()

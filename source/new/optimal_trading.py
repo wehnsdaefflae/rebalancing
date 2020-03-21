@@ -4,7 +4,6 @@ from typing import Sequence, Tuple, Callable, Generator, Iterator, List, Iterabl
 
 # from matplotlib import pyplot
 
-from source.new.merge_csv import merge_generator
 from source.tools.timer import Timer
 
 
@@ -112,7 +111,7 @@ def generate_multiple_changes(generator_rates: Iterator[Sequence[float]]) -> Gen
     no_rates = len(rates_now)
 
     generators_change = tuple(generate_change_send() for _ in rates_now)
-    # generators_change = tuple(generate_positive_change() for _ in rates_now)
+
     for each_change_gen, first_rate in zip(generators_change, rates_now):
         next(each_change_gen)               # initialize
         each_change_gen.send(first_rate)    # send first rate
@@ -322,48 +321,6 @@ def get_decreasing_rates(size: int = 20, no_assets: int = 10) -> Iterator[Tuple[
             each_rate.append(each_rate[-1] * .9)
 
     return ((i, x) for i, x in enumerate(rates))
-
-
-def get_crypto_debug_rates() -> Iterator[Tuple[int, Sequence[float]]]:
-    generator = merge_generator(
-        (
-            ("bcc", "eth"), ("bnb", "eth"), ("tusd", "eth"),
-        ),
-        interval_minutes=1,
-        header=("close_time", "close",),
-        timestamp_range=(1527000000000, 1527000600000),
-    )
-    return (
-        (
-            snapshot[0][0],
-            tuple(each_data[1] for each_data in snapshot)
-        )
-        for snapshot in generator)
-
-
-def get_crypto_rates(
-        pairs: Collection[Tuple[str, str]],
-        stats: Sequence[str],
-        timestamp_range: Optional[Tuple[int, int]] = None,
-        interval_minutes: int = 1,
-        directory_data: str = "../../data/") -> Iterator[Tuple[int, Tuple[Sequence[Union[int, float]], ...]]]:
-
-    # returns (timestamp, tuple of (tuple of int and float values))
-    generator = merge_generator(
-        pairs=pairs,
-        timestamp_range=timestamp_range,
-        interval_minutes=interval_minutes,
-        directory_data=directory_data,
-        header=("close_time",) + tuple(stats))
-
-    generator_modified = (
-        (
-            int(snapshot[0][0]),                                # timestamp
-            tuple(each_asset[1:] for each_asset in snapshot)      # rest of data without timestamp
-        )
-        for snapshot in generator)
-
-    return generator_modified
 
 
 def simulate(rates: Iterable[Sequence[float]], path: Sequence[int], fees: float) -> Generator[float, None, None]:
