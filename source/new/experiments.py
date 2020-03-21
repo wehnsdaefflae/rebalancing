@@ -280,8 +280,8 @@ def learn_investment(stop_training_at: int = -1):
 
 
 def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], no_assets: int):
-    # todo: implement simple rate change predict from current rate change, take best, invest all (greedy?!)
-    # use error distance normalized as error, use recurrency, fix the setting of lastinput in output() of recurrent regression
+    # todo: implement simple rate change predict from current rate change, take best, invest all
+    # use error distance normalized as error, use recurrency
 
     pairs = get_pairs_from_filesystem()[:no_assets]
 
@@ -328,11 +328,14 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], no_
                 break
             input_values = ratios_last
             target_values = ratios_this
+
             output_values = each_approximation.output(input_values)
+            # output_values = target_values  # also bad! if target is shit, output is shit too!
             asset_output, _ = max(enumerate(output_values), key=lambda x: x[1])
             if asset_output != assets_current[i]:
                 amounts[i] *= (1. - fee)
                 assets_current[i] = asset_output
+
             amounts[i] *= ratios_this[asset_output]
             errors[i] = float(asset_output == max(enumerate(target_values), key=lambda x: x[1])[0])
             each_approximation.fit(input_values, target_values, t)

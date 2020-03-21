@@ -214,9 +214,14 @@ class MultivariatePolynomialRegression(MultivariateRegression):
 
 
 class MultivariateRecurrentRegression(MultivariateRegression):
-    def __init__(self, no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]]):
+    def __init__(self,
+                 no_outputs: int,
+                 addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]],
+                 error_memory: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
+                 ):
         super().__init__(no_outputs, addends)
         self.regression_memory = MultipleRegression(addends_memory)
+        self.error_memory = error_memory
         self.memory = 0.
         self.last_input = None
 
@@ -231,7 +236,7 @@ class MultivariateRecurrentRegression(MultivariateRegression):
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
         output_value = super().output(tuple(in_value) + (self.memory, ))
 
-        e = MultivariateRegression.error_distance(output_value, target_value)
+        e = self.error_memory(output_value, target_value)
         p = 1. / (1. + e)   # probability of keeping memory
         if random.random() >= p:
             self.memory = random.random()
@@ -265,6 +270,26 @@ class Classification(Approximation[int]):
         self.regression = regression
         self.no_classes = no_classes
         self.last_output = None
+
+    @staticmethod
+    def max_single(vector: Sequence[float]) -> int:
+        index_max = -1
+        value_max = 0.
+        for i, v in enumerate(vector):
+            if index_max < i or value_max < v:
+                index_max = i
+                value_max = v
+
+            elif value_max == v:
+                return -1
+
+        return index_max
+
+    @staticmethod
+    def error_class(output_value: Sequence[float], target_value: Sequence[float]) -> float:
+        index_output = Classification.max_single(output_value)
+        index_target = Classification.max_single(target_value)
+        return float(index_output != index_target or 0 >= index_target)
 
     def class_to_one_hot(self, index_class: int) -> Sequence[float]:
         return tuple(float(i == index_class) for i in range(self.no_classes))
@@ -307,7 +332,7 @@ class PolynomialClassification(Classification):
 
 class RecurrentClassification(Classification):
     def __init__(self, no_classes: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]]):
-        regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory)
+        regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory, error_memory=Classification.error_class)
         super().__init__(regression, no_classes)
 
 
