@@ -124,7 +124,7 @@ def simulate_investment(
 
             elif index_asset[j] != output_class:
                 amount_asset[j] = amount_asset[j] * (1. - fees) * rate_hold / rate_switch
-                index_asset[j] = index_target[j]
+                index_asset[j] = index_target
 
             details = each_classification.get_details_last_output()
             output_raw = details["raw output"]
@@ -278,5 +278,5 @@ def learn_investment(stop_training_at: int = -1):
 
 
 if __name__ == "__main__":
-    learn_investment(stop_training_at=1532491200000 + (60000 * 60 * 24))
+    learn_investment(stop_training_at=1532491200000 + (60000 * 60 * 24 * 7))
     # learn_timeseries()
