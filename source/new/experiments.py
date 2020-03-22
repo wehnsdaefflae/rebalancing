@@ -394,7 +394,9 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
 
             ax_amount.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
             ax_amount.xaxis.set_major_locator(MaxNLocator(10))
-            pyplot.setp(ax_amount.xaxis.get_majorticklabels(), rotation=-45, ha="left", rotation_mode="anchor")
+
+            ax_error.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
+            ax_error.xaxis.set_major_locator(MaxNLocator(10))
 
             plots_error = []
             plots_amount = []
@@ -403,22 +405,24 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
                 p_e, = ax_error.plot(datetime_axis, results_errors[i], label=f"error {approximation.__class__.__name__:s}", alpha=.25)
                 p_a, = ax_amount.plot(datetime_axis, results_amounts[i], label=f"roi {approximation.__class__.__name__:s}", alpha=1.)
 
-                plots_error.append(p_e)
+                #plots_error.append(p_e)
                 plots_amount.append(p_a)
 
-            val_min_error, val_max_error = min(min(each_error) for each_error in results_errors), max(max(each_error) for each_error in results_errors)
+            # val_min_error, val_max_error = min(min(each_error) for each_error in results_errors), max(max(each_error) for each_error in results_errors)
+            val_min_error, val_max_error = 0., 1.
             ax_error.set_ylim([val_min_error - .2 * (val_max_error - val_min_error),  val_max_error + .2 * (val_max_error - val_min_error)])
 
             val_min_amount, val_max_amount = min(min(each_amounts) for each_amounts in results_amounts), max(max(each_amounts) for each_amounts in results_amounts)
             ax_amount.set_ylim([val_min_amount - .2 * (val_max_amount - val_min_amount),  val_max_amount + .2 * (val_max_amount - val_min_amount)])
 
-            pyplot.tight_layout()
+            pyplot.setp(ax_amount.xaxis.get_majorticklabels(), rotation=-45, ha="left", rotation_mode="anchor", fontsize="10")
             pyplot.legend(plots_error + plots_amount, tuple(line.get_label() for line in plots_error + plots_amount))
+            pyplot.tight_layout()
             pyplot.pause(.05)
 
 
 def running_simple():
-    safety = 10000000000.
+    safety = 5.
     pairs = get_pairs_from_filesystem()[70:75]
     no_assets = len(pairs)
     learners = MultivariatePolynomialRegression(no_assets, 2, no_assets), MultivariatePolynomialRecurrentRegression(no_assets, 2, no_assets)
