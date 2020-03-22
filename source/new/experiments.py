@@ -1,8 +1,8 @@
 import datetime
-import queue
 from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, Optional
 
 from matplotlib import pyplot, dates
+from matplotlib.ticker import MaxNLocator
 
 from source.new.binance_examples import STATS, get_pairs_from_filesystem, binance_matrix
 from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification, Approximation, smear, \
@@ -279,7 +279,7 @@ def learn_investment(stop_training_at: int = -1):
             pyplot.pause(.05)
 
 
-def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pairs: Sequence[Tuple[str, str]]):
+def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pairs: Sequence[Tuple[str, str]], safety: float):
     # todo: implement simple rate change predict from current rate change, take best, invest all
     # use error distance normalized as error, use recurrency
 
@@ -298,46 +298,56 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
     errors = [0. for _ in approximations]
 
     fee = .01
-    safety = 5.
 
     no_datapoints = (time_range[1] - time_range[0]) // (interval_minutes * 60000)
 
-    fig, ax = pyplot.subplots()
+    fig, ax_amount = pyplot.subplots()
+    ax_error = ax_amount.twinx()
 
     max_size = 20
 
-    t_last = 0
+    header_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs)
+
+    t_last = -1
     ratios_last = None
     rates_last = None
     for t, snapshot in enumerate(merge_generator(pairs, timestamp_range=time_range, interval_minutes=interval_minutes)):
         # get data
         ts = snapshot["close_time"]
-        rates_this = tuple(snapshot["-".join(each_pair) + "_close"] for each_pair in pairs)
+
+        rates_this = tuple(snapshot[column] for column in header_rates)
+
         if rates_last is None:
             rates_last = rates_this
             continue
-        ratios_this = tuple(float("inf") if 0. >= each_last else each_this / each_last for each_this, each_last in zip(rates_this, rates_last))
-        if ratios_this is None:
+
+        ratios_this = tuple(0. if 0. >= each_last else each_this / each_last for each_this, each_last in zip(rates_this, rates_last))
+
+        if ratios_last is None:
             ratios_last = ratios_this
             continue
 
-        # training and testing
+        # cycle
         for i, each_approximation in enumerate(approximations):
-            if ratios_last is None:
-                break
+            # first predict
             input_values = ratios_last
-            target_values = ratios_this
-
             output_values = each_approximation.output(input_values)
 
+            # then act
             asset_output, asset_ratio = max(enumerate(output_values), key=lambda x: x[1])
-            if 1. + safety * fee < asset_ratio and asset_output != assets_current[i]:
-                amounts[i] *= (1. - fee)
-                assets_current[i] = asset_output
+            if asset_output != assets_current[i]:
+                if safety * fee < asset_ratio - 1. or assets_current[i] < 0:
+                    amounts[i] *= (1. - fee)
+                    assets_current[i] = asset_output
 
-            amounts[i] *= ratios_this[asset_output]
-            errors[i] = float(asset_output == max(enumerate(target_values), key=lambda x: x[1])[0])
+            # then learn
+            target_values = ratios_this
+            asset_target, _ = max(enumerate(target_values), key=lambda x: x[1])
             each_approximation.fit(input_values, target_values, t)
+
+            # updates
+            amounts[i] *= ratios_this[assets_current[i]]
+            errors[i] = float(asset_output == asset_target)
 
             amounts_tmp[i] += amounts[i]
             errors_tmp[i] += errors[i]
@@ -349,10 +359,18 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
         # plotting
         if Timer.time_passed(1000):
             print(f"finished {100. * t / no_datapoints:5.2f}% total...")
+            for i, approximation in enumerate(approximations):
+                print(f"current asset for approximation {i:d}: {'-'.join(pairs[assets_current[i]]):s} ({approximation.__class__.__name__:s})")
+
+            # update
+            if t_last < 0:
+                t_last = t
+                continue
 
             interval_plot = t - t_last
             t_last = t
 
+            # generate data
             timestamps.append(ts)
             timestamps = timestamps[-max_size:]
             for i in range(len(approximations)):
@@ -365,32 +383,46 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
                 errors_tmp[i] = 0.
 
             # plot
-            ax.clear()
+            ax_amount.clear()
+            ax_error.clear()
 
-            ax.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
-            ax.xaxis.set_major_locator(dates.HourLocator())
-            ax.xaxis.set_tick_params(rotation=30, labelsize=10)
-            # fig.autofmt_xdate()
+            ax_amount.set_xlabel("time")
+            ax_amount.set_ylabel("value in ETH")
 
+            ax_error.set_ylabel("average error during interval")
+            ax_error.yaxis.label.set_color("grey")
+
+            ax_amount.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
+            ax_amount.xaxis.set_major_locator(MaxNLocator(10))
+            pyplot.setp(ax_amount.xaxis.get_majorticklabels(), rotation=-45, ha="left", rotation_mode="anchor")
+
+            plots_error = []
+            plots_amount = []
             datetime_axis = tuple(datetime.datetime.utcfromtimestamp(x // 1000) for x in timestamps)
             for i, approximation in enumerate(approximations):
-                # ax.plot(datetime_axis, results_error[i], label=f"error {approximation.__class__.__name__:s}", alpha=.5)
-                ax.plot(datetime_axis, results_amounts[i], label=f"roi {approximation.__class__.__name__:s}", alpha=.5)
+                p_e, = ax_error.plot(datetime_axis, results_errors[i], label=f"error {approximation.__class__.__name__:s}", alpha=.25)
+                p_a, = ax_amount.plot(datetime_axis, results_amounts[i], label=f"roi {approximation.__class__.__name__:s}", alpha=1.)
 
-            # val_min, val_max = min(min(each_error) for each_error in results_errors), max(max(each_error) for each_error in results_errors)
-            val_min, val_max = min(min(each_amounts) for each_amounts in results_amounts), max(max(each_amounts) for each_amounts in results_amounts)
-            ax.set_ylim([val_min - .2 * (val_max - val_min),  val_max + .2 * (val_max - val_min)])
+                plots_error.append(p_e)
+                plots_amount.append(p_a)
+
+            val_min_error, val_max_error = min(min(each_error) for each_error in results_errors), max(max(each_error) for each_error in results_errors)
+            ax_error.set_ylim([val_min_error - .2 * (val_max_error - val_min_error),  val_max_error + .2 * (val_max_error - val_min_error)])
+
+            val_min_amount, val_max_amount = min(min(each_amounts) for each_amounts in results_amounts), max(max(each_amounts) for each_amounts in results_amounts)
+            ax_amount.set_ylim([val_min_amount - .2 * (val_max_amount - val_min_amount),  val_max_amount + .2 * (val_max_amount - val_min_amount)])
 
             pyplot.tight_layout()
-            pyplot.legend()
+            pyplot.legend(plots_error + plots_amount, tuple(line.get_label() for line in plots_error + plots_amount))
             pyplot.pause(.05)
 
 
 def running_simple():
-    pairs = get_pairs_from_filesystem()[70:80]
+    safety = 10000000000.
+    pairs = get_pairs_from_filesystem()[70:75]
     no_assets = len(pairs)
     learners = MultivariatePolynomialRegression(no_assets, 2, no_assets), MultivariatePolynomialRecurrentRegression(no_assets, 2, no_assets)
-    simple_predict(learners, pairs)
+    simple_predict(learners, pairs, safety)
 
 
 if __name__ == "__main__":
