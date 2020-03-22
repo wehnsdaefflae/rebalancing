@@ -336,7 +336,7 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
 
             # then act
             asset_output, asset_ratio = max(enumerate(output_values), key=lambda x: x[1])
-            if asset_output != assets_current[i]:
+            if asset_output != assets_current[i] and 0. < rates_this[asset_output]:
                 if safety * fee < asset_ratio - 1. or assets_current[i] < 0:
                     amounts[i] *= (1. - fee)
                     assets_current[i] = asset_output
@@ -348,7 +348,8 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
             each_approximation.fit(input_values, target_values, t)
 
             # updates
-            amounts[i] *= ratios_this[assets_current[i]]
+            if 0. < ratios_this[assets_current[i]]:
+                amounts[i] *= ratios_this[assets_current[i]]
             errors[i] = float(asset_output == asset_target)
 
             amounts_tmp[i] += amounts[i]
@@ -423,7 +424,7 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
 
 def running_simple():
     random.seed(235245)
-    safety = 2.
+    safety = 1.2
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 10)
     print(pairs)
