@@ -237,6 +237,7 @@ class MultivariateRecurrentRegression(MultivariateRegression):
         output_value = super().output(tuple(in_value) + (self.memory, ))
 
         e = self.error_memory(output_value, target_value)
+        # todo: replace by always adding parametrized noise
         p = 1. / (1. + e)   # probability of keeping memory
         if random.random() >= p:
             self.memory = random.random()
