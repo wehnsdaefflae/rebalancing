@@ -403,14 +403,12 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
             datetime_axis = tuple(datetime.datetime.utcfromtimestamp(x // 1000) for x in timestamps)
             for i, approximation in enumerate(approximations):
                 p_e, = ax_error.plot(datetime_axis, results_errors[i], label=f"error {approximation.__class__.__name__:s}", alpha=.25)
-                p_a, = ax_amount.plot(datetime_axis, results_amounts[i], label=f"roi {approximation.__class__.__name__:s}", alpha=1.)
+                p_a, = ax_amount.plot(datetime_axis, results_amounts[i], label=f"{approximation.__class__.__name__:s}", alpha=1.)
 
                 #plots_error.append(p_e)
                 plots_amount.append(p_a)
 
-            # val_min_error, val_max_error = min(min(each_error) for each_error in results_errors), max(max(each_error) for each_error in results_errors)
-            val_min_error, val_max_error = 0., 1.
-            ax_error.set_ylim([val_min_error - .2 * (val_max_error - val_min_error),  val_max_error + .2 * (val_max_error - val_min_error)])
+            ax_error.set_ylim((0., 1.))
 
             val_min_amount, val_max_amount = min(min(each_amounts) for each_amounts in results_amounts), max(max(each_amounts) for each_amounts in results_amounts)
             ax_amount.set_ylim([val_min_amount - .2 * (val_max_amount - val_min_amount),  val_max_amount + .2 * (val_max_amount - val_min_amount)])
