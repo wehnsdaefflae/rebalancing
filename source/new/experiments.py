@@ -1,4 +1,5 @@
 import datetime
+import random
 from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, Optional
 
 from matplotlib import pyplot, dates
@@ -343,6 +344,7 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
             # then learn
             target_values = ratios_this
             asset_target, _ = max(enumerate(target_values), key=lambda x: x[1])
+            # each_approximation.fit(input_values, target_values, 60 * 24)
             each_approximation.fit(input_values, target_values, t)
 
             # updates
@@ -420,8 +422,12 @@ def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pai
 
 
 def running_simple():
-    safety = 5.
-    pairs = get_pairs_from_filesystem()[70:75]
+    random.seed(235245)
+    safety = 2.
+    pairs = get_pairs_from_filesystem()
+    pairs = random.sample(pairs, 10)
+    print(pairs)
+
     no_assets = len(pairs)
     learners = MultivariatePolynomialRegression(no_assets, 2, no_assets), MultivariatePolynomialRecurrentRegression(no_assets, 2, no_assets)
     simple_predict(learners, pairs, safety)
