@@ -1,6 +1,6 @@
 import datetime
 import random
-from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, Optional
+from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, Optional, Dict
 
 from matplotlib import pyplot, dates
 from matplotlib.ticker import MaxNLocator
@@ -280,6 +280,160 @@ def learn_investment(stop_training_at: int = -1):
             pyplot.pause(.05)
 
 
+class ApproximationInvestmentQuantified:
+    def __init__(self,
+                 approximation: Approximation,
+                 fees: float,
+                 certainty_threshold: float,
+                 keys_rates: Sequence[str],
+                 ):
+        self.approximation = approximation
+        self.fees = fees
+        self.certainty_threshold = certainty_threshold
+        self.keys_rates = keys_rates
+
+        self.iterations = 0
+        self.iterations_total = 0
+
+        self.error_average = 0.
+        self.amount_average = 0.
+
+        self.amount = 1.
+        self.asset = -1
+
+        self.rates_now = tuple(1. for _ in keys_rates)
+        self.ratios_now = tuple(1. for _ in keys_rates)
+
+    def __str__(self) -> str:
+        return self.approximation.__class__.__name__
+
+    def reset(self):
+        self.iterations = 0
+        self.error_average = 0.
+        self.amount_average = 0.
+
+    def _get_rates(self, snapshot: Dict[str, Any]) -> Sequence[float]:
+        return tuple(snapshot[key] for key in self.keys_rates)
+
+    def _get_ratio(self, rates: Sequence[float]) -> Sequence[float]:
+        return tuple(
+            0. if 0. >= rate_then or 0. >= rate_this else
+            rate_this / rate_then
+            for rate_this, rate_then in zip(rates, self.rates_now))
+
+    def _act(self, asset_next: int):
+        asset_ratio = self.ratios_now[asset_next]
+
+        # todo: here
+        if (asset_next != self.asset) and (self.certainty_threshold < asset_ratio or self.asset < 0) and (self.certainty_threshold * self.fees < asset_ratio - 1.):
+            self.amount *= (1. - self.fees)
+            self.asset = asset_next
+        self.amount *= asset_ratio
+
+        self.amount_average = smear(self.amount_average, self.amount, self.iterations)
+
+    def cycle(self, snapshot: Dict[str, Any]):
+        rates_next = self._get_rates(snapshot)
+        ratios_next = self._get_ratio(rates_next)
+
+        values_output = self.approximation.output(self.ratios_now)
+        self.approximation.fit(self.ratios_now, ratios_next, self.iterations_total)
+
+        self.ratios_now = ratios_next   # end time step
+        self.rates_now = rates_next     # start time step
+
+        asset_output, _ = max(enumerate(values_output), key=lambda x: x[1])
+        self._act(asset_output)
+
+        asset_target, _ = max(enumerate(rates_next), key=lambda x: x[1])
+        self.error_average = smear(self.error_average, float(asset_output != asset_target), self.iterations)
+
+        self.iterations += 1
+        self.iterations_total += 1
+
+
+class Experiment:
+    def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float):
+        fee = .01
+        time_range = 1532491200000, 1577836856000
+        interval_minutes = 1
+
+        keys_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs_assets)
+        self.approximations = tuple(
+            ApproximationInvestmentQuantified(each_a, fee, certainty_threshold, keys_rates)
+            for each_a in approximations
+        )
+
+        self.generator_snapshots = merge_generator(
+            pairs_assets, timestamp_range=time_range, interval_minutes=interval_minutes
+        )
+        self.axis_time = []
+        self.errors = [[] for _ in approximations]
+        self.amounts = [[] for _ in approximations]
+
+        self.fig, self.ax_amount = pyplot.subplots()
+        self.ax_error = self.ax_amount.twinx()
+        self.max_size = 20
+
+    def start(self):
+        for t, snapshot in enumerate(self.generator_snapshots):
+            timestamp = snapshot["close_time"]
+
+            for each_approximation in self.approximations:
+                each_approximation.cycle(snapshot)
+
+            if Timer.time_passed(2000):
+                self._update_plot(timestamp)
+
+    def _update_plot(self, timestamp: int):
+        self.axis_time.append(timestamp)
+        for i, each_approximation in enumerate(self.approximations):
+            self.errors[i].append(each_approximation.error_average)
+            del(self.errors[i][:-self.max_size])
+            self.amounts[i].append(each_approximation.amount_average)
+            del(self.amounts[i][:-self.max_size])
+            each_approximation.reset()
+
+        self._draw()
+
+    def _draw(self):
+        self.ax_error.clear()
+        self.ax_amount.clear()
+
+        self.ax_amount.set_xlabel("time")
+        self.ax_amount.set_ylabel("value in ETH")
+
+        self.ax_error.set_ylabel("average error during interval")
+        self.ax_error.yaxis.label.set_color("grey")
+
+        self.ax_amount.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
+        self.ax_amount.xaxis.set_major_locator(MaxNLocator(10))
+
+        self.ax_error.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
+        self.ax_error.xaxis.set_major_locator(MaxNLocator(10))
+
+        plots_error = []
+        plots_amount = []
+        datetime_axis = tuple(datetime.datetime.utcfromtimestamp(x // 1000) for x in self.axis_time)
+
+        for i, approximation in enumerate(self.approximations):
+            self.ax_error.plot(datetime_axis, self.errors[i], alpha=.25)
+            p_a, = self.ax_amount.plot(datetime_axis, self.amounts[i], label=f"{str(approximation):s}", alpha=1.)
+            plots_amount.append(p_a)
+
+        self.ax_error.set_ylim((0., 1.))
+
+        val_min_amount, val_max_amount = min(min(each_amounts) for each_amounts in self.amounts), max(max(each_amounts) for each_amounts in self.amounts)
+        self.ax_amount.set_ylim([val_min_amount - .2 * (val_max_amount - val_min_amount),  val_max_amount + .2 * (val_max_amount - val_min_amount)])
+
+        pyplot.setp(self.ax_amount.xaxis.get_majorticklabels(), rotation=-45, ha="left", rotation_mode="anchor", fontsize="10")
+        pyplot.legend(plots_error + plots_amount, tuple(line.get_label() for line in plots_error + plots_amount))
+        pyplot.tight_layout()
+        pyplot.pause(.05)
+
+
+
+
 def simple_predict(approximations: Sequence[Approximation[Sequence[float]]], pairs: Sequence[Tuple[str, str]], safety: float):
     # todo: implement simple rate change predict from current rate change, take best, invest all
     # use error distance normalized as error, use recurrency
@@ -434,7 +588,27 @@ def running_simple():
     simple_predict(learners, pairs, safety)
 
 
+def main():
+    random.seed(235245)
+    pairs = get_pairs_from_filesystem()
+    pairs = random.sample(pairs, 5)
+    print(pairs)
+
+    no_assets = len(pairs)
+    approximations = (
+        MultivariatePolynomialRegression(no_assets, 2, no_assets),
+        MultivariatePolynomialRecurrentRegression(no_assets, 2, no_assets),
+    )
+
+    e = Experiment(approximations, pairs, 1.2)
+    e.start()
+
+
+
+
 if __name__ == "__main__":
     # learn_investment(stop_training_at=1532491200000 + (60000 * 60 * 24 * 7))
     # learn_timeseries()
-    running_simple()
+
+    # running_simple()
+    main()
