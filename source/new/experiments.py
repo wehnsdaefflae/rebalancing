@@ -257,7 +257,7 @@ class ExperimentPeriodic(ExperimentContinual):
     def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float):
         super().__init__(approximations, pairs_assets, certainty_threshold, fee)
         self.length_training = 60 * 24 * 7
-        self.period_training = 60 * 24
+        self.period_training = 60 * 24 * 7
 
     def train(self, rates: Iterable[Sequence[float]]):
         iterator_rates = (x for x in rates)
