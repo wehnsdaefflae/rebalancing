@@ -92,7 +92,28 @@ def read_reverse_order(file_name: str) -> Generator[str, None, None]:
             yield buffer.decode()[::-1]
 
 
-def generate_path(path_file: str) -> Sequence[int]:
+def generate_path(matrix: Sequence[Tuple[Sequence[int], Tuple[int, float]]]) -> Sequence[int]:
+    path = []
+    asset_last = -1
+
+    len_matrix = len(matrix)
+
+    for t in range(len_matrix - 1, -1, -1):
+        assets_from, (asset_max, _) = matrix[t]
+        if t >= len_matrix - 1:
+            asset_last = asset_max
+            path.append(asset_last)
+
+        asset_last = assets_from[asset_last]
+        path.insert(0, asset_last)
+
+        if Timer.time_passed(2000):
+            print(f"finished reading {100. * (t - len_matrix) / len_matrix:5.2f}% percent of path...")
+
+    return path
+
+
+def generate_path_from_file(path_file: str) -> Sequence[int]:
     path = []
     asset_last = -1
     #with open(path_file, mode="r") as file:
@@ -137,11 +158,11 @@ def binance_matrix(pairs: Collection[Tuple[str, str]], time_range: Tuple[int, in
     no_assets = len(pairs)
 
     header_rates_only = tuple(f"{each_pair[0]:s}-{each_pair[1]:s}_close" for each_pair in pairs)
-    timestamps_n_rates = (
+    rates = (
         tuple(snapshot[x] for x in header_rates_only)
         for snapshot in merge_generator(pairs=pairs, timestamp_range=time_range, interval_minutes=interval_minutes, header=("close_time", "close"))
     )
-    matrix_change = generate_multiple_changes(timestamps_n_rates)
+    matrix_change = generate_multiple_changes(rates)
     return generate_matrix(no_assets, matrix_change, .01, bound=100)
 
 
@@ -204,7 +225,7 @@ def main():
     file_path_matrix = PATH_DIRECTORY_DATA + "examples/binance_matrix_small.csv"
     store_matrix(file_path_matrix, matrix, no_datapoints)
 
-    path = generate_path(file_path_matrix)
+    path = generate_path_from_file(file_path_matrix)
 
     write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples_small.csv", STATS, time_range)
 

@@ -5,9 +5,10 @@ from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Call
 from matplotlib import pyplot, dates
 from matplotlib.ticker import MaxNLocator
 
-from source.new.binance_examples import STATS, get_pairs_from_filesystem, binance_matrix
+from source.new.binance_examples import STATS, get_pairs_from_filesystem, binance_matrix, generate_path_from_file, generate_path
 from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification, Approximation, smear, \
     MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
+from source.new.optimal_trading import generate_multiple_changes, generate_matrix
 from source.new.snapshot_generation import merge_generator
 from source.tools.timer import Timer
 
@@ -98,7 +99,22 @@ class ApproximationInvestmentQuantified:
         self.amount *= self.ratios_now[self.asset]
         self.amount_average = smear(self.amount_average, self.amount, self.iterations)
 
-    def cycle(self, rates_next: Sequence[float]):
+    def batch(self, examples: Iterable[Tuple[Sequence[float], int]]):
+        rates_prev = None
+        no_assets = -1
+        for t, (rates_next, target_next) in enumerate(examples):
+            if rates_prev is None:
+                rates_prev = rates_next
+                no_assets = len(rates_prev)
+                continue
+            ratio_next = tuple(1. if 0. >= r_prev else r_next / r_prev for r_next, r_prev in zip(rates_next, rates_prev))
+            target_values = tuple(float(i == target_next) for i in range(no_assets))
+            self.approximation.fit(ratio_next, target_values, t - 1)
+
+            if Timer.time_passed(2000):
+                print(f"finished training {t:d} examples in batch...")
+
+    def cycle(self, rates_next: Sequence[float], skip_train: bool = False):
         ratios_next = self._get_ratio(rates_next)
 
         if self.ratios_now is None:
@@ -107,8 +123,9 @@ class ApproximationInvestmentQuantified:
 
         else:
             values_output = self.approximation.output(self.ratios_now)
-            # self.approximation.fit(self.ratios_now, ratios_next, self.iterations_total)
-            self.approximation.fit(self.ratios_now, ratios_next, 60 * 24)
+            if not skip_train:
+                self.approximation.fit(self.ratios_now, ratios_next, self.iterations_total)
+                # self.approximation.fit(self.ratios_now, ratios_next, 60 * 24)
             asset_output, ratio_output = max(enumerate(values_output), key=lambda x: x[1])
 
         self.ratios_now = ratios_next   # end time step
@@ -120,7 +137,8 @@ class ApproximationInvestmentQuantified:
         self.error_average = smear(self.error_average, float(asset_output != asset_target), self.iterations)
 
         self.iterations += 1
-        self.iterations_total += 1
+        if not skip_train:
+            self.iterations_total += 1
 
 
 class VisualizationMixin:
@@ -200,12 +218,13 @@ class VisualizationMixin:
         pyplot.pause(.05)
 
 
-class Experiment(VisualizationMixin):
+class ExperimentContinual(VisualizationMixin):
     def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float):
         super().__init__(len(approximations))
         time_range = 1532491200000, 1577836856000
         interval_minutes = 1
 
+        self.fee = fee
         self.keys_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs_assets)
         self.approximations = tuple(
             ApproximationInvestmentQuantified(each_a, fee, certainty_threshold)
@@ -234,6 +253,44 @@ class Experiment(VisualizationMixin):
                 self.t_last = t
 
 
+class ExperimentPeriodic(ExperimentContinual):
+    def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float):
+        super().__init__(approximations, pairs_assets, certainty_threshold, fee)
+        self.length_training = 60 * 24 * 7
+        self.period_training = 60 * 24
+
+    def train(self, rates: Iterable[Sequence[float]]):
+        iterator_rates = (x for x in rates)
+        matrix_change = generate_multiple_changes(iterator_rates)
+        matrix_invest = generate_matrix(len(self.keys_rates), matrix_change, self.fee, bound=100)
+        path_invest = generate_path(list(matrix_invest))
+
+        for each_approximation in self.approximations:
+            each_approximation.batch(list(zip(rates, path_invest)))
+
+    def start(self):
+        buffer_rates = []
+
+        for t, snapshot in enumerate(self.generator_snapshots):
+            timestamp = snapshot["close_time"]
+            rates = self._get_rates(snapshot)
+            buffer_rates.append(rates)
+            del(buffer_rates[:-self.length_training])
+
+            if (t + 1) % self.period_training == 0:
+                self.train(buffer_rates)
+                buffer_rates.clear()
+
+            for each_approximation in self.approximations:
+                each_approximation.cycle(rates, skip_train=True)
+
+            self._update_market(rates, t)
+
+            if Timer.time_passed(1000):
+                self._update_plot(timestamp, self.approximations)
+                self.t_last = t
+
+
 def main():
     random.seed(2352345)
     pairs = get_pairs_from_filesystem()
@@ -248,7 +305,8 @@ def main():
 
     fee = .01
     certainty = 1.2
-    e = Experiment(approximations, pairs, certainty, fee)
+    # e = ExperimentContinual(approximations, pairs, certainty, fee)
+    e = ExperimentPeriodic(approximations, pairs, certainty, fee)
     e.start()
 
     # todo: implement continual optimal trading as Experiment
