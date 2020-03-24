@@ -109,7 +109,7 @@ class ApproximationInvestmentQuantified:
                 continue
             ratio_next = tuple(1. if 0. >= r_prev else r_next / r_prev for r_next, r_prev in zip(rates_next, rates_prev))
             target_values = tuple(float(i == target_next) for i in range(no_assets))
-            self.approximation.fit(ratio_next, target_values, t - 1)
+            self.approximation.fit(ratio_next, target_values, self.iterations_total + t - 1)
 
             if Timer.time_passed(2000):
                 print(f"finished training {t:d} examples in batch...")
@@ -265,7 +265,8 @@ class ExperimentPeriodic(ExperimentContinual):
         matrix_invest = generate_matrix(len(self.keys_rates), matrix_change, self.fee, bound=100)
         path_invest = generate_path(list(matrix_invest))
 
-        for each_approximation in self.approximations:
+        for i, each_approximation in enumerate(self.approximations):
+            print(f"starting batch training {i + 1:d} of {len(self.approximations):d}...")
             each_approximation.batch(list(zip(rates, path_invest)))
 
     def start(self):
@@ -292,7 +293,7 @@ class ExperimentPeriodic(ExperimentContinual):
 
 
 def main():
-    random.seed(2352345)
+    random.seed(2354562345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)
     print(pairs)
