@@ -4,7 +4,7 @@ import itertools
 import json
 import math
 import random
-from typing import TypeVar, Sequence, Generic, Dict, Any, Callable, Iterable, Tuple, Generator, Union, Type
+from typing import TypeVar, Sequence, Generic, Dict, Any, Callable, Iterable, Tuple, Generator, Union, Type, List
 
 import numpy
 
@@ -217,46 +217,53 @@ class MultivariateRecurrentRegression(MultivariateRegression):
     def __init__(self,
                  no_outputs: int,
                  addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]],
+                 no_memories: int = 1,
                  error_memory: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
                  ):
         super().__init__(no_outputs, addends)
-        self.regression_memory = MultipleRegression(addends_memory)
+        self.regressions_memory = tuple(MultipleRegression(addends_memory) for _ in range(no_memories))
+        self.values_memory = [0. for _ in range(no_memories)]
         self.error_memory = error_memory
-        self.memory = 0.
         self.last_input = None
 
-    def _get_memory(self, in_values: Sequence[float]) -> float:
-        return self.regression_memory.output(in_values)
+    def _get_memory(self, in_values: Sequence[float]) -> List[float]:
+        return [each_memory.output(in_values) for each_memory in self.regressions_memory]
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        input_contextualized = tuple(in_value) + (self.memory, )
-        self.memory = self._get_memory(input_contextualized)
+        input_contextualized = tuple(in_value) + tuple(self.values_memory)
+        self.values_memory = self._get_memory(input_contextualized)
         return super().output(input_contextualized)
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        output_value = super().output(tuple(in_value) + (self.memory, ))
+        output_value = super().output(tuple(in_value) + tuple(self.values_memory))
 
         e = self.error_memory(output_value, target_value)
         # todo: replace by always adding parametrized noise
         p = 1. / (1. + e)   # probability of keeping memory
-        if random.random() >= p:
-            self.memory = random.random()
+        for i in range(len(self.values_memory)):
+            if random.random() >= p:
+                self.values_memory[i] = random.random()
 
         if self.last_input is not None:
-            self.regression_memory.fit(self.last_input, self.memory, drag)  # smaller, fixed drag?
+            for each_memory, each_value in zip(self.regressions_memory, self.values_memory):
+                each_memory.fit(self.last_input, each_value, drag)  # smaller, fixed drag?
 
-        input_contextualized = tuple(in_value) + (self.memory, )
+        input_contextualized = tuple(in_value) + tuple(self.values_memory)
         super().fit(input_contextualized, target_value, drag)
 
     def get_parameters(self) -> Sequence[float]:
-        return tuple(super().get_parameters()) + tuple(self.regression_memory.get_parameters())
+        return tuple(super().get_parameters()) + tuple(x for each_memory in self.regressions_memory for x in each_memory.get_parameters())
 
 
 class MultivariatePolynomialRecurrentRegression(MultivariateRecurrentRegression):
-    def __init__(self, no_arguments: int, degree: int, no_outputs: int):
-        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
-        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
-        super().__init__(no_outputs, addends_basic, addends_memory)
+    def __init__(self,
+                 no_arguments: int, degree: int, no_outputs: int,
+                 no_memories: int = 1,
+                 error_memory: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
+                 ):
+        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + no_memories, degree)
+        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + no_memories, degree)
+        super().__init__(no_outputs, addends_basic, addends_memory, no_memories=no_memories, error_memory=error_memory)
 
 
 class Classification(Approximation[int]):
@@ -332,16 +339,16 @@ class PolynomialClassification(Classification):
 
 
 class RecurrentClassification(Classification):
-    def __init__(self, no_classes: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]]):
-        regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory, error_memory=Classification.error_class)
+    def __init__(self, no_classes: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]], no_memories: int = 1):
+        regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory, no_memories=no_memories, error_memory=Classification.error_class)
         super().__init__(regression, no_classes)
 
 
 class RecurrentPolynomialClassification(RecurrentClassification):
-    def __init__(self, no_arguments: int, degree: int, no_classes: int):
-        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
-        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + 1, degree)
-        super().__init__(no_classes, addends_basic, addends_memory)
+    def __init__(self, no_arguments: int, degree: int, no_classes: int, no_memories: int = 1):
+        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + no_memories, degree)
+        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + no_memories, degree)
+        super().__init__(no_classes, addends_basic, addends_memory, no_memories=no_memories)
 
 
 def get_classification_examples() -> Iterable[Tuple[Tuple[float, ...], int]]:

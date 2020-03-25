@@ -20,3 +20,7 @@ class Timer:
 
         Timer.last_time = this_time
         return True
+
+    @staticmethod
+    def update_time():
+        Timer.last_time = round(time.time() * 1000.)

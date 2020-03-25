@@ -71,6 +71,8 @@ class ApproximationInvestmentQuantified:
         self.amount = 1.
         self.asset = -1
 
+        self.no_trades = 0
+
         self.rates_now = None
         self.ratios_now = None
 
@@ -92,9 +94,11 @@ class ApproximationInvestmentQuantified:
             for rate_this, rate_then in zip(rates, self.rates_now))
 
     def _act(self, asset_next: int, ratio_next: float):
-        if (self.asset < 0) or (asset_next != self.asset and self.certainty_threshold * self.fees < ratio_next - 1.):
+        # if (initial trade) or (different asset is better and certainty over threshold and [benefit outweights fees? i dont know that!])
+        if (self.asset < 0) or (asset_next != self.asset and self.certainty_threshold < ratio_next):
             self.amount *= (1. - self.fees)
             self.asset = asset_next
+            self.no_trades += 1
 
         self.amount *= self.ratios_now[self.asset]
         self.amount_average = smear(self.amount_average, self.amount, self.iterations)
@@ -109,7 +113,8 @@ class ApproximationInvestmentQuantified:
                 continue
             ratio_next = tuple(1. if 0. >= r_prev else r_next / r_prev for r_next, r_prev in zip(rates_next, rates_prev))
             target_values = tuple(float(i == target_next) for i in range(no_assets))
-            self.approximation.fit(ratio_next, target_values, self.iterations_total + t - 1)
+            # self.approximation.fit(ratio_next, target_values, self.iterations_total + t - 1)
+            self.approximation.fit(ratio_next, target_values, t - 1)
 
             if Timer.time_passed(2000):
                 print(f"finished training {t:d} examples in batch...")
@@ -124,8 +129,8 @@ class ApproximationInvestmentQuantified:
         else:
             values_output = self.approximation.output(self.ratios_now)
             if not skip_train:
-                self.approximation.fit(self.ratios_now, ratios_next, self.iterations_total)
-                # self.approximation.fit(self.ratios_now, ratios_next, 60 * 24)
+                # self.approximation.fit(self.ratios_now, ratios_next, self.iterations_total)
+                self.approximation.fit(self.ratios_now, ratios_next, 60 * 24)
             asset_output, ratio_output = max(enumerate(values_output), key=lambda x: x[1])
 
         self.ratios_now = ratios_next   # end time step
@@ -171,6 +176,10 @@ class VisualizationMixin:
         del(self.ratio_list[:-self.max_size])
 
         for i, each_approximation in enumerate(approximations):
+            if 1 < len(self.axis_time):
+                print(f"duration: {(self.axis_time[-1] - self.axis_time[-2]) / (1000. * 60. * 60.):.2f} hours.")
+            print(f"number of trades {each_approximation.no_trades:d} for {str(each_approximation.approximation.__class__.__name__):s}.")
+            each_approximation.no_trades = 0
             self.errors[i].append(each_approximation.error_average)
             del(self.errors[i][:-self.max_size])
             self.amounts[i].append(each_approximation.amount_average)
@@ -286,6 +295,8 @@ class ExperimentPeriodic(ExperimentContinual):
                 each_approximation.cycle(rates, skip_train=True)
 
             self._update_market(rates, t)
+            if 0. >= max(rates):
+                raise ValueError("all assets at zero?!")
 
             if Timer.time_passed(1000):
                 self._update_plot(timestamp, self.approximations)
@@ -293,7 +304,7 @@ class ExperimentPeriodic(ExperimentContinual):
 
 
 def main():
-    random.seed(2354562345)
+    random.seed(235456345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)
     print(pairs)
@@ -301,13 +312,24 @@ def main():
     no_assets = len(pairs)
     approximations = (
         MultivariatePolynomialRegression(no_assets, 2, no_assets),
-        MultivariatePolynomialRecurrentRegression(no_assets, 2, no_assets),
+        MultivariatePolynomialRecurrentRegression(
+            no_assets, 2, no_assets,
+            no_memories=1,
+            error_memory=lambda output_val, target_val: float(max(enumerate(output_val), key=lambda x: x[1])[0] != max(enumerate(target_val), key=lambda x: x[1])[0]) * 1000.),
+        MultivariatePolynomialRecurrentRegression(
+            no_assets, 2, no_assets,
+            no_memories=2,
+            error_memory=lambda output_val, target_val: float(max(enumerate(output_val), key=lambda x: x[1])[0] != max(enumerate(target_val), key=lambda x: x[1])[0]) * 1000.),
+        MultivariatePolynomialRecurrentRegression(
+            no_assets, 2, no_assets,
+            no_memories=3,
+            error_memory=lambda output_val, target_val: float(max(enumerate(output_val), key=lambda x: x[1])[0] != max(enumerate(target_val), key=lambda x: x[1])[0]) * 1000.),
     )
 
     fee = .01
-    certainty = 1.2
-    # e = ExperimentContinual(approximations, pairs, certainty, fee)
-    e = ExperimentPeriodic(approximations, pairs, certainty, fee)
+    certainty = 1.001
+    e = ExperimentContinual(approximations, pairs, certainty, fee)
+    # e = ExperimentPeriodic(approximations, pairs, certainty, fee)
     e.start()
 
     # todo: implement continual optimal trading as Experiment
