@@ -4,12 +4,55 @@ import itertools
 import json
 import math
 import random
-from typing import TypeVar, Sequence, Generic, Dict, Any, Callable, Iterable, Tuple, Generator, Union, Type, List
+import time
+from typing import TypeVar, Sequence, Generic, Dict, Any, Callable, Iterable, Tuple, Generator, Union, Type, List, Optional
 
 import numpy
+from matplotlib import pyplot
 
 OUTPUT = TypeVar("OUTPUT", Sequence[float], float)
 T = TypeVar("T")
+
+
+def z_score_generator(drag: int = -1, offset: float = 0., scale: float = 1., clamp: Optional[Tuple[float, float]] = None) -> Generator[float, float, None]:
+    # use to normalize input, enables more precise error value calculation for recurrent and failure approximations
+    iteration = 0
+
+    value = yield
+    average = value
+    deviation = 0.
+
+    if clamp is not None:
+        assert clamp[0] < clamp[1]
+
+    while True:
+        if deviation == 0.:
+            value = yield 0.
+
+        elif clamp is None:
+            value = yield ((value - average) / deviation) * scale + offset
+
+        else:
+            r = ((value - average) / deviation) * scale + offset
+            value = yield max(clamp[0], min(clamp[1], r))
+
+        d = drag if drag >= 0 else iteration
+        average = smear(average, value, d)
+        deviation = smear(deviation, abs(value - average), d)
+
+        iteration += 1
+
+
+def z_score_normalized_generator() -> Generator[float, float, None]:
+    yield from z_score_generator(drag=-1, scale=.25, offset=.5, clamp=(0., 1.))
+
+
+def z_score_multiple_normalized_generator(no_values: int) -> Generator[Sequence[float], Sequence[float], None]:
+    gs = tuple(z_score_normalized_generator() for _ in range(no_values))
+    values = yield tuple(next(each_g) for each_g in gs)
+
+    while True:
+        values = yield tuple(each_g.send(x) for each_g, x in zip(gs, values))
 
 
 def smear(average: float, value: float, inertia: int) -> float:
@@ -225,6 +268,8 @@ class MultivariateRecurrentRegression(MultivariateRegression):
         self.values_memory = [0. for _ in range(no_memories)]
         self.error_memory = error_memory
         self.last_input = None
+        self.normalization = z_score_normalized_generator()
+        next(self.normalization)
 
     def _get_memory(self, in_values: Sequence[float]) -> List[float]:
         return [each_memory.output(in_values) for each_memory in self.regressions_memory]
@@ -238,8 +283,8 @@ class MultivariateRecurrentRegression(MultivariateRegression):
         output_value = super().output(tuple(in_value) + tuple(self.values_memory))
 
         e = self.error_memory(output_value, target_value)
-        # todo: replace by always adding parametrized noise
-        p = 1. / (1. + e)   # probability of keeping memory
+        e_z = self.normalization.send(e)
+        p = 1. - e_z   # probability of keeping memory
         for i in range(len(self.values_memory)):
             if random.random() >= p:
                 self.values_memory[i] = random.random()
@@ -386,9 +431,54 @@ def regression_test():
         print()
 
 
+class FloatingGraph:
+    def __init__(self, no_plots: int, size_window: int):
+        self.plots = tuple([] for _ in range(no_plots))
+        self.size_window = size_window
+        self.fig, self.ax = pyplot.subplots()
+        self.iteration = 0
+
+    def add(self, points: Sequence[float]):
+        for each_plot, each_value in zip(self.plots, points):
+            each_plot.append(each_value)
+            del(each_plot[:-self.size_window])
+        self.iteration += 1
+
+    def draw(self):
+        self.ax.clear()
+        x_coordinates = list(range(max(0, self.iteration - self.size_window), self.iteration))
+        for i, each_plot in enumerate(self.plots):
+            self.ax.plot(x_coordinates, each_plot, label=f"{i:d}")
+
+        val_min = min(min(each_plot) for each_plot in self.plots)
+        val_max = max(max(each_plot) for each_plot in self.plots)
+
+        self.ax.set_ylim([val_min - .2 * (val_max - val_min),  val_max + .2 * (val_max - val_min)])
+
+        pyplot.legend()
+        pyplot.tight_layout()
+        pyplot.pause(.05)
+
+
+def z_score_test():
+    no_values = 10
+    fg = FloatingGraph(no_values, 10)
+
+    z = z_score_multiple_normalized_generator(no_values)
+    next(z)
+
+    while True:
+        values = tuple(random.random() * (random.random() * 10.) - (random.random() * 10.) for _ in range(no_values))
+        value_zs = z.send(values)
+        fg.add(value_zs)
+        fg.draw()
+        time.sleep(.1)
+
+
 def main():
     # classification_test()
-    regression_test()
+    # regression_test()
+    z_score_test()
 
 
 if __name__ == "__main__":

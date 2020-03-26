@@ -7,7 +7,7 @@ from matplotlib.ticker import MaxNLocator
 
 from source.new.binance_examples import STATS, get_pairs_from_filesystem, binance_matrix, generate_path_from_file, generate_path
 from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification, Approximation, smear, \
-    MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
+    MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, z_score_multiple_normalized_generator
 from source.new.optimal_trading import generate_multiple_changes, generate_matrix
 from source.new.snapshot_generation import merge_generator
 from source.tools.timer import Timer
@@ -57,11 +57,14 @@ class ApproximationInvestmentQuantified:
                  approximation: Approximation,
                  fees: float,
                  certainty_threshold: float,
+                 no_rates: int,
+                 delay: int = 0
                  ):
         self.approximation = approximation
         self.fees = fees
         self.certainty_threshold = certainty_threshold
 
+        self.delay = delay
         self.iterations = 0
         self.iterations_total = 0
 
@@ -76,12 +79,14 @@ class ApproximationInvestmentQuantified:
         self.rates_now = None
         self.ratios_now = None
 
+        self.z = z_score_multiple_normalized_generator(no_rates)
+        next(self.z)
+
     def __str__(self) -> str:
         return self.approximation.__class__.__name__
 
     def reset(self):
         self.iterations = 0
-        self.error_average = 0.
         self.amount_average = 0.
 
     def _get_ratio(self, rates: Sequence[float]) -> Sequence[float]:
@@ -95,7 +100,7 @@ class ApproximationInvestmentQuantified:
 
     def _act(self, asset_next: int, ratio_next: float):
         # if (initial trade) or (different asset is better and certainty over threshold and [benefit outweights fees? i dont know that!])
-        if (self.asset < 0) or (asset_next != self.asset and self.certainty_threshold < ratio_next):
+        if (self.asset < 0) or (self.iterations_total >= self.delay and asset_next != self.asset and self.certainty_threshold < ratio_next):
             self.amount *= (1. - self.fees)
             self.asset = asset_next
             self.no_trades += 1
@@ -127,10 +132,12 @@ class ApproximationInvestmentQuantified:
             ratio_output = 0.
 
         else:
-            values_output = self.approximation.output(self.ratios_now)
+            rates_normalized = self.z.send(self.ratios_now)
+
+            values_output = self.approximation.output(rates_normalized)
             if not skip_train:
                 # self.approximation.fit(self.ratios_now, ratios_next, self.iterations_total)
-                self.approximation.fit(self.ratios_now, ratios_next, 60 * 24)
+                self.approximation.fit(rates_normalized, ratios_next, 60 * 24)
             asset_output, ratio_output = max(enumerate(values_output), key=lambda x: x[1])
 
         self.ratios_now = ratios_next   # end time step
@@ -139,7 +146,8 @@ class ApproximationInvestmentQuantified:
         self._act(asset_output, ratio_output)
 
         asset_target, _ = max(enumerate(rates_next), key=lambda x: x[1])
-        self.error_average = smear(self.error_average, float(asset_output != asset_target), self.iterations)
+        # self.error_average = smear(self.error_average, float(asset_output != asset_target), self.iterations)
+        self.error_average = smear(self.error_average, float(asset_output == asset_target), self.iterations_total)
 
         self.iterations += 1
         if not skip_train:
@@ -195,7 +203,8 @@ class VisualizationMixin:
         self.ax_amount.set_xlabel("time")
         self.ax_amount.set_ylabel("value in ETH")
 
-        self.ax_error.set_ylabel("average error during interval")
+        # self.ax_error.set_ylabel("average error during interval")
+        self.ax_error.set_ylabel("best choices total")
         self.ax_error.yaxis.label.set_color("grey")
 
         self.ax_amount.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
@@ -228,7 +237,7 @@ class VisualizationMixin:
 
 
 class ExperimentContinual(VisualizationMixin):
-    def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float):
+    def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float, delay: int = 0):
         super().__init__(len(approximations))
         time_range = 1532491200000, 1577836856000
         interval_minutes = 1
@@ -236,7 +245,7 @@ class ExperimentContinual(VisualizationMixin):
         self.fee = fee
         self.keys_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs_assets)
         self.approximations = tuple(
-            ApproximationInvestmentQuantified(each_a, fee, certainty_threshold)
+            ApproximationInvestmentQuantified(each_a, fee, certainty_threshold, len(self.keys_rates), delay=delay)
             for each_a in approximations
         )
 
@@ -304,7 +313,7 @@ class ExperimentPeriodic(ExperimentContinual):
 
 
 def main():
-    random.seed(235456345)
+    random.seed(23546345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)
     print(pairs)
@@ -314,21 +323,18 @@ def main():
         MultivariatePolynomialRegression(no_assets, 2, no_assets),
         MultivariatePolynomialRecurrentRegression(
             no_assets, 2, no_assets,
-            no_memories=1,
-            error_memory=lambda output_val, target_val: float(max(enumerate(output_val), key=lambda x: x[1])[0] != max(enumerate(target_val), key=lambda x: x[1])[0]) * 1000.),
+            no_memories=1),
         MultivariatePolynomialRecurrentRegression(
             no_assets, 2, no_assets,
-            no_memories=2,
-            error_memory=lambda output_val, target_val: float(max(enumerate(output_val), key=lambda x: x[1])[0] != max(enumerate(target_val), key=lambda x: x[1])[0]) * 1000.),
+            no_memories=2),
         MultivariatePolynomialRecurrentRegression(
             no_assets, 2, no_assets,
-            no_memories=3,
-            error_memory=lambda output_val, target_val: float(max(enumerate(output_val), key=lambda x: x[1])[0] != max(enumerate(target_val), key=lambda x: x[1])[0]) * 1000.),
+            no_memories=3),
     )
 
     fee = .01
-    certainty = 1.001
-    e = ExperimentContinual(approximations, pairs, certainty, fee)
+    certainty = 1.0
+    e = ExperimentContinual(approximations, pairs, certainty, fee, delay=0)
     # e = ExperimentPeriodic(approximations, pairs, certainty, fee)
     e.start()
 
