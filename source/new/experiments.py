@@ -323,13 +323,13 @@ def main():
         MultivariatePolynomialRegression(no_assets, 2, no_assets),
         MultivariatePolynomialRecurrentRegression(
             no_assets, 2, no_assets,
-            no_memories=1),
+            resolution_memory=1),
         MultivariatePolynomialRecurrentRegression(
             no_assets, 2, no_assets,
-            no_memories=2),
+            resolution_memory=2),
         MultivariatePolynomialRecurrentRegression(
             no_assets, 2, no_assets,
-            no_memories=3),
+            resolution_memory=3),
     )
 
     fee = .01
