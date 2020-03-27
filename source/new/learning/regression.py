@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 import random
-from typing import Dict, Any, Sequence, Callable, List
+from typing import Dict, Any, Sequence, Callable, List, Tuple
 
 import numpy
 
@@ -200,16 +200,51 @@ class MultivariateFailureRegression(MultivariateRegression):
                  no_arguments: int,
                  no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]],
                  resolution_context: int, addends_context: Sequence[Callable[[Sequence[float]], float]],
+                 error_tolerance: float,
                  error_context: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
                  ):
         super().__init__(no_outputs, addends)
-        self.context = MultivariateRegression(resolution_context, addends_context)
+        # todo: make context approximation a parameter
+        self.approximation_context = MultivariateRegression(resolution_context, addends_context)
+        self.resolution_context = resolution_context
+        assert 1. >= error_tolerance >= 0.
+        self.error_tolerance = error_tolerance
         self.error_context = error_context
         self.context = tuple(0. for _ in range(no_arguments + no_outputs))
+        self.normalization = z_score_normalized_generator()
+        next(self.normalization)
+
+    def _optimize_context(self, input_values: Sequence[float], target_values: Sequence[float]) -> Tuple[Sequence[float], float]:
+        error_minimal = -1.
+        context_best = None
+        for i in range(100):    # ? whatevs...
+            context_this = tuple(random.random() for _ in range(self.resolution_context))
+            output_values = super().output(tuple(input_values) + tuple(context_this))
+            e = self.error_context(output_values, target_values)
+            e_z = self.normalization.send(e)
+            if e_z < error_minimal or context_best is None:
+                error_minimal = e_z
+                context_best = context_this
+
+        return context_best, error_minimal
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        # todo: continue here
-        super().fit()
+        output_values = super().output(tuple(in_value) + self.context)
+        e = self.error_context(output_values, target_value)
+        e_z = self.normalization.send(e)
+        if self.error_tolerance < e_z:
+            self.context = self.approximation_context.output(tuple(in_value) + tuple(output_values))
+            output_values = super().output(tuple(in_value) + tuple(self.context))
+            e = self.error_context(output_values, target_value)
+            e_z = self.normalization.send(e)
+
+        if self.error_tolerance < e_z:
+            self.context, e_z = self._optimize_context(in_value, target_value)
+
+        if self.error_tolerance < e_z:
+            self.context = tuple(random.random() for _ in range(self.resolution_context))
+
+        super().fit(tuple(in_value) + tuple(self.context), target_value, drag)
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        pass
+        return super().output(tuple(in_value) + self.context)
