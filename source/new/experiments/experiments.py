@@ -1,15 +1,15 @@
 import datetime
 import random
-from typing import Iterable, Sequence, Tuple, Generator, Union, Collection, Callable, Type, Any, Optional, Dict
+from typing import Iterable, Sequence, Tuple, Collection, Type, Any, Dict
 
 from matplotlib import pyplot, dates
 from matplotlib.ticker import MaxNLocator
 
-from source.new.binance_examples import STATS, get_pairs_from_filesystem, binance_matrix, generate_path_from_file, generate_path
-from source.new.learning import Classification, MultivariateRegression, PolynomialClassification, RecurrentPolynomialClassification, Approximation, smear, \
+from source.new.data.binance_examples import get_pairs_from_filesystem, generate_path
+from source.new.learning import Approximation, smear, \
     MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, z_score_multiple_normalized_generator
-from source.new.optimal_trading import generate_multiple_changes, generate_matrix
-from source.new.snapshot_generation import merge_generator
+from source.new.strategies.optimal_trading import generate_multiple_changes, generate_matrix
+from source.new.data.snapshot_generation import merge_generator
 from source.tools.timer import Timer
 
 

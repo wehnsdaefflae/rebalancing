@@ -199,13 +199,14 @@ class MultivariateFailureRegression(MultivariateRegression):
     def __init__(self,
                  no_arguments: int,
                  no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]],
-                 resolution_context: int, addends_context: Sequence[Callable[[Sequence[float]], float]],
+                 approximation_context: MultivariateRegression,
+                 resolution_context: int,
                  error_tolerance: float,
                  error_context: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
                  ):
         super().__init__(no_outputs, addends)
         # todo: make context approximation a parameter
-        self.approximation_context = MultivariateRegression(resolution_context, addends_context)
+        self.approximation_context = approximation_context
         self.resolution_context = resolution_context
         assert 1. >= error_tolerance >= 0.
         self.error_tolerance = error_tolerance

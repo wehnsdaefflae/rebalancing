@@ -2,13 +2,13 @@ import glob
 import os
 from typing import Tuple, Sequence, Iterable, Generator, Collection, Union
 
-from source.new.snapshot_generation import merge_generator
-from source.new.optimal_trading import generate_multiple_changes, generate_matrix
+from source.new.data.snapshot_generation import merge_generator
+from source.new.strategies.optimal_trading import generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 # from flyingcircus import base
 
-PATH_DIRECTORY_DATA = "../../data/"
+PATH_DIRECTORY_DATA = "../../../data/"
 RAW_BINANCE_DIR = PATH_DIRECTORY_DATA + "binance/"
 
 
