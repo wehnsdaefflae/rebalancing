@@ -280,6 +280,7 @@ class MarketMixin:
         self.asset_current = asset_initial
         self.amount_current = amount_initial
         self.amount_average = amount_initial
+        self.trades = 0
 
     def update_investment(self, ratios: Sequence[float], asset_next: int):
         assert len(ratios) == self.no_assets
@@ -287,6 +288,7 @@ class MarketMixin:
         if asset_next != self.asset_current and asset_next >= 0:
             self.amount_current *= (1. - self.fee)
             self.asset_current = asset_next
+            self.trades += 1
 
         self.amount_current *= ratios[self.asset_current]
         self.amount_average *= sum(ratios) / self.no_assets
@@ -349,6 +351,8 @@ class ExperimentSingleApproximation(MarketMixin, MovingGraph):
             self.last_ratios = ratios_n
 
             if Timer.time_passed(1000):
+                print(f"no trades: {self.trades:d}")
+                self.trades = 0
                 self.draw()
 
 
@@ -425,6 +429,7 @@ def main():
 def main_new():
     # todo: refactor other experiments (mixin classes)
     # todo: test failure regression
+    # todo: normalize output?
     random.seed(23546345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)
@@ -434,7 +439,7 @@ def main_new():
 
     approximation = MultiplePolynomialRegression(1, 2)
 
-    e = ExperimentSingleApproximation(approximation, pairs, 1., .01)
+    e = ExperimentSingleApproximation(approximation, pairs, .51, .01)
     e.start()
 
 
