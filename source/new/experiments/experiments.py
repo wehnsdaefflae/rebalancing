@@ -7,7 +7,7 @@ from matplotlib.ticker import MaxNLocator
 
 from source.new.data.binance_examples import get_pairs_from_filesystem, generate_path
 from source.new.learning.approximation import Approximation
-from source.new.learning.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
+from source.new.learning.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultiplePolynomialRegression
 from source.new.learning.tools import ratio_generator_multiple, z_score_multiple_normalized_generator, smear, MovingGraph
 from source.new.strategies.optimal_trading import generate_multiple_changes, generate_matrix
 from source.new.data.snapshot_generation import merge_generator
@@ -297,7 +297,7 @@ class ExperimentSingleApproximation(MarketMixin, MovingGraph):
         self.keys_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs_assets)
 
         MarketMixin.__init__(self, self.keys_rates, fee)
-        MovingGraph.__init__(self, 1, 100)
+        MovingGraph.__init__(self, 2, 10000)
 
         time_range = 1532491200000, 1577836856000
         interval_minutes = 1
@@ -311,6 +311,7 @@ class ExperimentSingleApproximation(MarketMixin, MovingGraph):
         )
 
         self.generator_normalize = z_score_multiple_normalized_generator(self.no_assets)
+        next(self.generator_normalize)
         self.generator_ratio = ratio_generator_multiple(self.no_assets)
         next(self.generator_ratio)
 
@@ -335,7 +336,7 @@ class ExperimentSingleApproximation(MarketMixin, MovingGraph):
                 asset_target, certainty = max(enumerate(output_values), key=lambda x: x[1])
 
                 for input_value, target_value in zip(self.last_ratios, ratios_n):
-                    self.approximation.fit([input_value], [target_value], t)
+                    self.approximation.fit([input_value], target_value, t)
 
                 if self.certainty_threshold >= certainty:
                     asset_target = -1   # do nothing
@@ -422,6 +423,8 @@ def main():
 
 
 def main_new():
+    # todo: refactor other experiments (mixin classes)
+    # todo: test failure regression
     random.seed(23546345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)
@@ -429,11 +432,11 @@ def main_new():
 
     no_assets = len(pairs)
 
-    approximation = MultivariatePolynomialRegression(1, 2, 1)
+    approximation = MultiplePolynomialRegression(1, 2)
 
     e = ExperimentSingleApproximation(approximation, pairs, 1., .01)
     e.start()
 
 
 if __name__ == "__main__":
-    main()
+    main_new()

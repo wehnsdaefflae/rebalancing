@@ -235,7 +235,7 @@ def merge_generator(
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
         header: Sequence[str] = ("close_time", "close", ),
-        directory_data: str = "../../data/") -> Generator[Dict[str, Any], None, None]:
+        directory_data: str = "../../../data/") -> Generator[Dict[str, Any], None, None]:
 
     directory_csv = directory_data + "binance/"
     if pairs is None:

@@ -55,7 +55,7 @@ def ratio_generator() -> Generator[float, Optional[float], None]:
     value_last = yield  # dont do an initial next?
     value = yield
     while True:
-        ratio = value / value_last
+        ratio = 0. if value_last == 0. else value / value_last
         value_last = value
         value = yield ratio
 
