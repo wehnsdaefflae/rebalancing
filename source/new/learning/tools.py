@@ -51,6 +51,28 @@ def z_score_multiple_normalized_generator(no_values: int) -> Generator[Sequence[
         values = yield tuple(each_g.send(x) for each_g, x in zip(gs, values))
 
 
+def ratio_generator() -> Generator[float, Optional[float], None]:
+    value_last = yield  # dont do an initial next?
+    value = yield
+    while True:
+        ratio = value / value_last
+        value_last = value
+        value = yield ratio
+
+
+def ratio_generator_multiple(no_values: int) -> Generator[Sequence[float], Optional[Sequence[float]], None]:
+    gs = tuple(ratio_generator() for _ in range(no_values))
+    for each_g in gs:
+        next(each_g)
+
+    values = yield
+    ratios = tuple(g.send(v) for g, v in zip(gs, values))
+
+    while True:
+        values = yield None if None in ratios else ratios
+        ratios = tuple(g.send(v) for g, v in zip(gs, values))
+
+
 def smear(average: float, value: float, inertia: int) -> float:
     return (inertia * average + value) / (inertia + 1.)
 
@@ -106,7 +128,7 @@ class MovingGraph:
         self.fig, self.ax = pyplot.subplots()
         self.iteration = 0
 
-    def add(self, points: Sequence[float]):
+    def add_snapshot(self, points: Sequence[float]):
         for each_plot, each_value in zip(self.plots, points):
             each_plot.append(each_value)
             del(each_plot[:-self.size_window])
@@ -126,3 +148,17 @@ class MovingGraph:
         pyplot.legend()
         pyplot.tight_layout()
         pyplot.pause(.05)
+
+
+if __name__ == "__main__":
+    g_single = ratio_generator()
+    next(g_single)
+    print(g_single.send(2))
+    print(g_single.send(3))
+    print()
+
+    g_multiple = ratio_generator_multiple(2)
+    next(g_multiple)
+    print(g_multiple.send([2, 3]))
+    print(g_multiple.send([3, 2]))
+    print()

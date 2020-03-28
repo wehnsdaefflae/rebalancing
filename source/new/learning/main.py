@@ -53,7 +53,7 @@ def z_score_test():
     while True:
         values = tuple(random.random() * (random.random() * 10.) - (random.random() * 10.) for _ in range(no_values))
         value_zs = z.send(values)
-        fg.add(value_zs)
+        fg.add_snapshot(value_zs)
         fg.draw()
         time.sleep(.1)
 

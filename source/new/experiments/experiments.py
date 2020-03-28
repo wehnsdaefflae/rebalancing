@@ -6,8 +6,9 @@ from matplotlib import pyplot, dates
 from matplotlib.ticker import MaxNLocator
 
 from source.new.data.binance_examples import get_pairs_from_filesystem, generate_path
-from source.new.learning import Approximation, smear, \
-    MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, z_score_multiple_normalized_generator
+from source.new.learning.approximation import Approximation
+from source.new.learning.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
+from source.new.learning.tools import ratio_generator_multiple, z_score_multiple_normalized_generator, smear, MovingGraph
 from source.new.strategies.optimal_trading import generate_multiple_changes, generate_matrix
 from source.new.data.snapshot_generation import merge_generator
 from source.tools.timer import Timer
@@ -271,6 +272,85 @@ class ExperimentContinual(VisualizationMixin):
                 self.t_last = t
 
 
+class MarketMixin:
+    def __init__(self, assets: Sequence[str], fee: float, asset_initial: int = -1, amount_initial: float = 1.):
+        self.assets = assets
+        self.no_assets = len(assets)
+        self.fee = fee
+        self.asset_current = asset_initial
+        self.amount_current = amount_initial
+        self.amount_average = amount_initial
+
+    def update_investment(self, ratios: Sequence[float], asset_next: int):
+        assert len(ratios) == self.no_assets
+
+        if asset_next != self.asset_current and asset_next >= 0:
+            self.amount_current *= (1. - self.fee)
+            self.asset_current = asset_next
+
+        self.amount_current *= ratios[self.asset_current]
+        self.amount_average *= sum(ratios) / self.no_assets
+
+
+class ExperimentSingleApproximation(MarketMixin, MovingGraph):
+    def __init__(self, approximation: Approximation, pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float, delay: int = 0):
+        self.keys_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs_assets)
+
+        MarketMixin.__init__(self, self.keys_rates, fee)
+        MovingGraph.__init__(self, 1, 100)
+
+        time_range = 1532491200000, 1577836856000
+        interval_minutes = 1
+
+        self.approximation = approximation
+        self.certainty_threshold = certainty_threshold
+        self.delay = delay
+
+        self.generator_snapshots = merge_generator(
+            pairs_assets, timestamp_range=time_range, interval_minutes=interval_minutes
+        )
+
+        self.generator_normalize = z_score_multiple_normalized_generator(self.no_assets)
+        self.generator_ratio = ratio_generator_multiple(self.no_assets)
+        next(self.generator_ratio)
+
+        self.last_ratios = None
+
+    def _get_rates(self, snapshot: Dict[str, Any]) -> Sequence[float]:
+        return tuple(snapshot[key] for key in self.keys_rates)
+
+    def start(self):
+        t = 0
+        for snapshot in self.generator_snapshots:
+            timestamp = snapshot["close_time"]
+            rates = self._get_rates(snapshot)
+            ratios = self.generator_ratio.send(rates)
+            if ratios is None:
+                continue
+
+            ratios_n = self.generator_normalize.send(ratios)
+            if self.last_ratios is not None:
+                output_values = tuple(self.approximation.output([input_value]) for input_value in self.last_ratios)
+
+                asset_target, certainty = max(enumerate(output_values), key=lambda x: x[1])
+
+                for input_value, target_value in zip(self.last_ratios, ratios_n):
+                    self.approximation.fit([input_value], [target_value], t)
+
+                if self.certainty_threshold >= certainty:
+                    asset_target = -1   # do nothing
+
+                self.update_investment(ratios, asset_target)
+
+                t += 1
+
+            self.add_snapshot([self.amount_average, self.amount_current])
+            self.last_ratios = ratios_n
+
+            if Timer.time_passed(1000):
+                self.draw()
+
+
 class ExperimentPeriodic(ExperimentContinual):
     def __init__(self, approximations: Sequence[Approximation], pairs_assets: Sequence[Tuple[str, str]], certainty_threshold: float, fee: float):
         super().__init__(approximations, pairs_assets, certainty_threshold, fee)
@@ -339,6 +419,20 @@ def main():
     e.start()
 
     # todo: implement continual optimal trading as Experiment
+
+
+def main_new():
+    random.seed(23546345)
+    pairs = get_pairs_from_filesystem()
+    pairs = random.sample(pairs, 5)
+    print(pairs)
+
+    no_assets = len(pairs)
+
+    approximation = MultivariatePolynomialRegression(1, 2, 1)
+
+    e = ExperimentSingleApproximation(approximation, pairs, 1., .01)
+    e.start()
 
 
 if __name__ == "__main__":
