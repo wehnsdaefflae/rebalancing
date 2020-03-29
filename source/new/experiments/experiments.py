@@ -276,20 +276,26 @@ class MarketMixin:
     def __init__(self, assets: Sequence[str], fee: float, asset_initial: int = -1, amount_initial: float = 1.):
         self.assets = assets
         self.no_assets = len(assets)
-        self.fee = fee
+        self.after_fee = 1. - fee
         self.asset_current = asset_initial
         self.amount_current = amount_initial
         self.amount_average = amount_initial
+        self.success_greedy_average = 0.
         self.trades = 0
 
     def update_investment(self, ratios: Sequence[float], asset_next: int):
         assert len(ratios) == self.no_assets
 
+        asset_best, ratio_best = max(enumerate(ratios), key=lambda x: x[1])
+        if 1. >= ratio_best * self.after_fee:
+            asset_best = -1
+
         if asset_next != self.asset_current and asset_next >= 0:
-            self.amount_current *= (1. - self.fee)
+            self.amount_current *= self.after_fee
             self.asset_current = asset_next
             self.trades += 1
 
+        self.success_greedy_average = smear(self.success_greedy_average, float(asset_best == asset_next), self.iteration)
         self.amount_current *= ratios[self.asset_current]
         self.amount_average *= sum(ratios) / self.no_assets
 
@@ -317,13 +323,14 @@ class ExperimentSingleApproximation(MarketMixin, MovingGraph):
         self.generator_ratio = ratio_generator_multiple(self.no_assets)
         next(self.generator_ratio)
 
+        self.iteration = 0
+
         self.last_ratios = None
 
     def _get_rates(self, snapshot: Dict[str, Any]) -> Sequence[float]:
         return tuple(snapshot[key] for key in self.keys_rates)
 
     def start(self):
-        t = 0
         for snapshot in self.generator_snapshots:
             timestamp = snapshot["close_time"]
             rates = self._get_rates(snapshot)
@@ -338,14 +345,14 @@ class ExperimentSingleApproximation(MarketMixin, MovingGraph):
                 asset_target, certainty = max(enumerate(output_values), key=lambda x: x[1])
 
                 for input_value, target_value in zip(self.last_ratios, ratios_n):
-                    self.approximation.fit([input_value], target_value, t)
+                    self.approximation.fit([input_value], target_value, self.iteration)
 
                 if self.certainty_threshold >= certainty:
                     asset_target = -1   # do nothing
 
                 self.update_investment(ratios, asset_target)
 
-                t += 1
+                self.iteration += 1
 
             self.add_snapshot([self.amount_average, self.amount_current])
             self.last_ratios = ratios_n
@@ -428,8 +435,11 @@ def main():
 
 def main_new():
     # todo: refactor other experiments (mixin classes)
+    # todo: compare greedy with dynamic programming
+    # todo: reinforcement learning
     # todo: test failure regression
     # todo: normalize output?
+    # todo: equidistant sampling
     random.seed(23546345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)

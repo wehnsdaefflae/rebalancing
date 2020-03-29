@@ -126,17 +126,17 @@ class MovingGraph:
         self.plots = tuple([] for _ in range(no_plots))
         self.size_window = size_window
         self.fig, self.ax = pyplot.subplots()
-        self.iteration = 0
+        self.timestep_plot = 0
 
     def add_snapshot(self, points: Sequence[float]):
         for each_plot, each_value in zip(self.plots, points):
             each_plot.append(each_value)
             del(each_plot[:-self.size_window])
-        self.iteration += 1
+        self.timestep_plot += 1
 
     def draw(self):
         self.ax.clear()
-        x_coordinates = list(range(max(0, self.iteration - self.size_window), self.iteration))
+        x_coordinates = list(range(max(0, self.timestep_plot - self.size_window), self.timestep_plot))
         for i, each_plot in enumerate(self.plots):
             self.ax.plot(x_coordinates, each_plot, label=f"{i:d}")
 
