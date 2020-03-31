@@ -434,12 +434,6 @@ def main():
 
 
 def main_new():
-    # todo: refactor other experiments (mixin classes)
-    # todo: compare greedy with dynamic programming
-    # todo: reinforcement learning
-    # todo: test failure regression
-    # todo: normalize output?
-    # todo: equidistant sampling
     random.seed(23546345)
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, 5)

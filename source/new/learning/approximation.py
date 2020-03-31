@@ -21,7 +21,7 @@ class Approximation(JsonSerializable, Generic[OUTPUT]):
         raise NotImplementedError()
 
     def __str__(self) -> str:
-        return str(self.get_parameters())
+        return self.__class__.__name__
 
     def get_parameters(self) -> Sequence[float]:
         raise NotImplementedError()
