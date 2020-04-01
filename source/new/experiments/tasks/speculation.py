@@ -4,11 +4,11 @@ from typing import Sequence, Generator, Tuple, Any
 
 from source.new.data.binance_examples import get_pairs_from_filesystem
 from source.new.data.snapshot_generation import merge_generator
-from source.new.experiments.applications.applications import Application
+from source.new.experiments.tasks.abstract import Application, Experiment
 
-from source.new.experiments.applications.experiment import Experiment
 from source.new.experiments.tools.moving_graph import MovingGraph
 from source.new.learning.approximation import Approximation
+from source.new.learning.regression import MultivariatePolynomialRegression
 from source.new.learning.tools import ratio_generator_multiple
 
 
@@ -39,9 +39,9 @@ class Investor(Application):
 
     def _invest(self, ratios: Sequence[float]):
         output_value = self.approximation.output(ratios)
-        asset_output, _ = max(enumerate(output_value), key=lambda x: x[1])
+        asset_output, asset_ratio = max(enumerate(output_value), key=lambda x: x[1])
 
-        if asset_output != self.asset_current:
+        if asset_output != self.asset_current and 2. - self.after_fee < asset_ratio:
             self.amount_current *= self.after_fee
             self.asset_current = asset_output
 
@@ -104,3 +104,18 @@ class ExperimentMarket(Experiment):
             errors, amounts = zip(*results)
             dt = datetime.datetime.utcfromtimestamp(key // 1000)
             self.graph.add_snapshot(dt, amounts + (self.market_average, ), errors)
+
+
+if __name__ == "__main__":
+    # todo: compare greedy with dynamic programming (no learning!)
+    # todo: reinforcement learning
+    # todo: test failure regression
+    # todo: normalize output?
+    # todo: equidistant sampling
+
+    no_assets_market = 3
+    fee = .1
+    approximations = MultivariatePolynomialRegression(no_assets_market, 3, no_assets_market), MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market)
+    applications = tuple(Investor(each_approximation, no_assets_market, fee) for each_approximation in approximations)
+    m = ExperimentMarket(applications, no_assets_market)
+    m.start()
