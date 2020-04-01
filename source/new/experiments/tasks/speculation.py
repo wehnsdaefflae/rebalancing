@@ -41,7 +41,7 @@ class Investor(Application):
         output_value = self.approximation.output(ratios)
         asset_output, asset_ratio = max(enumerate(output_value), key=lambda x: x[1])
 
-        if asset_output != self.asset_current and 2. - self.after_fee < asset_ratio:
+        if asset_output != self.asset_current and 1. / self.after_fee < asset_ratio:
             self.amount_current *= self.after_fee
             self.asset_current = asset_output
 

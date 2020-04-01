@@ -2,30 +2,12 @@ import glob
 import os
 from typing import Tuple, Sequence, Iterable, Generator, Collection, Union
 
+from source.new.config import RAW_BINANCE_DIR, PATH_DIRECTORY_DATA, STATS_NO_TIME
 from source.new.data.snapshot_generation import merge_generator
 from source.new.strategies.optimal_trading import generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 # from flyingcircus import base
-
-PATH_DIRECTORY_DATA = "../../../data/"
-RAW_BINANCE_DIR = PATH_DIRECTORY_DATA + "binance/"
-
-
-STATS = (
-    # "open_time",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    # "close_time",
-    "quote_asset_volume",
-    "number_of_trades",
-    "taker_buy_base_asset_volume",
-    "taker_buy_quote_asset_volume",
-    "ignore",
-)
 
 
 def get_pairs_from_filesystem() -> Sequence[Tuple[str, str]]:
@@ -227,7 +209,7 @@ def main():
 
     path = generate_path_from_file(file_path_matrix)
 
-    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples_small.csv", STATS, time_range)
+    write_examples(interval_minutes, pairs, path, PATH_DIRECTORY_DATA + "examples/binance_examples_small.csv", STATS_NO_TIME, time_range)
 
 
 if __name__ == "__main__":

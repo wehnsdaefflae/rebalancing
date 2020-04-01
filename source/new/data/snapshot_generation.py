@@ -4,28 +4,8 @@ import glob
 import os
 from typing import Tuple, Sequence, Generator, Union, Optional, Iterable, Dict, Any, Collection
 
+from source.new.config import STATS_TYPES, indices_ints, stat_empty, STAT_COLUMNS, PATH_DIRECTORY_DATA
 from source.tools.timer import Timer
-
-STATS_TYPES = int, float, float, float, float, float, int, float, int, float, float, float
-
-STAT_COLUMNS = (
-    "open_time",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "close_time",
-    "quote_asset_volume",
-    "number_of_trades",
-    "taker_buy_base_asset_volume",
-    "taker_buy_quote_asset_volume",
-    "ignore",
-)
-
-stat_empty = -1, -1., -1., -1., -1., -1., -1, -1., -1, -1., -1., -1.
-
-indices_ints = 0, 6, 8
 
 
 def stat_from_line(line: str, indices: Optional[Sequence[int]] = None) -> STATS_TYPES:
@@ -235,7 +215,7 @@ def merge_generator(
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
         header: Sequence[str] = ("close_time", "close", ),
-        directory_data: str = "../../../data/") -> Generator[Dict[str, Any], None, None]:
+        directory_data: str = PATH_DIRECTORY_DATA) -> Generator[Dict[str, Any], None, None]:
 
     directory_csv = directory_data + "binance/"
     if pairs is None:
