@@ -10,10 +10,12 @@ from source.new.experiments.tools.moving_graph import MovingGraph
 from source.new.learning.approximation import Approximation
 from source.new.learning.regression import MultivariatePolynomialRegression
 from source.new.learning.tools import ratio_generator_multiple
+from source.tools.timer import Timer
 
 
 class Investor(Application):
-    def __init__(self, approximation: Approximation[Sequence[float]], no_assets: int, fees: float):
+    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, fees: float):
+        self.name = name
         self.approximation = approximation
         self.asset_current = -1
         self.amount_current = 1.
@@ -25,9 +27,10 @@ class Investor(Application):
         self.error = 1.
         self.ratios_last = None
         self.iteration = 0
+        self.trades = 0
 
     def __str__(self) -> str:
-        return str(self.approximation)
+        return self.name
 
     def _learn(self, ratios: Sequence[float]):
         output_value = self.approximation.output(self.ratios_last)
@@ -44,6 +47,7 @@ class Investor(Application):
         if asset_output != self.asset_current and 1. / self.after_fee < asset_ratio:
             self.amount_current *= self.after_fee
             self.asset_current = asset_output
+            self.trades += 1
 
         self.amount_current *= ratios[self.asset_current]
 
@@ -105,6 +109,11 @@ class ExperimentMarket(Experiment):
             dt = datetime.datetime.utcfromtimestamp(key // 1000)
             self.graph.add_snapshot(dt, amounts + (self.market_average, ), errors)
 
+        if Timer.time_passed(1000):
+            for each_investor in self.applications:
+                print(f"no trades of {str(each_investor):s}: {each_investor.trades}")
+                each_investor.trades = 0
+
 
 if __name__ == "__main__":
     # todo: compare greedy with dynamic programming (no learning!)
@@ -116,6 +125,6 @@ if __name__ == "__main__":
     no_assets_market = 3
     fee = .1
     approximations = MultivariatePolynomialRegression(no_assets_market, 3, no_assets_market), MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market)
-    applications = tuple(Investor(each_approximation, no_assets_market, fee) for each_approximation in approximations)
+    applications = Investor("cubic", approximations[0], no_assets_market, fee), Investor("square", approximations[1], no_assets_market, fee)
     m = ExperimentMarket(applications, no_assets_market)
     m.start()
