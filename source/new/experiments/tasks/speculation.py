@@ -8,7 +8,7 @@ from source.new.experiments.tasks.abstract import Application, Experiment
 
 from source.new.experiments.tools.moving_graph import MovingGraph
 from source.new.learning.approximation import Approximation
-from source.new.learning.regression import MultivariatePolynomialRegression
+from source.new.learning.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
 from source.new.learning.tools import ratio_generator_multiple
 from source.tools.timer import Timer
 
@@ -124,7 +124,18 @@ if __name__ == "__main__":
 
     no_assets_market = 3
     fee = .1
-    approximations = MultivariatePolynomialRegression(no_assets_market, 3, no_assets_market), MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market)
-    applications = Investor("cubic", approximations[0], no_assets_market, fee), Investor("square", approximations[1], no_assets_market, fee)
+    approximations = (
+        MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
+        MultivariatePolynomialRegression(no_assets_market, 3, no_assets_market),
+        MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
+        MultivariatePolynomialRecurrentRegression(no_assets_market, 3, no_assets_market),
+    )
+    applications = (
+        Investor("square", approximations[0], no_assets_market, fee),
+        Investor("cubic", approximations[1], no_assets_market, fee),
+        Investor("square rec", approximations[2], no_assets_market, fee),
+        Investor("cubic rec", approximations[3], no_assets_market, fee),
+    )
+
     m = ExperimentMarket(applications, no_assets_market)
     m.start()
