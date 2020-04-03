@@ -16,7 +16,7 @@ if __name__ == "__main__":
     # todo: normalize output?
     # todo: equidistant sampling
 
-    no_assets_market = 3
+    no_assets_market = 8
     fee = .1
     certainty = .901
     approximations = (

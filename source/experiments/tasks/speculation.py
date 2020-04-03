@@ -137,7 +137,10 @@ class ExperimentMarket(Experiment):
             names_graphs_amounts = [f"{str(each_approximation):s} amount" for each_approximation in investors]
             names_graphs_errors = [f"{str(each_approximation):s} error" for each_approximation in investors]
             name_market_average = ["market"]
-            self.graph = MovingGraph("amount", names_graphs_amounts + name_market_average, "error", names_graphs_errors, 20, limits_secondary=(-.1, 1.1))
+            self.graph = MovingGraph(
+                "amount", names_graphs_amounts + name_market_average, "error", names_graphs_errors, 20,
+                moving_average_secondary=False, limits_secondary=(-.1, 1.1)
+            )
         self.no_assets = no_assets
         self.initial = -1.
 

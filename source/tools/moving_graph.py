@@ -15,13 +15,18 @@ class MovingGraph:
                  names_plots_primary: Sequence[str],
                  name_axis_secondary: str,
                  names_plots_secondary: Sequence[str],
-                 size_window: int, interval_ms: int = 1000,
+                 size_window: int,
+                 moving_average_primary: bool = True,
+                 moving_average_secondary: bool = True,
+                 interval_ms: int = 1000,
                  limits_primary: Optional[Tuple[float, float]] = None,
                  limits_secondary: Optional[Tuple[float, float]] = None):
         assert 5000. >= interval_ms >= 0.
         self.names_plots_primary = names_plots_primary
         self.names_plots_secondary = names_plots_secondary
 
+        self.moving_average_primary = moving_average_primary
+        self.moving_average_secondary = moving_average_secondary
         self.interval_ms = interval_ms
 
         self.no_plots_primary = len(names_plots_primary)
@@ -45,7 +50,8 @@ class MovingGraph:
         self.name_axis_primary = name_axis_primary
         self.name_axis_secondary = name_axis_secondary
 
-        self.iterations_since_draw = 0
+        self.iterations_primary_since_draw = 0
+        self.iterations_secondary_since_draw = 0
 
         self.time_last = -1.
 
@@ -54,13 +60,14 @@ class MovingGraph:
         assert len(points_secondary) == self.no_plots_secondary
 
         for i, (each_value, each_point) in enumerate(zip(self.values_primary, points_primary)):
-            self.values_primary[i] = smear(each_value, each_point, self.iterations_since_draw)
+            self.values_primary[i] = smear(each_value, each_point, self.iterations_primary_since_draw)
 
         for i, (each_value, each_point) in enumerate(zip(self.values_secondary, points_secondary)):
-            self.values_secondary[i] = smear(each_value, each_point, self.iterations_since_draw)
+            self.values_secondary[i] = smear(each_value, each_point, self.iterations_secondary_since_draw)
 
         self.time = now
-        self.iterations_since_draw += 1
+        self.iterations_primary_since_draw += 1
+        self.iterations_secondary_since_draw += 1
 
         time_now = time.time() * 1000.
         if self.time_last < 0. or time_now - self.time_last >= self.interval_ms:
@@ -119,4 +126,8 @@ class MovingGraph:
         pyplot.tight_layout()
         pyplot.pause(.05)
 
-        self.iterations_since_draw = 0
+        if self.moving_average_primary:
+            self.iterations_primary_since_draw = 0
+
+        if self.moving_average_secondary:
+            self.iterations_secondary_since_draw = 0
