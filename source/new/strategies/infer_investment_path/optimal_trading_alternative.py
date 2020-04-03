@@ -3,8 +3,8 @@ import os
 from typing import Tuple, Sequence, Iterable, Generator, Collection, Union
 
 from source.new.config import RAW_BINANCE_DIR, PATH_DIRECTORY_DATA, STATS_NO_TIME
-from source.new.data.snapshot_generation import merge_generator
-from source.new.strategies.optimal_trading import generate_multiple_changes, generate_matrix
+from source.new.data.generators.snapshots_binance import merge_generator
+from source.new.strategies.infer_investment_path.optimal_trading import generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 # from flyingcircus import base

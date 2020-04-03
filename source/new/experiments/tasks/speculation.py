@@ -2,14 +2,13 @@ import datetime
 import random
 from typing import Sequence, Generator, Tuple, Any
 
-from source.new.data.binance_examples import get_pairs_from_filesystem
-from source.new.data.snapshot_generation import merge_generator
-from source.new.experiments.tasks.abstract import Application, Experiment
+from source.new.strategies.infer_investment_path.optimal_trading_alternative import get_pairs_from_filesystem
+from source.new.data.generators.snapshots_binance import merge_generator
+from source.new.experiments.tasks._abstract import Application, Experiment
 
-from source.new.experiments.tools.moving_graph import MovingGraph
-from source.new.learning.approximation import Approximation
-from source.new.learning.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
-from source.new.learning.tools import ratio_generator_multiple
+from source.new.tools import MovingGraph
+from source.new.learning._abstract import Approximation
+from source.new.tools.functions import ratio_generator_multiple
 from source.tools.timer import Timer
 
 
@@ -113,29 +112,3 @@ class ExperimentMarket(Experiment):
             for each_investor in self.applications:
                 print(f"no trades of {str(each_investor):s}: {each_investor.trades}")
                 each_investor.trades = 0
-
-
-if __name__ == "__main__":
-    # todo: compare greedy with dynamic programming (no learning!)
-    # todo: reinforcement learning
-    # todo: test failure regression
-    # todo: normalize output?
-    # todo: equidistant sampling
-
-    no_assets_market = 3
-    fee = .1
-    approximations = (
-        MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
-        MultivariatePolynomialRegression(no_assets_market, 3, no_assets_market),
-        MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
-        MultivariatePolynomialRecurrentRegression(no_assets_market, 3, no_assets_market),
-    )
-    applications = (
-        Investor("square", approximations[0], no_assets_market, fee),
-        Investor("cubic", approximations[1], no_assets_market, fee),
-        Investor("square rec", approximations[2], no_assets_market, fee),
-        Investor("cubic rec", approximations[3], no_assets_market, fee),
-    )
-
-    m = ExperimentMarket(applications, no_assets_market)
-    m.start()

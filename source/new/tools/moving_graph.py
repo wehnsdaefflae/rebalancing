@@ -6,7 +6,7 @@ from matplotlib import pyplot, dates
 from matplotlib.axis import Axis
 from matplotlib.ticker import MaxNLocator
 
-from source.new.learning.tools import smear
+from source.new.tools.functions import smear
 
 
 class MovingGraph:

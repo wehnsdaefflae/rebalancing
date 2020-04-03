@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Generic, Dict, Any, Sequence, TypeVar
 
-from source.new.learning.tools import JsonSerializable
+from source.new.tools.serialization import JsonSerializable
 
 OUTPUT = TypeVar("OUTPUT", Sequence[float], float)
 

@@ -1,6 +1,6 @@
 from typing import Dict, Any, Sequence, Union, Callable
 
-from source.new.learning.approximation import Approximation
+from source.new.learning._abstract import Approximation
 from source.new.learning.regression import MultiplePolynomialRegression, MultivariateRegression, MultivariatePolynomialRegression, MultivariateRecurrentRegression
 
 

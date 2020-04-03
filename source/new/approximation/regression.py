@@ -5,8 +5,8 @@ from typing import Dict, Any, Sequence, Callable, List, Tuple
 
 import numpy
 
-from source.new.learning.tools import smear, product, accumulating_combinations_with_replacement, z_score_normalized_generator
-from source.new.learning.approximation import Approximation
+from source.new.tools.functions import smear, product, accumulating_combinations_with_replacement, z_score_normalized_generator
+from source.new.learning._abstract import Approximation
 
 
 class MultipleRegression(Approximation[float]):
