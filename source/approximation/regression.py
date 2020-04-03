@@ -195,29 +195,31 @@ class MultivariatePolynomialRecurrentRegression(MultivariateRecurrentRegression)
         super().__init__(no_outputs, addends_basic, addends_memory, resolution_memory=resolution_memory, error_memory=error_memory)
 
 
-class MultivariateFailureRegression(MultivariateRegression):
+class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
     def __init__(self,
                  no_arguments: int,
-                 no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]],
-                 approximation_context: MultivariateRegression,
-                 resolution_context: int,
+                 degree: int,
+                 no_outputs: int,
                  error_tolerance: float,
-                 error_context: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
+                 error_context: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance,
+                 resolution_context: int = 1,
                  ):
-        super().__init__(no_outputs, addends)
+        super().__init__(no_arguments + resolution_context, degree, no_outputs)
         # todo: make context approximation a parameter
-        self.approximation_context = approximation_context
+        self.approximation_context = MultivariatePolynomialRegression(no_arguments + no_outputs + resolution_context, degree, resolution_context)
         self.resolution_context = resolution_context
-        assert 1. >= error_tolerance >= 0.
-        self.error_tolerance = error_tolerance
         self.error_context = error_context
-        self.context = tuple(0. for _ in range(no_arguments + no_outputs))
+        self.context = tuple(0. for _ in range(resolution_context))
+
+        assert 1. >= error_tolerance >= 0.
         self.normalization = z_score_normalized_generator()
         next(self.normalization)
+        self.error_tolerance = error_tolerance
 
     def _optimize_context(self, input_values: Sequence[float], target_values: Sequence[float]) -> Tuple[Sequence[float], float]:
         error_minimal = -1.
         context_best = None
+        # todo: equidistant sampling
         for i in range(100):    # ? whatevs...
             context_this = tuple(random.random() for _ in range(self.resolution_context))
             output_values = super().output(tuple(input_values) + tuple(context_this))
@@ -233,17 +235,23 @@ class MultivariateFailureRegression(MultivariateRegression):
         output_values = super().output(tuple(in_value) + self.context)
         e = self.error_context(output_values, target_value)
         e_z = self.normalization.send(e)
+
+        context_new = None
         if self.error_tolerance < e_z:
-            self.context = self.approximation_context.output(tuple(in_value) + tuple(output_values))
-            output_values = super().output(tuple(in_value) + tuple(self.context))
+            context_new = self.approximation_context.output(tuple(in_value) + tuple(output_values) + self.context)
+            output_values = super().output(tuple(in_value) + tuple(context_new))
             e = self.error_context(output_values, target_value)
             e_z = self.normalization.send(e)
 
         if self.error_tolerance < e_z:
-            self.context, e_z = self._optimize_context(in_value, target_value)
+            context_new, e_z = self._optimize_context(in_value, target_value)
 
         if self.error_tolerance < e_z:
-            self.context = tuple(random.random() for _ in range(self.resolution_context))
+            context_new = tuple(random.random() for _ in range(self.resolution_context))
+
+        if context_new is not None:
+            self.approximation_context.fit(tuple(in_value) + tuple(output_values) + tuple(self.context), context_new, drag)
+            self.context = context_new
 
         super().fit(tuple(in_value) + tuple(self.context), target_value, drag)
 

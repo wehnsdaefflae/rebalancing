@@ -7,6 +7,19 @@ class Application:
     def __str__(self) -> str:
         raise NotImplementedError()
 
+    @staticmethod
+    def get_timestamp(snapshot: SNAPSHOT) -> int:
+        return snapshot["close_time"]
+
+    @staticmethod
+    def get_rates(snapshot: SNAPSHOT) -> Sequence[float]:
+        rates = tuple(
+            snapshot[x]
+            for x in sorted(snapshot.keys())
+            if x.startswith("rate_")
+        )
+        return rates
+
     def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
         raise NotImplementedError()
 

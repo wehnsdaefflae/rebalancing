@@ -1,6 +1,6 @@
 import datetime
 import random
-from typing import Sequence, Tuple
+from typing import Sequence
 
 from source.approximation.abstract import Approximation
 from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, EXAMPLE
@@ -11,6 +11,56 @@ from source.strategies.infer_investment_path.optimal_trading_alternative import 
 from source.tools.functions import ratio_generator_multiple, index_max
 from source.tools.moving_graph import MovingGraph
 from source.tools.timer import Timer
+
+
+class Balancing(Application):
+    def __init__(self, name: str, no_assets: int, minutes_rebalance: int, fee: float):
+        self.name = name
+        self.no_assets = no_assets
+        assert minutes_rebalance >= 0
+        self.minutes_rebalance = minutes_rebalance
+        self.after_fee = 1. - fee
+
+        self.timestamp_rebalancing_last = -1
+
+        self.ratio_generator = ratio_generator_multiple(no_assets)
+        next(self.ratio_generator)
+
+        self.amounts = [1. / no_assets for _ in range(no_assets)]
+        self.trades = 0
+
+    def __str__(self) -> str:
+        return self.name
+
+    def _rebalance(self):
+        print("rebalancing...")
+        s = self._total_amount()
+        amount_each = s / self.no_assets
+        for i in range(self.no_assets):
+            self.amounts[i] = amount_each * self.after_fee
+        self.trades += self.no_assets
+
+    def _total_amount(self) -> float:
+        return sum(self.amounts)
+
+    def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
+        timestamp = Application.get_timestamp(snapshot)
+        rates = Application.get_rates(snapshot)
+        return timestamp, rates, tuple(-1. for _ in range(self.no_assets))
+
+    def _cycle(self, example: EXAMPLE) -> Sequence[float]:
+        timestamp, rates, _ = example
+
+        ratios = self.ratio_generator.send(rates)
+        if ratios is not None:
+            if 0 < self.minutes_rebalance and (self.timestamp_rebalancing_last < 0 or (timestamp - self.timestamp_rebalancing_last) // 60000 >= self.minutes_rebalance):
+                self._rebalance()
+                self.timestamp_rebalancing_last = timestamp
+
+            for i, each_ratio in enumerate(ratios):
+                self.amounts[i] *= each_ratio
+
+        return 1., self._total_amount()
 
 
 class Investor(Application):
@@ -33,12 +83,8 @@ class Investor(Application):
         return self.name
 
     def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
-        timestamp = snapshot["close_time"]
-        rates = tuple(
-            snapshot[x]
-            for x in sorted(snapshot.keys())
-            if x.startswith("rate_")
-        )
+        timestamp = Application.get_timestamp(snapshot)
+        rates = Application.get_rates(snapshot)
 
         target_values = self.ratio_generator.send(rates)
         if target_values is None:
