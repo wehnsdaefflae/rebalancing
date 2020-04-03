@@ -1,6 +1,12 @@
 from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression
 from source.experiments.tasks.speculation import Investor, ExperimentMarket
 
+"""
+experiments provides snapshots,
+approximations take input and target examples,
+applications translate snapshots to examples
+
+"""
 
 if __name__ == "__main__":
     # todo: make all applications persistable

@@ -3,7 +3,7 @@ import os
 from typing import Tuple, Sequence, Iterable, Generator, Collection, Union
 
 from source.config import RAW_BINANCE_DIR, PATH_DIRECTORY_DATA, STATS_NO_TIME
-from source.data.generators.snapshots_binance import merge_generator
+from source.data.generators.snapshots_binance import rates_binance_generator
 
 # from flyingcircus import base
 from source.strategies.infer_investment_path.optimal_trading import generate_multiple_changes, generate_matrix
@@ -142,7 +142,7 @@ def binance_matrix(pairs: Collection[Tuple[str, str]], time_range: Tuple[int, in
     header_rates_only = tuple(f"{each_pair[0]:s}-{each_pair[1]:s}_close" for each_pair in pairs)
     rates = (
         tuple(snapshot[x] for x in header_rates_only)
-        for snapshot in merge_generator(pairs=pairs, timestamp_range=time_range, interval_minutes=interval_minutes, header=("close_time", "close"))
+        for snapshot in rates_binance_generator(pairs=pairs, timestamp_range=time_range, interval_minutes=interval_minutes, header=("close_time", "close"))
     )
     matrix_change = generate_multiple_changes(rates)
     return generate_matrix(no_assets, matrix_change, .01, bound=100)
@@ -166,7 +166,7 @@ def write_examples(interval_minutes: int, pairs: Sequence[Tuple[str, str]], path
     len_path = len(path_investment)
     print(f"length path: {len_path:d}")
 
-    generate_stats = merge_generator(pairs=pairs, timestamp_range=time_range, header=header, interval_minutes=interval_minutes, directory_data=PATH_DIRECTORY_DATA)
+    generate_stats = rates_binance_generator(pairs=pairs, timestamp_range=time_range, header=header, interval_minutes=interval_minutes, directory_data=PATH_DIRECTORY_DATA)
     header_combined = tuple(combine_assets_header(pairs, header))
 
     print("writing examples...")

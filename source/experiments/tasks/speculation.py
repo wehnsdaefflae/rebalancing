@@ -1,10 +1,10 @@
 import datetime
 import random
-from typing import Sequence
+from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import EXAMPLE, STREAM_EXAMPLES
-from source.data.generators.snapshots_binance import merge_generator
+from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, EXAMPLE
+from source.data.generators.snapshots_binance import rates_binance_generator
 from source.experiments.tasks.abstract import Application, Experiment
 from source.strategies.infer_investment_path.optimal_trading_alternative import get_pairs_from_filesystem
 
@@ -32,36 +32,56 @@ class Investor(Application):
     def __str__(self) -> str:
         return self.name
 
-    def _learn(self, ratios: Sequence[float]):
-        output_value = self.approximation.output(self.ratios_last)
-        asset_output, _ = max(enumerate(output_value), key=lambda x: x[1])
-        asset_target, _ = max(enumerate(ratios), key=lambda x: x[1])
-        self.error = float(asset_output != asset_target)
-        self.approximation.fit(self.ratios_last, ratios, self.iteration)
-        self.iteration += 1
+    def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
+        timestamp = snapshot["close_time"]
+        rates = tuple(
+            snapshot[x]
+            for x in sorted(snapshot.keys())
+            if x.startswith("rate_")
+        )
 
-    def _invest(self, ratios: Sequence[float]):
+        target_values = self.ratio_generator.send(rates)
+        if target_values is None:
+            target_values = tuple(1. for _ in rates)
+
+        if self.ratios_last is None:
+            self.ratios_last = tuple(1. for _ in rates)
+
+        input_values = self.ratios_last
+        self.ratios_last = target_values
+
+        return timestamp, input_values, target_values
+
+    def _learn(self, input_values: Sequence[float], target_values: Sequence[float]):
+        self.approximation.fit(input_values, target_values, self.iteration)
+
+    def _get_asset(self, values: Sequence[float]) -> Tuple[int, float]:
+        index_max, value_max = max(enumerate(values), key=lambda x: x[1])
+        return index_max, value_max
+
+    def _invest(self, asset: int):
+        self.amount_current *= self.after_fee
+        self.asset_current = asset
+        self.trades += 1
+
+    def _update_error(self, ratios: Sequence[float]):
+        asset_target_last, _ = self._get_asset(ratios)
+        self.error = float(self.asset_current != asset_target_last)
+
+    def _cycle(self, example: EXAMPLE) -> Sequence[float]:
+        _, ratios_last, ratios = example
+
+        self._update_error(ratios)
+
         output_value = self.approximation.output(ratios)
-        asset_output, asset_ratio = max(enumerate(output_value), key=lambda x: x[1])
+        asset_output, amount_output = self._get_asset(output_value)
+        if asset_output != self.asset_current and 1. / self.after_fee < amount_output:
+            self._invest(asset_output)
 
-        if asset_output != self.asset_current and 1. / self.after_fee < asset_ratio:
-            self.amount_current *= self.after_fee
-            self.asset_current = asset_output
-            self.trades += 1
+        self._learn(ratios_last, ratios)
 
         self.amount_current *= ratios[self.asset_current]
-
-    def cycle(self, example: EXAMPLE) -> Sequence[float]:
-        rates = example[2]      # only get target
-
-        ratios = self.ratio_generator.send(rates)
-        if ratios is not None:
-            self._invest(ratios)
-
-            if self.ratios_last is not None:
-                self._learn(ratios)
-
-            self.ratios_last = ratios
+        self.iteration += 1
 
         return self.error, self.amount_current
 
@@ -76,42 +96,34 @@ class ExperimentMarket(Experiment):
             name_market_average = ["market"]
             self.graph = MovingGraph("amount", names_graphs_amounts + name_market_average, "error", names_graphs_errors, 20, limits_secondary=(0., 1.))
         self.no_assets = no_assets
-        self.market_average = 1.
+        self.initial = -1.
 
-    def _examples(self) -> STREAM_EXAMPLES:
+    def _snapshots(self) -> STREAM_SNAPSHOTS:
         pairs = get_pairs_from_filesystem()
         pairs = random.sample(pairs, self.no_assets)
-
-        keys_rates = tuple("-".join(each_pair) + "_close" for each_pair in pairs)
 
         time_range = 1532491200000, 1577836856000
         interval_minutes = 1
 
-        generator_snapshots = merge_generator(pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
+        generator_snapshots = rates_binance_generator(pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
+        yield from generator_snapshots
 
-        ratios_rates = ratio_generator_multiple(self.no_assets)
-        next(ratios_rates)
+    def _apply(self, snapshot: SNAPSHOT, results: Sequence[Sequence[float]]):
+        timestamp = snapshot["close_time"]
+        rates = tuple(
+            snapshot[x]
+            for x in sorted(snapshot.keys())
+            if x.startswith("rate_")
+        )
 
-        self.ratio_last = None
-        for each_snapshot in generator_snapshots:
-            if each_snapshot is None:
-                continue
+        rate_average = sum(rates) / self.no_assets
+        if self.initial < 0.:
+            self.initial = 1. / rate_average
 
-            rates = tuple(each_snapshot[key] for key in keys_rates)
-            ratio = ratios_rates.send(rates)
-            if self.ratio_last is not None:
-                yield each_snapshot["close_time"], self.ratio_last, ratio
-
-            self.ratio_last = ratio
-
-    def _apply(self, example: EXAMPLE, results: Sequence[Sequence[float]]):
-        timestamp, _, ratios_now = example
-
-        self.market_average *= sum(ratios_now) / self.no_assets
         if self.graph is not None:
             errors, amounts = zip(*results)
             dt = datetime.datetime.utcfromtimestamp(timestamp // 1000)
-            self.graph.add_snapshot(dt, amounts + (self.market_average, ), errors)
+            self.graph.add_snapshot(dt, amounts + (self.initial * rate_average,), errors)
 
         if Timer.time_passed(1000):
             for each_investor in self.applications:

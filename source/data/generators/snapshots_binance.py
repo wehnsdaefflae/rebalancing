@@ -8,7 +8,7 @@ from source.data.abstract import SNAPSHOT
 from source.data.tools import generator_file, get_timestamp_close_boundaries, get_pairs_from_filenames
 
 
-def merge_generator(
+def rates_binance_generator(
         pairs: Optional[Iterable[Tuple[str, str]]] = None,
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
@@ -40,6 +40,6 @@ def merge_generator(
         for i, each_snapshot in enumerate(snapshots):
             if i < 1:
                 d["close_time"] = each_snapshot["close_time"]
-            d.update({f"{names_pair[i]:s}_{k:s}": v for k, v in each_snapshot.items()})
+            d.update({f"rate_{names_pair[i]:s}_{k:s}": v for k, v in each_snapshot.items() if k != "close_time"})
 
         yield d
