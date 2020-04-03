@@ -4,8 +4,6 @@ import itertools
 from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional
 
 
-
-
 def z_score_generator(drag: int = -1, offset: float = 0., scale: float = 1., clamp: Optional[Tuple[float, float]] = None) -> Generator[float, float, None]:
     # use to normalize input, enables more precise error value calculation for recurrent and failure approximations
     iteration = 0
@@ -71,6 +69,11 @@ def ratio_generator_multiple(no_values: int) -> Generator[Sequence[float], Optio
 
 def smear(average: float, value: float, inertia: int) -> float:
     return (inertia * average + value) / (inertia + 1.)
+
+
+def index_max(values: Sequence[float]) -> Tuple[int, float]:
+    i_max, v_max = max(enumerate(values), key=lambda x: x[1])
+    return i_max, v_max
 
 
 T = TypeVar("T")

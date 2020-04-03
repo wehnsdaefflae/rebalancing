@@ -8,7 +8,7 @@ from source.data.generators.snapshots_binance import rates_binance_generator
 from source.experiments.tasks.abstract import Application, Experiment
 from source.strategies.infer_investment_path.optimal_trading_alternative import get_pairs_from_filesystem
 
-from source.tools.functions import ratio_generator_multiple
+from source.tools.functions import ratio_generator_multiple, index_max
 from source.tools.moving_graph import MovingGraph
 from source.tools.timer import Timer
 
@@ -55,17 +55,13 @@ class Investor(Application):
     def _learn(self, input_values: Sequence[float], target_values: Sequence[float]):
         self.approximation.fit(input_values, target_values, self.iteration)
 
-    def _get_asset(self, values: Sequence[float]) -> Tuple[int, float]:
-        index_max, value_max = max(enumerate(values), key=lambda x: x[1])
-        return index_max, value_max
-
     def _invest(self, asset: int):
         self.amount_current *= self.after_fee
         self.asset_current = asset
         self.trades += 1
 
     def _update_error(self, ratios: Sequence[float]):
-        asset_target_last, _ = self._get_asset(ratios)
+        asset_target_last, _ = index_max(ratios)
         self.error = float(self.asset_current != asset_target_last)
 
     def _cycle(self, example: EXAMPLE) -> Sequence[float]:
@@ -74,7 +70,7 @@ class Investor(Application):
         self._update_error(ratios)
 
         output_value = self.approximation.output(ratios)
-        asset_output, amount_output = self._get_asset(output_value)
+        asset_output, amount_output = index_max(output_value)
         if asset_output != self.asset_current and 1. / self.after_fee < amount_output:
             self._invest(asset_output)
 

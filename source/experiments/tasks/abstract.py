@@ -1,4 +1,4 @@
-from typing import Sequence, Optional
+from typing import Sequence
 
 from source.data.abstract import STREAM_SNAPSHOTS, SNAPSHOT, EXAMPLE
 

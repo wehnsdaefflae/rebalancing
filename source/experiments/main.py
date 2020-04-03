@@ -10,7 +10,7 @@ applications translate snapshots to examples
 
 if __name__ == "__main__":
     # todo: make all applications persistable
-    # todo: compare greedy with dynamic programming (no approximation!)
+    # todo: compare greedy with dynamic programming (no approximation! but "strategy" path: Sequence[int] )
     # todo: reinforcement approximation
     # todo: test failure regression
     # todo: normalize output?
