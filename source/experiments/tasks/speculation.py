@@ -114,14 +114,13 @@ class Investor(Application):
     def _cycle(self, example: EXAMPLE, act: bool) -> Sequence[float]:
         _, ratios_last, ratios = example
 
-        self._update_error(ratios)
-
         output_value = self.approximation.output(ratios)
         asset_output, amount_output = index_max(output_value)
         if act and asset_output != self.asset_current and self.certainty / self.after_fee < amount_output:
             self._invest(asset_output)
 
         self._learn(ratios_last, ratios)
+        self._update_error(ratios)
 
         self.amount_current *= ratios[self.asset_current]
         self.iteration += 1
