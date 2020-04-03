@@ -131,7 +131,7 @@ class Investor(Application):
 
 class ExperimentMarket(Experiment):
     def __init__(self, investors: Sequence[Investor], no_assets: int, delay: int = 0, visualize: bool = True):
-        super().__int__(investors, delay)
+        super().__init__(investors, delay)
         self.graph = None
         if visualize:
             names_graphs_amounts = [f"{str(each_approximation):s} amount" for each_approximation in investors]

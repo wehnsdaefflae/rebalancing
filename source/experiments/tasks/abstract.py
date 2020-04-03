@@ -32,7 +32,7 @@ class Application:
 
 
 class Experiment:
-    def __int__(self, applications: Sequence[Application], delay: int):
+    def __init__(self, applications: Sequence[Application], delay: int):
         self.applications = applications
         self.delay = delay
         self.iteration = 0
@@ -47,7 +47,7 @@ class Experiment:
         generator_snapshots = self._snapshots()
         for snapshot in generator_snapshots:
             results = tuple(
-                each_application.cycle(snapshot)
+                each_application.cycle(snapshot, act=self.iteration >= self.delay)
                 for each_application in self.applications
             )
             self._apply(snapshot, results)
