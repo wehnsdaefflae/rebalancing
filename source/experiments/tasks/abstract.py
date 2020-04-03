@@ -23,17 +23,18 @@ class Application:
     def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
         raise NotImplementedError()
 
-    def _cycle(self, example: EXAMPLE) -> Sequence[float]:
+    def _cycle(self, example: EXAMPLE, act: bool) -> Sequence[float]:
         raise NotImplementedError()
 
-    def cycle(self, snapshot: SNAPSHOT) -> Sequence[float]:
+    def cycle(self, snapshot: SNAPSHOT, act: bool = True) -> Sequence[float]:
         example = self._make_example(snapshot)
-        return self._cycle(example)
+        return self._cycle(example, act)
 
 
 class Experiment:
-    def __int__(self, applications: Sequence[Application]):
+    def __int__(self, applications: Sequence[Application], delay: int):
         self.applications = applications
+        self.delay = delay
         self.iteration = 0
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:

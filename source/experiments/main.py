@@ -18,6 +18,7 @@ if __name__ == "__main__":
 
     no_assets_market = 3
     fee = .1
+    certainty = .99
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
         MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
@@ -25,11 +26,11 @@ if __name__ == "__main__":
 
     )
     applications = (
-        Investor("square", approximations[0], no_assets_market, fee),
-        Investor("square rec", approximations[1], no_assets_market, fee),
-        Investor("square fail", approximations[2], no_assets_market, fee),
+        Investor("square", approximations[0], no_assets_market, fee, certainty=certainty),
+        Investor("square rec", approximations[1], no_assets_market, fee, certainty=certainty),
+        Investor("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
         Balancing("balancing", no_assets_market, 60 * 24 * 7, fee),
     )
 
-    m = ExperimentMarket(applications, no_assets_market)
+    m = ExperimentMarket(applications, no_assets_market, delay=60 * 24)
     m.start()

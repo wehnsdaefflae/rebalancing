@@ -14,14 +14,14 @@ from source.tools.timer import Timer
 
 
 class Balancing(Application):
-    def __init__(self, name: str, no_assets: int, minutes_rebalance: int, fee: float):
+    def __init__(self, name: str, no_assets: int, minutes_to_balance: int, fee: float):
         self.name = name
         self.no_assets = no_assets
-        assert minutes_rebalance >= 0
-        self.minutes_rebalance = minutes_rebalance
+        assert minutes_to_balance >= 0
+        self.minutes_to_balance = minutes_to_balance
         self.after_fee = 1. - fee
 
-        self.timestamp_rebalancing_last = -1
+        self.timestamp_balancing_last = -1
 
         self.ratio_generator = ratio_generator_multiple(no_assets)
         next(self.ratio_generator)
@@ -48,14 +48,14 @@ class Balancing(Application):
         rates = Application.get_rates(snapshot)
         return timestamp, rates, tuple(-1. for _ in range(self.no_assets))
 
-    def _cycle(self, example: EXAMPLE) -> Sequence[float]:
+    def _cycle(self, example: EXAMPLE, act: bool) -> Sequence[float]:
         timestamp, rates, _ = example
 
         ratios = self.ratio_generator.send(rates)
         if ratios is not None:
-            if 0 < self.minutes_rebalance and (self.timestamp_rebalancing_last < 0 or (timestamp - self.timestamp_rebalancing_last) // 60000 >= self.minutes_rebalance):
+            if act and 0 < self.minutes_to_balance and (self.timestamp_balancing_last < 0 or (timestamp - self.timestamp_balancing_last) // 60000 >= self.minutes_to_balance):
                 self._rebalance()
-                self.timestamp_rebalancing_last = timestamp
+                self.timestamp_balancing_last = timestamp
 
             for i, each_ratio in enumerate(ratios):
                 self.amounts[i] *= each_ratio
@@ -64,12 +64,13 @@ class Balancing(Application):
 
 
 class Investor(Application):
-    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, fees: float):
+    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, fees: float, certainty: float = 1.):
         self.name = name
         self.approximation = approximation
         self.asset_current = -1
         self.amount_current = 1.
         self.after_fee = 1. - fees
+        self.certainty = certainty
 
         self.ratio_generator = ratio_generator_multiple(no_assets)
         next(self.ratio_generator)
@@ -110,14 +111,14 @@ class Investor(Application):
         asset_target_last, _ = index_max(ratios)
         self.error = float(self.asset_current != asset_target_last)
 
-    def _cycle(self, example: EXAMPLE) -> Sequence[float]:
+    def _cycle(self, example: EXAMPLE, act: bool) -> Sequence[float]:
         _, ratios_last, ratios = example
 
         self._update_error(ratios)
 
         output_value = self.approximation.output(ratios)
         asset_output, amount_output = index_max(output_value)
-        if asset_output != self.asset_current and 1. / self.after_fee < amount_output:
+        if act and asset_output != self.asset_current and self.certainty / self.after_fee < amount_output:
             self._invest(asset_output)
 
         self._learn(ratios_last, ratios)
@@ -129,8 +130,8 @@ class Investor(Application):
 
 
 class ExperimentMarket(Experiment):
-    def __init__(self, investors: Sequence[Investor], no_assets: int, visualize: bool = True):
-        super().__int__(investors)
+    def __init__(self, investors: Sequence[Investor], no_assets: int, delay: int = 0, visualize: bool = True):
+        super().__int__(investors, delay)
         self.graph = None
         if visualize:
             names_graphs_amounts = [f"{str(each_approximation):s} amount" for each_approximation in investors]
@@ -169,5 +170,5 @@ class ExperimentMarket(Experiment):
 
         if Timer.time_passed(1000):
             for each_investor in self.applications:
-                print(f"no trades of {str(each_investor):s}: {each_investor.trades}")
+                print(f"no. trades: {each_investor.trades: 5d} for {str(each_investor):s}")
                 each_investor.trades = 0
