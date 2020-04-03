@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     no_assets_market = 3
     fee = .1
-    certainty = .9
+    certainty = .90175
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
         MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
