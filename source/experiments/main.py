@@ -36,8 +36,8 @@ def speculation():
 
 
 def trigonometry():
-    # approximation = MultivariatePolynomialFailureRegression(1, 4, 1, .1)
-    approximation = MultivariatePolynomialRecurrentRegression(1, 4, 1)
+    approximation = MultivariatePolynomialFailureRegression(1, 4, 1, .5)
+    # approximation = MultivariatePolynomialRecurrentRegression(1, 4, 1)
     # approximation = MultivariatePolynomialRegression(1, 4, 1)
     application = SineToCosine("non functional approximation", approximation)
     t = ExperimentTrigonometry(application)

@@ -47,7 +47,7 @@ class ExperimentTrigonometry(Experiment):
         self.graph = MovingGraph(
             "values", ("input", "target", "predicted"),
             "error", ("error",),
-            40, moving_average_secondary=False, interval_ms=0
+            40, moving_average_secondary=None, interval_ms=0
         )
         self.now = datetime.datetime.now()
 
