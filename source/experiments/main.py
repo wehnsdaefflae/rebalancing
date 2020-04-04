@@ -15,13 +15,6 @@ applications translate snapshots to examples
 def speculation():
     random.seed(45454547)
 
-    # todo: make all applications persistable
-    # todo: compare greedy with dynamic programming (no approximation! but "strategy" path: Sequence[int] )
-    # todo: reinforcement approximation
-    # todo: test failure regression
-    # todo: normalize output?
-    # todo: equidistant sampling
-
     no_assets_market = 8
     fee = .1
     certainty = .901
@@ -43,11 +36,19 @@ def speculation():
 
 
 def trigonometry():
-    # approximation = MultivariatePolynomialFailureRegression(1, 3, 1, .5)
-    approximation = MultivariatePolynomialRegression(1, 4, 1)
+    # approximation = MultivariatePolynomialFailureRegression(1, 4, 1, .1)
+    approximation = MultivariatePolynomialRecurrentRegression(1, 4, 1)
+    # approximation = MultivariatePolynomialRegression(1, 4, 1)
     application = SineToCosine("non functional approximation", approximation)
     t = ExperimentTrigonometry(application)
     t.start()
+
+
+# todo: make all applications persistable
+# todo: compare greedy with dynamic programming (no approximation! but "strategy" path: Sequence[int] )
+# todo: reinforcement discrete action approximation
+# todo: failure regression test
+# todo: failure regression equidistant sampling
 
 
 def main():

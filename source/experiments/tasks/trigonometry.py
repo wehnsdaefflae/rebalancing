@@ -47,14 +47,14 @@ class ExperimentTrigonometry(Experiment):
         self.graph = MovingGraph(
             "values", ("input", "target", "predicted"),
             "error", ("error",),
-            100, moving_average_secondary=True, interval_ms=0
+            40, moving_average_secondary=False, interval_ms=0
         )
         self.now = datetime.datetime.now()
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         iteration = 0
         while True:
-            stretched = iteration / 10
+            stretched = iteration / 2
             yield {
                 "iteration": iteration,
                 "input": math.sin(stretched),
@@ -69,4 +69,4 @@ class ExperimentTrigonometry(Experiment):
         error = result["error"]
         output_value = result["output"]
         self.graph.add_snapshot(self.now + datetime.timedelta(seconds=index_time), (input_values[0], target_values[0], output_value), (error, ))
-        # time.sleep(.1)
+        time.sleep(.1)
