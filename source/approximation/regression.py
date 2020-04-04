@@ -43,14 +43,18 @@ class MultipleRegression(Approximation[float]):
     def get_parameters(self) -> Sequence[float]:
         try:
             # gaussian elimination
-            return tuple(numpy.linalg.solve(self.var_matrix, self.cov_vector))
+            parameters = numpy.linalg.solve(self.var_matrix, self.cov_vector)
+            return tuple(parameters)
 
         except numpy.linalg.linalg.LinAlgError:
-            return tuple(0. for _ in self.addends)
+            parameters = numpy.linalg.lstsq(self.var_matrix, self.cov_vector)[0]
+            return tuple(parameters)
+            # return tuple(0. for _ in self.addends)
 
     def output(self, in_values: Sequence[float]) -> float:
         parameters = self.get_parameters()
-        return sum(p * f_a(in_values) for p, f_a in zip(parameters, self.addends))
+        results_addends = tuple(p * f_a(in_values) for p, f_a in zip(parameters, self.addends))
+        return sum(results_addends)
 
 
 class MultiplePolynomialRegression(MultipleRegression):
@@ -126,7 +130,8 @@ class MultivariateRegression(Approximation[Sequence[float]]):
         return MultivariateRegression.error_distance(output_normalized, target_normalized) // 2.
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        return tuple(each_regression.output(in_value) for each_regression in self.regressions)
+        output_value = tuple(each_regression.output(in_value) for each_regression in self.regressions)
+        return output_value
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
         for each_regression, each_target in zip(self.regressions, target_value):
@@ -158,6 +163,9 @@ class MultivariateRecurrentRegression(MultivariateRegression):
 
     def _get_memory(self, in_values: Sequence[float]) -> List[float]:
         return [each_memory.output(in_values) for each_memory in self.regressions_memory]
+
+    def get_state(self) -> Any:
+        return self.regressions_memory, self.values_memory
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
         input_contextualized = tuple(in_value) + tuple(self.values_memory)
@@ -215,6 +223,9 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
         self.normalization = z_score_normalized_generator()
         next(self.normalization)
         self.error_tolerance = error_tolerance
+
+    def get_state(self) -> Any:
+        return self.approximation_context, self.context
 
     def _optimize_context(self, input_values: Sequence[float], target_values: Sequence[float]) -> Tuple[Sequence[float], float]:
         error_minimal = -1.

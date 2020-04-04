@@ -81,6 +81,9 @@ class RecurrentClassification(Classification):
         regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory, resolution_memory=no_memories, error_memory=Classification.error_class)
         super().__init__(regression, no_classes)
 
+    def get_state(self) -> Any:
+        return self.regression.get_state()
+
 
 class RecurrentPolynomialClassification(RecurrentClassification):
     def __init__(self, no_arguments: int, degree: int, no_classes: int, no_memories: int = 1):

@@ -16,8 +16,8 @@ class MovingGraph:
                  name_axis_secondary: str,
                  names_plots_secondary: Sequence[str],
                  size_window: int,
-                 moving_average_primary: bool = True,
-                 moving_average_secondary: bool = True,
+                 moving_average_primary: Optional[bool] = None,
+                 moving_average_secondary: Optional[bool] = None,
                  interval_ms: int = 1000,
                  limits_primary: Optional[Tuple[float, float]] = None,
                  limits_secondary: Optional[Tuple[float, float]] = None):
@@ -60,17 +60,23 @@ class MovingGraph:
         assert len(points_secondary) == self.no_plots_secondary
 
         for i, (each_value, each_point) in enumerate(zip(self.values_primary, points_primary)):
-            self.values_primary[i] = smear(each_value, each_point, self.iterations_primary_since_draw)
+            if self.moving_average_primary is None:
+                self.values_primary[i] = each_point
+            else:
+                self.values_primary[i] = smear(each_value, each_point, self.iterations_primary_since_draw)
 
         for i, (each_value, each_point) in enumerate(zip(self.values_secondary, points_secondary)):
-            self.values_secondary[i] = smear(each_value, each_point, self.iterations_secondary_since_draw)
+            if self.moving_average_secondary is None:
+                self.values_secondary[i] = each_point
+            else:
+                self.values_secondary[i] = smear(each_value, each_point, self.iterations_secondary_since_draw)
 
         self.time = now
         self.iterations_primary_since_draw += 1
         self.iterations_secondary_since_draw += 1
 
         time_now = time.time() * 1000.
-        if self.time_last < 0. or time_now - self.time_last >= self.interval_ms:
+        if self.time_last < 0. or time_now - self.time_last >= self.interval_ms or 0 >= self.interval_ms:
             self.draw()
             self.time_last = time_now
 
@@ -126,8 +132,8 @@ class MovingGraph:
         pyplot.tight_layout()
         pyplot.pause(.05)
 
-        if self.moving_average_primary:
+        if self.moving_average_primary is not None and self.moving_average_primary:
             self.iterations_primary_since_draw = 0
 
-        if self.moving_average_secondary:
+        if self.moving_average_secondary is not None and self.moving_average_secondary:
             self.iterations_secondary_since_draw = 0
