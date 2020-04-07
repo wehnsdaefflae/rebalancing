@@ -115,10 +115,10 @@ def stack():
         values = yield
         ratios = tuple(g.send(v) for g, v in zip(gs, values))
 
-        # values = yield from zip(*(g.send(v) for g, v in zip(gs, values)))
-        while True:
-            values = yield None if None in ratios else ratios
-            ratios = tuple(g.send(v) for g, v in zip(gs, values))
+        yield from zip(*(g.send(v) for g, v in zip(gs, values))) #?
+        #while True:
+        #    values = yield None if None in ratios else ratios
+        #    ratios = tuple(g.send(v) for g, v in zip(gs, values))
 
     rgm = ratio_generator_multiple(2)
     next(rgm)    # move to the first yield
@@ -133,6 +133,20 @@ def stack():
         if len(b) >= 5:
             break
     print(b)
+
+"""
+def f():
+	yield from g()
+def g():
+	x = yield 1
+	y = yield x
+	yield y
+ 
+gen = f()
+print(gen.send(None))
+print(gen.send(2))
+print(gen.send(3))
+"""
 
 def main():
     no_assets = 2
