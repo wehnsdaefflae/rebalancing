@@ -6,7 +6,7 @@ from source.config import RAW_BINANCE_DIR, PATH_DIRECTORY_DATA, STATS_NO_TIME
 from source.data.generators.snapshots_binance import rates_binance_generator
 
 # from flyingcircus import base
-from source.strategies.infer_investment_path.optimal_trading import generate_multiple_changes, generate_matrix
+from source.strategies.infer_investment_path.optimal_trading_memory import generate_multiple_changes, generate_matrix
 from source.tools.timer import Timer
 
 

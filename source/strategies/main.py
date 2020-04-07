@@ -1,7 +1,7 @@
-from typing import Tuple, Sequence, Optional, List
+from typing import Tuple, Sequence, Optional, List, Generator
 
-from source.data.generators.snapshots_debug import get_random_rates
-from source.strategies.infer_investment_path.optimal_trading import generate_multiple_changes, generate_matrix, make_path_from_sourcematrix
+from source.data.generators.snapshots_debug import get_random_rates, get_debug_rates
+from source.strategies.infer_investment_path.optimal_trading_memory import generate_multiple_changes, generate_matrix, make_path_from_sourcematrix
 from source.strategies.simulations.simulation import simulate
 
 
@@ -23,15 +23,12 @@ def split_time_and_data(
 
 def compare():
     no_assets = 3
-    get_rates = lambda: get_random_rates(size=10, no_assets=no_assets, gaps=.4)
     fees = .01
 
     # source
     timestamps = []
     rates = []
-    generate_rates = (split_time_and_data(x, timestamps, rates) for x in get_rates())
-    generate_rates_fix = list(generate_rates)
-    generate_rates = (x for x in generate_rates_fix)
+    generate_rates = get_debug_rates()
 
     print("tick    " + "".join(f"{i: 9d}" for i in range(len(rates))))
     print()
@@ -63,9 +60,91 @@ def compare():
     print()
 
 
+def stack():
+    import random
+    from typing import Iterator
+
+    def get_random_sequence(start_value: float) -> Iterator[float]:
+        value = start_value
+        yield value
+
+        while True:
+            r = random.uniform(-.1, .1) * value
+            value = value + r
+            yield value
+
+    g = get_random_sequence(1.)
+    a = [next(g) for _ in range(5)]
+    print(a)
+
+    def get_market(no_assets: int = 10) -> Iterator[Sequence[float]]:
+        rg = tuple(get_random_sequence(random.uniform(10., 60.)) for _ in range(no_assets))
+        yield from zip(*rg)
+
+    gm = get_market(2)
+    b = [next(gm) for _ in range(5)]
+    print(b)
+
+    def ratio_generator() -> Generator[float, Optional[float], None]:
+        value_last = yield
+        value = yield
+        while True:
+            ratio = 0. if value_last == 0. else value / value_last
+            value_last = value
+            value = yield ratio
+
+    gr = ratio_generator()
+    next(gr)    # move to the first yield
+    g = get_random_sequence(1.)
+    a = []
+    for _v in g:
+        _r = gr.send(_v)
+        if _r is None:
+            # two values are required for a ratio
+            continue
+        a.append(_r)
+        if len(a) >= 5:
+            break
+    print(a)
+
+    def ratio_generator_multiple(no_values: int) -> Generator[Sequence[float], Optional[Sequence[float]], None]:
+        gs = tuple(ratio_generator() for _ in range(no_values))
+        for each_g in gs:
+            next(each_g)
+
+        values = yield
+        ratios = tuple(g.send(v) for g, v in zip(gs, values))
+
+        # values = yield from zip(*(g.send(v) for g, v in zip(gs, values)))
+        while True:
+            values = yield None if None in ratios else ratios
+            ratios = tuple(g.send(v) for g, v in zip(gs, values))
+
+    rgm = ratio_generator_multiple(2)
+    next(rgm)    # move to the first yield
+    gm = get_market(2)
+    b = []
+    for _v in gm:
+        _r = rgm.send(_v)
+        if _r is None:
+            # two values are required for a ratio
+            continue
+        b.append(_r)
+        if len(b) >= 5:
+            break
+    print(b)
+
 def main():
-    pass
+    no_assets = 2
+
+    rates = get_debug_rates()
+    ratios = generate_multiple_changes(rates)
+    matrix = generate_matrix(no_assets, ratios, .01, bound=100)
+    path = make_path_from_sourcematrix(list(matrix))
+    print(path)
 
 
 if __name__ == "__main__":
-    compare()
+    # compare()
+    main()
+    # stack()
