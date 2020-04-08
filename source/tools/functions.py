@@ -70,8 +70,8 @@ def smear(average: float, value: float, inertia: int) -> float:
     return (inertia * average + value) / (inertia + 1.)
 
 
-def index_max(values: Sequence[float]) -> Tuple[int, float]:
-    i_max, v_max = max(enumerate(values), key=lambda x: x[1])
+def index_max(values: Sequence[float], key=lambda x: x) -> Tuple[int, float]:
+    i_max, v_max = max(enumerate(values), key=lambda x: key(x[1]))
     return i_max, v_max
 
 
