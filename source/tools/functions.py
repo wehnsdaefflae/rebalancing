@@ -60,11 +60,10 @@ def ratio_generator_multiple(no_values: int) -> Generator[Sequence[float], Optio
         next(each_g)
 
     values = yield
-    ratios = tuple(g.send(v) for g, v in zip(gs, values))
 
     while True:
-        values = yield None if None in ratios else ratios
         ratios = tuple(g.send(v) for g, v in zip(gs, values))
+        values = yield None if None in ratios else ratios
 
 
 def smear(average: float, value: float, inertia: int) -> float:

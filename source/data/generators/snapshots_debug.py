@@ -12,7 +12,7 @@ def get_random_sequence(start_value: float, length: int, gaps: float = 0.) -> It
         yield -1. if random.random() < gaps else value
 
 
-def get_random_rates(size: int = 20, no_assets: int = 10, gaps: float = 0.) -> Iterator[Sequence[float]]:
+def get_random_rates(size: int, no_assets: int, gaps: float = 0.) -> Iterator[Sequence[float]]:
     rg = tuple(get_random_sequence(random.uniform(10., 60.), size, gaps=gaps) for _ in range(no_assets))
     yield from zip(*rg)
 

@@ -121,3 +121,7 @@ def make_path_from_sourcematrix(matrix: Sequence[Tuple[Sequence[int], Tuple[int,
     return path
 
 
+def make_path_memory(rates: Iterator[Sequence], no_assets: int, fees: float, bound: int = 100) -> Iterator[int]:
+    ratios = generate_multiple_changes(rates)
+    matrix = generate_matrix(no_assets, ratios, fees, bound=bound)
+    return make_path_from_sourcematrix(list(matrix))
