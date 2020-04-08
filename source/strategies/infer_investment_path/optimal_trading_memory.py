@@ -58,6 +58,7 @@ def generate_matrix(
             best_predecessor, value_max = max(
                 (
                     (asset_from, each_interest * (1. - float(asset_from != asset_to and 0 < t) * fees) * each_change)
+                    # (asset_from, each_interest * (1. - fees) ** int(asset_from != asset_to and 0 < t) * each_change)
                     for asset_from, each_interest in enumerate(values_objective)
                 ), key=lambda x: x[1]
             )
