@@ -14,7 +14,7 @@ def print_sequence(sequence: Sequence[Union[float, int, str]]) -> str:
 def print_rates(rates: Sequence[Sequence[float]]) -> str:
     rates_i = zip(*rates)
     rows_str = tuple(print_sequence((i,) + asset) for i, asset in enumerate(rates_i))
-    indices_str = print_sequence(list(range(len(rates))))
+    indices_str = print_sequence(list(range(-1, len(rates))))
     return "\n".join((indices_str, ) + rows_str)
 
 
