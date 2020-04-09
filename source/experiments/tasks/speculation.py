@@ -6,9 +6,8 @@ from source.approximation.abstract import Approximation
 from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, EXAMPLE
 from source.data.generators.snapshots_binance import rates_binance_generator
 from source.experiments.tasks.abstract import Application, Experiment, RESULT
-from source.strategies.infer_investment_path.optimal_trading_filesystem import get_pairs_from_filesystem
 
-from source.tools.functions import ratio_generator_multiple, index_max
+from source.tools.functions import ratio_generator_multiple, index_max, get_pairs_from_filesystem
 from source.tools.moving_graph import MovingGraph
 from source.tools.timer import Timer
 

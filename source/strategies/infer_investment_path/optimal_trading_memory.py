@@ -1,48 +1,15 @@
 # https://www.dropbox.com/s/ed5hm4rd0b8bz18/optimal.pdf?dl=0
-from typing import Sequence, Tuple, Generator, Iterator
+from typing import Sequence, Tuple, Iterator, Iterable
 
 # from matplotlib import pyplot
-
+from source.tools.functions import generate_ratios
 from source.tools.timer import Timer
-
-
-def generate_change_send() -> Generator[float, float, None]:
-    rate_last = yield
-    each_rate = yield
-
-    while True:
-        if rate_last == 0.:
-            change = float("inf")
-
-        else:
-            change = each_rate / rate_last
-
-        rate_last = each_rate
-        each_rate = yield change
-
-
-def generate_multiple_changes(generator_rates: Iterator[Sequence[float]]) -> Generator[Sequence[float], None, None]:
-    print(f"generating changes...")
-    rates_now = next(generator_rates)
-    no_rates = len(rates_now)
-
-    generators_change = tuple(generate_change_send() for _ in rates_now)
-
-    for each_change_gen, first_rate in zip(generators_change, rates_now):
-        next(each_change_gen)               # initialize
-        each_change_gen.send(first_rate)    # send first rate
-
-    for i, rates_now in enumerate(generator_rates):
-        assert len(rates_now) == no_rates
-        yield tuple(x.send(r) for x, r in zip(generators_change, rates_now))
-        if Timer.time_passed(2000):
-            print(f"finished determining {i:d} rate changes...")
 
 
 def generate_matrix(
         no_assets: int,
-        changes: Iterator[Sequence[float]], fees: float,
-        bound: float = 0.) -> Generator[Tuple[Sequence[int], Tuple[int, float]], None, None]:
+        changes: Iterable[Sequence[float]], fees: float,
+        bound: float = 0.) -> Iterable[Tuple[Sequence[int], Tuple[int, float]]]:
 
     assert 1. >= fees >= 0.
     values_objective = [1. for _ in range(no_assets)]
@@ -57,8 +24,8 @@ def generate_matrix(
 
             best_predecessor, value_max = max(
                 (
-                    (asset_from, each_interest * (1. - float(asset_from != asset_to and 0 < t) * fees) * each_change)
-                    # (asset_from, each_interest * (1. - fees) ** int(asset_from != asset_to and 0 < t) * each_change)
+                    # (asset_from, each_interest * (1. - float(asset_from != asset_to and 0 < t) * fees) * each_change)
+                    (asset_from, each_interest * (1. - fees) ** int(asset_from != asset_to and 0 < t) * each_change)
                     for asset_from, each_interest in enumerate(values_objective)
                 ), key=lambda x: x[1]
             )
@@ -123,6 +90,6 @@ def make_path_from_sourcematrix(matrix: Sequence[Tuple[Sequence[int], Tuple[int,
 
 
 def make_path_memory(rates: Iterator[Sequence], no_assets: int, fees: float, bound: int = 100) -> Iterator[int]:
-    ratios = generate_multiple_changes(rates)
+    ratios = generate_ratios(rates)
     matrix = generate_matrix(no_assets, ratios, fees, bound=bound)
     return make_path_from_sourcematrix(list(matrix))

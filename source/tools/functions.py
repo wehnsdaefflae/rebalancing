@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import glob
 import itertools
-from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional
+import os
+from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional, Union
+
+from source.config import RAW_BINANCE_DIR
 
 
 def z_score_generator(drag: int = -1, offset: float = 0., scale: float = 1., clamp: Optional[Tuple[float, float]] = None) -> Generator[float, float, None]:
@@ -87,3 +91,41 @@ def product(values: Sequence[float]) -> float:
     for _v in values:
         output *= _v
     return output
+
+
+def generate_ratios(generator_values: Iterable[Sequence[float]]) -> Iterable[Sequence[float]]:
+    values_last = None
+    for values_this in generator_values:
+        if values_last is not None and None not in values_last:
+            yield tuple(
+                -1. if 0. >= v_l or v_t < 0. else v_t / v_l
+                for v_t, v_l in zip(values_this, values_last)
+            )
+        values_last = values_this
+
+
+def get_pairs_from_filesystem() -> Sequence[Tuple[str, str]]:
+    return tuple(
+        (x[:-3], x[-3:])
+        for x in (
+            os.path.splitext(y)[0]
+            for y in (
+                os.path.basename(z)
+                for z in sorted(glob.glob(RAW_BINANCE_DIR + "*.csv"))
+            )
+        )
+    )
+
+
+def combine_assets_header(pairs: Sequence[Tuple[str, str]], header: Sequence[str]) -> Sequence[str]:
+    return ("close_time", ) + tuple(f"{each_pair[0]:s}-{each_pair[1]:s}_{column:s}" for each_pair in pairs for column in header if "close_time" not in column)
+
+
+def convert_to_string(value: Union[int, float]) -> str:
+    if isinstance(value, int):
+        return f"{value:d}"
+
+    elif isinstance(value, float):
+        return f"{value:.8f}"
+
+    raise ValueError("inconvertible")
