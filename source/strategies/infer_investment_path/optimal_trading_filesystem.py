@@ -3,7 +3,7 @@ from typing import Tuple, Sequence, Iterable, Generator, Collection
 
 from source.data.generators.snapshots_binance import rates_binance_generator
 
-from source.strategies.infer_investment_path.optimal_trading_memory import generate_matrix
+from source.strategies.infer_investment_path.optimal_trading_memory import generate_matrix_old
 from source.tools.functions import generate_ratios
 from source.tools.timer import Timer
 
@@ -130,4 +130,4 @@ def binance_matrix(pairs: Collection[Tuple[str, str]], time_range: Tuple[int, in
         for snapshot in rates_binance_generator(pairs=pairs, timestamp_range=time_range, interval_minutes=interval_minutes, header=("close_time", "close"))
     )
     ratios = generate_ratios(rates)
-    return generate_matrix(no_assets, ratios, .01, bound=100)
+    return generate_matrix_old(no_assets, ratios, .01, bound=100)
