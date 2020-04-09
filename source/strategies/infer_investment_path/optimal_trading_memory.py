@@ -21,7 +21,7 @@ def generate_matrix(no_assets: int, ratios: Iterable[Sequence[float]], fee: floa
 
             values_tmp[asset_to] = max(
                 (
-                    each_ratio * each_amount * (1. - fee) ** int(asset_from != asset_to and 0 < t)
+                    each_ratio * each_amount * (1. - fee) ** int(asset_from != asset_to or t == 0)
                     for asset_from, each_amount in enumerate(values_objective)
                 )
             )

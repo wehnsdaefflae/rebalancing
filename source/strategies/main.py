@@ -20,7 +20,7 @@ def print_rates(rates: Sequence[Sequence[float]]) -> str:
 
 
 def main():
-    random.seed(2323424)
+    random.seed(232424)
 
     no_assets = 5
     fee = .01
