@@ -61,7 +61,7 @@ def make_path(matrix: Sequence[Sequence[float]]) -> Sequence[int]:
     return path
 
 
-def make_path_memory(rates: Iterator[Sequence], no_assets: int, fees: float, bound: int = 100) -> Iterator[int]:
+def make_path_memory(rates: Iterator[Sequence], no_assets: int, fees: float, bound: int = 100) -> Iterable[int]:
     ratios = generate_ratios(rates)
     matrix = generate_matrix(no_assets, ratios, fees, bound=bound)
     return make_path(list(matrix))

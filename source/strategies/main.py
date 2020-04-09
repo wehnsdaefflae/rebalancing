@@ -1,13 +1,14 @@
 import random
 from typing import Sequence, Union
 
-from source.data.generators.snapshots_debug import get_random_rates, get_debug_rates
+from source.data.generators.snapshots_debug import get_random_rates
 from source.strategies.infer_investment_path.greedy import make_path
 from source.strategies.infer_investment_path.optimal_trading_memory import make_path_memory
+from source.strategies.simulations.simulation import simulate
 
 
 def print_sequence(sequence: Sequence[Union[float, int, str]]) -> str:
-    string = "\t".join(f"{v:5.2f}" if isinstance(v, float) else f"{v: 5d}" if isinstance(v, int) else f"{v:>5s}" for v in sequence)
+    string = "\t".join(f"{v:6.3f}" if isinstance(v, float) else f"{v: 6d}" if isinstance(v, int) else f"{v:>6s}" for v in sequence)
     return string
 
 
@@ -27,7 +28,7 @@ def main():
     while True:
         rates = list(get_random_rates(20, no_assets))
 
-        path_dp = make_path_memory(iter(rates), no_assets, fee)
+        path_dp = list(make_path_memory(iter(rates), no_assets, fee))
         path_greedy = list(make_path(rates, fee))
 
         if path_dp == path_greedy:
@@ -36,8 +37,11 @@ def main():
         print()
         print(print_rates(list(rates)))
         print()
-        print(print_sequence(["dp"] + list(path_dp)))
-        print(print_sequence(["grd"] + list(path_greedy)))
+        print(print_sequence(["dp"] + path_dp))
+        print(print_sequence(["grd"] + path_greedy))
+        print()
+        print(print_sequence(["dp"] + list(simulate(rates, path_dp, fee))))
+        print(print_sequence(["grd"] + list(simulate(rates, path_greedy, fee))))
 
         break
 
