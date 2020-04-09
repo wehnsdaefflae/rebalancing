@@ -3,8 +3,9 @@ from typing import Sequence, Union
 
 from source.data.generators.snapshots_debug import get_random_rates
 from source.strategies.infer_investment_path.greedy import make_path
-from source.strategies.infer_investment_path.optimal_trading_memory import make_path_memory
+from source.strategies.infer_investment_path.optimal_trading_memory import make_path_memory, generate_matrix
 from source.strategies.simulations.simulation import simulate
+from source.tools.functions import generate_ratios
 
 
 def print_sequence(sequence: Sequence[Union[float, int, str]]) -> str:
@@ -37,11 +38,18 @@ def main():
         print()
         print(print_rates(list(rates)))
         print()
+        print("paths")
         print(print_sequence(["dp"] + path_dp))
         print(print_sequence(["grd"] + path_greedy))
         print()
+        print("amounts")
         print(print_sequence(["dp"] + list(simulate(rates, path_dp, fee))))
         print(print_sequence(["grd"] + list(simulate(rates, path_greedy, fee))))
+        print()
+        print("dp matrix")
+        matrix = generate_matrix(no_assets, generate_ratios(rates), fee)
+        matrix_list = list(matrix)
+        print(print_rates([tuple(1. for _ in range(no_assets))] + matrix_list))
 
         break
 
