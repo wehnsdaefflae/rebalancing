@@ -40,12 +40,9 @@ def generate_matrix(no_assets: int, ratios: Iterable[Sequence[float]], fee: floa
                 values_objective[i] = v
 
         yield tuple(values_objective)
-        if Timer.time_passed(2000):
-            print(f"finished {t:d} time steps in matrix...")
 
 
 def make_path(matrix: Sequence[Sequence[float]]) -> Sequence[int]:
-    print(f"finding path in matrix...")
     len_path = len(matrix)
 
     path = []
