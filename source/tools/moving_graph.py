@@ -55,6 +55,9 @@ class MovingGraph:
 
         self.time_last = -1.
 
+    def add_h_line(self, y: float, color: str = "red", lw: int = 2, alpha: float = .2):
+        self.ax_primary.axhline(y, color=color, lw=lw, alpha=alpha)
+
     def add_snapshot(self, now: datetime.datetime, points_primary: Sequence[float], points_secondary: Sequence[float]):
         assert len(points_primary) == self.no_plots_primary
         assert len(points_secondary) == self.no_plots_secondary
@@ -125,6 +128,8 @@ class MovingGraph:
             self.ax_secondary.set_ylim(self.limits_secondary)
         else:
             self._set_limits(self.ax_secondary, self.plots_secondary)
+
+        self.add_h_line(.5, color="black", lw=1)
 
         pyplot.setp(self.ax_primary.xaxis.get_majorticklabels(), rotation=90, ha="right", rotation_mode="anchor")
 

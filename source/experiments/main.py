@@ -1,7 +1,7 @@
 import random
 
 from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression
-from source.experiments.tasks.speculation import Trader, ExperimentMarket, Balancing
+from source.experiments.tasks.speculation import TraderApproximation, ExperimentMarket, Balancing, TraderDistribution
 from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
 
 """
@@ -15,8 +15,8 @@ applications translate snapshots to examples
 def speculation():
     random.seed(45454547)
 
-    no_assets_market = 8
-    fee = .1
+    no_assets_market = 10
+    fee = .0  # 1
     certainty = .901
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
@@ -25,13 +25,14 @@ def speculation():
 
     )
     applications = (
-        Trader("square", approximations[0], no_assets_market, fee, certainty=certainty),
-        Trader("square rec", approximations[1], no_assets_market, fee, certainty=certainty),
-        Trader("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
-        Balancing("balancing", no_assets_market, 60 * 24, fee),
+        TraderApproximation("square", approximations[0], no_assets_market, fee, certainty=certainty),
+        TraderApproximation("square rec", approximations[1], no_assets_market, fee, certainty=certainty),
+        TraderApproximation("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
+        #Balancing("balancing", no_assets_market, 60 * 24, fee),
+        #TraderDistribution("distribution", no_assets_market, fee)
     )
 
-    m = ExperimentMarket(applications, no_assets_market, delay=60 * 24)
+    m = ExperimentMarket(applications, no_assets_market)  # , delay=60 * 24)
     m.start()
 
 
@@ -52,8 +53,8 @@ def trigonometry():
 
 
 def main():
-    # speculation()
-    trigonometry()
+    speculation()
+    # trigonometry()
 
 
 if __name__ == "__main__":

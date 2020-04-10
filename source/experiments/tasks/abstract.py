@@ -1,13 +1,16 @@
 from typing import Sequence, Dict, Any
 
-from source.data.abstract import STREAM_SNAPSHOTS, SNAPSHOT, EXAMPLE
+from source.data.abstract import STREAM_SNAPSHOTS, SNAPSHOT
 
 RESULT = Dict[str, Any]
 
 
 class Application:
+    def __init__(self, name: str):
+        self.name = name
+
     def __str__(self) -> str:
-        raise NotImplementedError()
+        return self.name
 
     @staticmethod
     def is_valid_snapshot(snapshot: SNAPSHOT) -> bool:
@@ -17,16 +20,8 @@ class Application:
     def is_valid_result(result: RESULT) -> bool:
         raise NotImplementedError()
 
-    def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
-        raise NotImplementedError()
-
-    def _cycle(self, example: EXAMPLE, act: bool) -> RESULT:
-        # includes testing, learning, and applying
-        raise NotImplementedError()
-
     def cycle(self, snapshot: SNAPSHOT, act: bool = True) -> RESULT:
-        example = self._make_example(snapshot)
-        return self._cycle(example, act)
+        raise NotImplementedError()
 
 
 class Experiment:

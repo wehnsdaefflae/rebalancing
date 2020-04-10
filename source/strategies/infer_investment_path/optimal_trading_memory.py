@@ -2,7 +2,7 @@
 from typing import Sequence, Iterator, Iterable
 
 # from matplotlib import pyplot
-from source.tools.functions import generate_ratios, index_max
+from source.tools.functions import generate_ratios_nested, index_max
 from source.tools.timer import Timer
 
 
@@ -59,7 +59,7 @@ def make_path(matrix: Sequence[Sequence[float]]) -> Sequence[int]:
 
 
 def make_path_memory(rates: Iterator[Sequence], no_assets: int, fees: float, bound: int = 100) -> Iterable[int]:
-    ratios = generate_ratios(rates)
+    ratios = generate_ratios_nested(rates)
     matrix = generate_matrix(no_assets, ratios, fees, bound=bound)
     matrix_list = list(matrix)
     return make_path(matrix_list)

@@ -49,7 +49,7 @@ def z_score_multiple_normalized_generator(no_values: int) -> Generator[Sequence[
         values = yield tuple(each_g.send(x) for each_g, x in zip(gs, values))
 
 
-def ratio_generator() -> Generator[float, Optional[float], None]:
+def generate_ratio_send() -> Generator[float, Optional[float], None]:
     value_last = yield  # dont do an initial next?
     value = yield
     while True:
@@ -58,8 +58,8 @@ def ratio_generator() -> Generator[float, Optional[float], None]:
         value = yield ratio
 
 
-def ratio_generator_multiple(no_values: int) -> Generator[Sequence[float], Optional[Sequence[float]], None]:
-    gs = tuple(ratio_generator() for _ in range(no_values))
+def generate_ratios_send(no_values: int) -> Generator[Sequence[float], Optional[Sequence[float]], None]:
+    gs = tuple(generate_ratio_send() for _ in range(no_values))
     for each_g in gs:
         next(each_g)
 
@@ -74,7 +74,7 @@ def smear(average: float, value: float, inertia: int) -> float:
     return (inertia * average + value) / (inertia + 1.)
 
 
-def index_max(values: Sequence[float], key=lambda x: x) -> Tuple[int, float]:
+def index_max(values: Iterable[float], key=lambda x: x) -> Tuple[int, float]:
     i_max, v_max = max(enumerate(values), key=lambda x: key(x[1]))
     return i_max, v_max
 
@@ -86,14 +86,14 @@ def accumulating_combinations_with_replacement(elements: Iterable[T], repetition
     yield from (c for _r in range(repetitions) for c in itertools.combinations_with_replacement(elements, _r + 1))
 
 
-def product(values: Sequence[float]) -> float:
+def product(values: Iterable[float]) -> float:
     output = 1.
     for _v in values:
         output *= _v
     return output
 
 
-def generate_ratios(generator_values: Iterable[Sequence[float]]) -> Iterable[Sequence[float]]:
+def generate_ratios_nested(generator_values: Iterable[Sequence[float]]) -> Iterable[Sequence[float]]:
     values_last = None
     for values_this in generator_values:
         if values_last is not None and None not in values_last:

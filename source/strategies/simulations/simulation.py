@@ -1,10 +1,10 @@
 from typing import Iterable, Sequence
 
-from source.tools.functions import generate_ratios
+from source.tools.functions import generate_ratios_nested
 
 
 def simulate(rates: Iterable[Sequence[float]], path: Iterable[int], fee: float) -> Iterable[float]:
-    ratios = generate_ratios(rates)
+    ratios = generate_ratios_nested(rates)
     amount = 1.
     asset_last = -1
     for each_ratios, each_asset in zip(ratios, path):

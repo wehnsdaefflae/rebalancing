@@ -5,7 +5,7 @@ from source.data.generators.snapshots_debug import get_random_rates
 from source.strategies.infer_investment_path.greedy import make_path
 from source.strategies.infer_investment_path.optimal_trading_memory import make_path_memory, generate_matrix
 from source.strategies.simulations.simulation import simulate
-from source.tools.functions import generate_ratios
+from source.tools.functions import generate_ratios_nested
 
 
 def print_sequence(sequence: Sequence[Union[float, int, str]]) -> str:
@@ -47,7 +47,7 @@ def main():
         print(print_sequence(["grd"] + list(simulate(rates, path_greedy, fee))))
         print()
         print("dp matrix")
-        matrix = generate_matrix(no_assets, generate_ratios(rates), fee)
+        matrix = generate_matrix(no_assets, generate_ratios_nested(rates), fee)
         matrix_list = list(matrix)
         print(print_rates([tuple(1. for _ in range(no_assets))] + matrix_list))
 
