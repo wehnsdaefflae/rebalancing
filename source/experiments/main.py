@@ -17,7 +17,7 @@ def speculation():
 
     no_assets_market = 10
     fee = .0  # 1
-    certainty = .901
+    certainty = 1.002
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
         MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
@@ -26,13 +26,13 @@ def speculation():
     )
     applications = (
         TraderApproximation("square", approximations[0], no_assets_market, fee, certainty=certainty),
-        TraderApproximation("square rec", approximations[1], no_assets_market, fee, certainty=certainty),
-        TraderApproximation("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
-        #Balancing("balancing", no_assets_market, 60 * 24, fee),
-        #TraderDistribution("distribution", no_assets_market, fee)
+        # TraderApproximation("square rec", approximations[1], no_assets_market, fee, certainty=certainty),
+        # TraderApproximation("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
+        # Balancing("balancing", no_assets_market, 60 * 24, fee),
+        # TraderDistribution("distribution", no_assets_market, fee)
     )
 
-    m = ExperimentMarket(applications, no_assets_market)  # , delay=60 * 24)
+    m = ExperimentMarket(applications, no_assets_market, delay=60 * 24)
     m.start()
 
 

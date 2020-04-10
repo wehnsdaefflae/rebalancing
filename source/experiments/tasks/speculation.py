@@ -2,6 +2,8 @@ import datetime
 import random
 from typing import Sequence
 
+from matplotlib import pyplot
+
 from source.approximation.abstract import Approximation
 from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, EXAMPLE
 from source.data.generators.snapshots_binance import rates_binance_generator
@@ -24,7 +26,7 @@ class Investor(Application):
 
     @staticmethod
     def is_valid_result(result: RESULT) -> bool:
-        return "error" in result and "amount" in result
+        return "error" in result and "amount" in result and "ratio_portfolio" in result
 
     @staticmethod
     def get_timestamp(snapshot: SNAPSHOT) -> int:
@@ -79,6 +81,7 @@ class Balancing(Investor):
         timestamp = Investor.get_timestamp(snapshot)
         rates = Investor.get_rates(snapshot)
 
+        ratio_portfolio = 1.
         error = 1.
         ratios = self.ratio_generator.send(rates)
         if ratios is not None:
@@ -93,7 +96,11 @@ class Balancing(Investor):
             for i, each_ratio in enumerate(ratios):
                 self.amounts[i] *= each_ratio
 
-        return {"error": error, "amount": sum(self.amounts)}
+        return {
+            "error": error,
+            "amount": sum(self.amounts),
+            "ratio_portfolio": ratio_portfolio,
+        }
 
 
 class TraderDistribution(Investor):
@@ -128,10 +135,12 @@ class TraderDistribution(Investor):
         rates = Investor.get_rates(snapshot)
         ratios = self.generate_ratios.send(rates)
 
+        ratio_portfolio = 1.
         error = 1.
         if ratios is not None:
             ratio_market = sum(ratios) / self.no_assets
-            error = float(ratio_market >= ratios[self.asset_current])
+            ratio_portfolio = ratios[self.asset_current]
+            error = float(ratio_market >= ratio_portfolio)
 
             asset_target_last = self._get_target(ratios)
 
@@ -146,7 +155,11 @@ class TraderDistribution(Investor):
             self.amount *= ratios[self.asset_current]
 
         self.iterations += 1
-        return {"error": error, "amount": self.amount}
+        return {
+            "error": error,
+            "amount": self.amount,
+            "ratio_portfolio": ratio_portfolio,
+        }
 
 
 class InvestorSupervised(Investor):
@@ -205,7 +218,8 @@ class TraderApproximation(InvestorSupervised):
         _, ratios_last, ratios = example
 
         ratio_market = sum(ratios) / self.no_assets
-        error = float(ratio_market >= ratios[self.asset_current])
+        ratio_portfolio = ratios[self.asset_current]
+        error = float(ratio_market >= ratio_portfolio)
 
         self._learn(ratios_last, ratios)
 
@@ -218,21 +232,46 @@ class TraderApproximation(InvestorSupervised):
 
         self.iteration += 1
 
-        return {"error": error, "amount": self.amount_current}
+        return {
+            "error": error,
+            "amount": self.amount_current,
+            "ratio_portfolio": ratio_portfolio,
+        }
 
 
 class ExperimentMarket(Experiment):
     def __init__(self, investors: Sequence[Investor], no_assets: int, delay: int = 0, visualize: bool = True):
         super().__init__(investors, delay)
-        self.graph = None
+        self.graphs = []
+        self.generate_ratio = generate_ratios_send(no_assets)
+        next(self.generate_ratio)
+
         if visualize:
-            names_graphs_amounts = [f"{str(each_approximation):s} amount" for each_approximation in investors]
-            names_graphs_errors = [f"{str(each_approximation):s} error" for each_approximation in investors]
-            name_market_average = ["market"]
-            self.graph = MovingGraph(
-                "error", names_graphs_errors, "amount", names_graphs_amounts + name_market_average, 20,
-                moving_average_primary=False, moving_average_secondary=True, limits_primary=(-.1, 1.1)
+            fig, (axes_correct_incorrect, axes_error_amount) = pyplot.subplots(nrows=2, ncols=1, sharex="all")
+
+            names_graphs_ratio_best_correct = [f"{str(each_application):s} best correct" for each_application in investors]
+            names_graphs_ratio_best_incorrect = [f"{str(each_application):s} best incorrect" for each_application in investors]
+            self.graphs.append(
+                MovingGraph(
+                    axes_correct_incorrect,
+                    "best ratio", names_graphs_ratio_best_correct + names_graphs_ratio_best_incorrect,
+                    "best ratio incorrect", [], 20,
+                    moving_average_primary=False, moving_average_secondary=False,
+                )
             )
+
+            names_errors = [f"{str(each_application):s} error" for each_application in investors]
+            names_amounts = [f"{str(each_application):s} amount" for each_application in investors] + ["market"]
+            self.graphs.append(
+                MovingGraph(
+                    axes_error_amount,
+                    "error", names_errors,
+                    "amount", names_amounts, 20,
+                    moving_average_primary=False, moving_average_secondary=True,
+                    limits_primary=(-.1, 1.1),
+                )
+            )
+
         self.no_assets = no_assets
         self.initial = -1.
 
@@ -247,18 +286,27 @@ class ExperimentMarket(Experiment):
         yield from generator_snapshots
 
     def _postprocess_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
-        if self.graph is not None:
-            timestamp = Investor.get_timestamp(snapshot)
-            rates = Investor.get_rates(snapshot)
+        timestamp = Investor.get_timestamp(snapshot)
+        dt = datetime.datetime.utcfromtimestamp(timestamp // 1000)
 
-            rate_average = sum(rates) / self.no_assets
-            if self.initial < 0.:
-                self.initial = 1. / rate_average
+        # graph 0
+        rates = Investor.get_rates(snapshot)
+        ratio = self.generate_ratio.send(rates)
+        if ratio is None:
+            ratio = tuple(1. for _ in range(self.no_assets))
+        ratio_best = max(ratio)
+        ratios_best_correct = tuple(ratio_best if each_result["error"] < .5 else each_result["ratio_portfolio"] for each_result in results)
+        ratios_best_incorrect = tuple(ratio_best if each_result["error"] >= .5 else each_result["ratio_portfolio"] for each_result in results)
+        self.graphs[0].add_snapshot(dt, ratios_best_correct + ratios_best_incorrect, [])
 
-            errors = tuple(each_result["error"] for each_result in results)
-            amounts = tuple(each_result["amount"] for each_result in results)
-            dt = datetime.datetime.utcfromtimestamp(timestamp // 1000)
-            self.graph.add_snapshot(dt, errors, amounts + (self.initial * rate_average,))
+        # graph 1
+        rate_average = sum(rates) / self.no_assets
+        if self.initial < 0.:
+            self.initial = 1. / rate_average
+
+        errors = tuple(each_result["error"] for each_result in results)
+        amounts = tuple(each_result["amount"] for each_result in results)
+        self.graphs[1].add_snapshot(dt, errors, amounts + (self.initial * rate_average,))
 
         if Timer.time_passed(1000):
             for each_investor in self.investors:    # type: Investor

@@ -3,6 +3,7 @@ import time
 from typing import Sequence, Optional, Tuple
 
 from matplotlib import pyplot, dates
+from matplotlib.axes import Axes
 from matplotlib.axis import Axis
 from matplotlib.ticker import MaxNLocator
 
@@ -11,6 +12,7 @@ from source.tools.functions import smear
 
 class MovingGraph:
     def __init__(self,
+                 axis_subplot: Axes,
                  name_axis_primary: str,
                  names_plots_primary: Sequence[str],
                  name_axis_secondary: str,
@@ -44,7 +46,8 @@ class MovingGraph:
         self.limits_primary = limits_primary
         self.limits_secondary = limits_secondary
 
-        self.fig, self.ax_primary = pyplot.subplots()
+        # self.fig, self.ax_primary = pyplot.subplots()
+        self.ax_primary = axis_subplot
         self.ax_secondary = self.ax_primary.twinx()
 
         self.name_axis_primary = name_axis_primary
@@ -120,14 +123,15 @@ class MovingGraph:
             self.ax_secondary.plot(self.time_range, each_plot, label=f"{each_name:s}", alpha=.2)
 
         if self.limits_primary:
-            self.ax_primary.set_ylim(self.limits_primary)
+            self.ax_primary.set_ylim(ymin=min(self.limits_primary), ymax=max(self.limits_primary))
         else:
             self._set_limits(self.ax_primary, self.plots_primary)
 
-        if self.limits_secondary:
-            self.ax_secondary.set_ylim(self.limits_secondary)
-        else:
-            self._set_limits(self.ax_secondary, self.plots_secondary)
+        if 0 < len(self.plots_secondary):
+            if self.limits_secondary:
+                self.ax_secondary.set_ylim(self.limits_secondary)
+            else:
+                self._set_limits(self.ax_secondary, self.plots_secondary)
 
         self.add_h_line(.5, color="black", lw=1)
 
