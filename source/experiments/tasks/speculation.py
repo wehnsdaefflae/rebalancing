@@ -253,12 +253,12 @@ class ExperimentMarket(Experiment):
 
             subplot_ratios = (
                 "ratios",
-                tuple(f"{str(each_application):s}" for each_application in investors) + ("minimum", "market", "maximum"),
+                tuple(f"{str(each_application):s}" for each_application in investors),  # + ("market", "minimum", "maximum"),
                 False,
                 None,
             )
 
-            self.graph = MovingGraph((subplot_amounts, subplot_ratios), 20)
+            self.graph = MovingGraph((subplot_amounts, subplot_ratios), 100)
 
         self.generate_ratio = generate_ratios_send(no_assets)
         next(self.generate_ratio)
@@ -293,7 +293,7 @@ class ExperimentMarket(Experiment):
         self.amount_initial_market *= ratio_market
 
         # ratio points
-        points_ratios = {f"{str(each_application):s}": each_result["ratio_portfolio"] for each_application, each_result in zip(self.investors, results)}
+        points_ratios = {f"{str(each_application):s}": each_result["ratio_portfolio"] / ratio_market for each_application, each_result in zip(self.investors, results)}
         points_ratios["market"] = ratio_market
         points_ratios["minimum"] = min(ratio)
         points_ratios["maximum"] = max(ratio)

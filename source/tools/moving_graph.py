@@ -76,6 +76,8 @@ class MovingGraph:
         axis_subplot.set_xlabel("time")
         axis_subplot.set_ylabel(self.names_axes[index_subplot])
 
+        axis_subplot.ticklabel_format(useOffset=False)
+
         axis_subplot.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
         axis_subplot.xaxis.set_major_locator(MaxNLocator(10))
 
