@@ -242,38 +242,29 @@ class TraderApproximation(InvestorSupervised):
 class ExperimentMarket(Experiment):
     def __init__(self, investors: Sequence[Investor], no_assets: int, delay: int = 0, visualize: bool = True):
         super().__init__(investors, delay)
-        self.graphs = []
+        self.graph = None
+        if visualize:
+            subplot_amounts = (
+                "amount",
+                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),
+                True,
+                None,
+            )
+
+            subplot_ratios = (
+                "ratios",
+                tuple(f"{str(each_application):s}" for each_application in investors) + ("minimum", "market", "maximum"),
+                False,
+                None,
+            )
+
+            self.graph = MovingGraph((subplot_amounts, subplot_ratios), 20)
+
         self.generate_ratio = generate_ratios_send(no_assets)
         next(self.generate_ratio)
 
-        if visualize:
-            fig, (axes_correct_incorrect, axes_error_amount) = pyplot.subplots(nrows=2, ncols=1, sharex="all")
-
-            names_graphs_ratio_best_correct = [f"{str(each_application):s} best correct" for each_application in investors]
-            names_graphs_ratio_best_incorrect = [f"{str(each_application):s} best incorrect" for each_application in investors]
-            self.graphs.append(
-                MovingGraph(
-                    axes_correct_incorrect,
-                    "best ratio", names_graphs_ratio_best_correct + names_graphs_ratio_best_incorrect,
-                    "best ratio incorrect", [], 20,
-                    moving_average_primary=False, moving_average_secondary=False,
-                )
-            )
-
-            names_errors = [f"{str(each_application):s} error" for each_application in investors]
-            names_amounts = [f"{str(each_application):s} amount" for each_application in investors] + ["market"]
-            self.graphs.append(
-                MovingGraph(
-                    axes_error_amount,
-                    "error", names_errors,
-                    "amount", names_amounts, 20,
-                    moving_average_primary=False, moving_average_secondary=True,
-                    limits_primary=(-.1, 1.1),
-                )
-            )
-
         self.no_assets = no_assets
-        self.initial = -1.
+        self.amount_initial_market = 1.
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         pairs = get_pairs_from_filesystem()
@@ -286,27 +277,28 @@ class ExperimentMarket(Experiment):
         yield from generator_snapshots
 
     def _postprocess_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
+        assert len(results) == len(self.investors)
         timestamp = Investor.get_timestamp(snapshot)
         dt = datetime.datetime.utcfromtimestamp(timestamp // 1000)
 
-        # graph 0
         rates = Investor.get_rates(snapshot)
         ratio = self.generate_ratio.send(rates)
         if ratio is None:
             ratio = tuple(1. for _ in range(self.no_assets))
-        ratio_best = max(ratio)
-        ratios_best_correct = tuple(ratio_best if each_result["error"] < .5 else each_result["ratio_portfolio"] for each_result in results)
-        ratios_best_incorrect = tuple(ratio_best if each_result["error"] >= .5 else each_result["ratio_portfolio"] for each_result in results)
-        self.graphs[0].add_snapshot(dt, ratios_best_correct + ratios_best_incorrect, [])
+        ratio_market = sum(ratio) / self.no_assets
 
-        # graph 1
-        rate_average = sum(rates) / self.no_assets
-        if self.initial < 0.:
-            self.initial = 1. / rate_average
+        # amount points
+        points_amounts = {f"{str(each_application):s}": each_result["amount"] for each_application, each_result in zip(self.investors, results)}
+        points_amounts["market"] = self.amount_initial_market
+        self.amount_initial_market *= ratio_market
 
-        errors = tuple(each_result["error"] for each_result in results)
-        amounts = tuple(each_result["amount"] for each_result in results)
-        self.graphs[1].add_snapshot(dt, errors, amounts + (self.initial * rate_average,))
+        # ratio points
+        points_ratios = {f"{str(each_application):s}": each_result["ratio_portfolio"] for each_application, each_result in zip(self.investors, results)}
+        points_ratios["market"] = ratio_market
+        points_ratios["minimum"] = min(ratio)
+        points_ratios["maximum"] = max(ratio)
+
+        self.graph.add_snapshot(dt, (points_amounts, points_ratios))
 
         if Timer.time_passed(1000):
             for each_investor in self.investors:    # type: Investor

@@ -61,7 +61,7 @@ def redistribute_assets(assets, rates, ratios, buffer_cur, trading):
             continue
         elif 0. >= asset_rate:
             ratios[each_asset] = 0.
-            s = sum(ratios.values())
+            s = sum(ratios.values_current())
             for x in ratios:
                 ratios[x] = ratios.get(x, 0.) / s
             continue
@@ -94,7 +94,7 @@ def redistribute_assets(assets, rates, ratios, buffer_cur, trading):
 
 def rebalancing(generator, generator_parameters, ratios, buffer_cur, initial_assets, rebalancing_interval=500, trading_cost=.0025, duration=-1, plot="yes"):
     data_source = generator(**generator_parameters)
-    ratio_sum = sum(ratios.values())
+    ratio_sum = sum(ratios.values_current())
     ratios = {x: y / ratio_sum for x, y in ratios.items()}
 
     trading_inv = 1. + trading_cost
@@ -146,7 +146,7 @@ def rebalancing(generator, generator_parameters, ratios, buffer_cur, initial_ass
 
 
 def plot_strategy_comparison(time, hodl_values, values, v_lines, target_path=None):
-    max_value = max(sum(x[-1] for x in values.values()), sum(x[-1] for x in hodl_values.values()))
+    max_value = max(sum(x[-1] for x in values.values_current()), sum(x[-1] for x in hodl_values.values_current()))
 
     symbols = sorted(values.keys())
 

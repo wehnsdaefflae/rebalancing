@@ -1,148 +1,109 @@
 import datetime
 import time
-from typing import Sequence, Optional, Tuple
+from typing import Sequence, Optional, Tuple, Dict
 
 from matplotlib import pyplot, dates
-from matplotlib.axes import Axes
-from matplotlib.axis import Axis
 from matplotlib.ticker import MaxNLocator
 
 from source.tools.functions import smear
 
+NAME_Y = str
+NAMES_PLOTS = Sequence[str]
+MOVING_AVERAGE = Optional[bool]
+LIMITS = Optional[Tuple[float, float]]
+INFO_AXIS = Tuple[NAME_Y, NAMES_PLOTS, MOVING_AVERAGE, LIMITS]
+
 
 class MovingGraph:
     def __init__(self,
-                 axis_subplot: Axes,
-                 name_axis_primary: str,
-                 names_plots_primary: Sequence[str],
-                 name_axis_secondary: str,
-                 names_plots_secondary: Sequence[str],
+                 axes_info: Sequence[INFO_AXIS],
                  size_window: int,
-                 moving_average_primary: Optional[bool] = None,
-                 moving_average_secondary: Optional[bool] = None,
-                 interval_ms: int = 1000,
-                 limits_primary: Optional[Tuple[float, float]] = None,
-                 limits_secondary: Optional[Tuple[float, float]] = None):
-        assert 5000. >= interval_ms >= 0.
-        self.names_plots_primary = names_plots_primary
-        self.names_plots_secondary = names_plots_secondary
+                 interval_draw_ms: int = 1000,
+                 ):
+        assert 5000. >= interval_draw_ms >= 0.
+        no_subplots = len(axes_info)
+        self.fig, self.subplots = pyplot.subplots(nrows=no_subplots, ncols=1, sharex="all")
 
-        self.moving_average_primary = moving_average_primary
-        self.moving_average_secondary = moving_average_secondary
-        self.interval_ms = interval_ms
+        self.names_axes, self.names_plots, self.moving_averages, self.limits = zip(*axes_info)
 
-        self.no_plots_primary = len(names_plots_primary)
-        self.no_plots_secondary = len(names_plots_secondary)
-
-        self.time = None
-        self.values_primary = [0. for _ in names_plots_primary]
-        self.values_secondary = [0. for _ in names_plots_secondary]
-
-        self.time_range = []
-        self.plots_primary = tuple([] for _ in names_plots_primary)
-        self.plots_secondary = tuple([] for _ in names_plots_secondary)
-
+        self.interval_draw_ms = interval_draw_ms
         self.size_window = size_window
-        self.limits_primary = limits_primary
-        self.limits_secondary = limits_secondary
 
-        # self.fig, self.ax_primary = pyplot.subplots()
-        self.ax_primary = axis_subplot
-        self.ax_secondary = self.ax_primary.twinx()
+        self.no_axes = len(self.names_axes)
+        self.no_plots = tuple(len(names) for names in self.names_plots)
 
-        self.name_axis_primary = name_axis_primary
-        self.name_axis_secondary = name_axis_secondary
+        self.time_current = None
+        self.values_current = tuple({each_name: 0. for each_name in each_names_plot} for each_names_plot in self.names_plots)
 
-        self.iterations_primary_since_draw = 0
-        self.iterations_secondary_since_draw = 0
+        self.time_window = []
+        self.values_windows = tuple({each_name: [] for each_name in each_names_plot} for each_names_plot in self.names_plots)
 
+        self.iterations_since_draw = [0 for _ in self.names_axes]
         self.time_last = -1.
 
-    def add_h_line(self, y: float, color: str = "red", lw: int = 2, alpha: float = .2):
-        self.ax_primary.axhline(y, color=color, lw=lw, alpha=alpha)
+    def add_snapshot(self, now: datetime.datetime, points: Sequence[Dict[str, float]]):
+        assert len(points) == self.no_axes
 
-    def add_snapshot(self, now: datetime.datetime, points_primary: Sequence[float], points_secondary: Sequence[float]):
-        assert len(points_primary) == self.no_plots_primary
-        assert len(points_secondary) == self.no_plots_secondary
-
-        for i, (each_value, each_point) in enumerate(zip(self.values_primary, points_primary)):
-            if self.moving_average_primary is None:
-                self.values_primary[i] = each_point
+        self.time_current = now
+        for i, (value_current, limits, is_moving_average, points_axis) in enumerate(zip(self.values_current, self.limits, self.moving_averages, points)):
+            if is_moving_average is None:
+                for name_plot in value_current:
+                    value_current[name_plot] = points_axis[name_plot]
             else:
-                self.values_primary[i] = smear(each_value, each_point, self.iterations_primary_since_draw)
+                for name_plot, value_last in value_current.items():
+                    value_current[name_plot] = smear(value_last, points_axis[name_plot], self.iterations_since_draw[i])
 
-        for i, (each_value, each_point) in enumerate(zip(self.values_secondary, points_secondary)):
-            if self.moving_average_secondary is None:
-                self.values_secondary[i] = each_point
-            else:
-                self.values_secondary[i] = smear(each_value, each_point, self.iterations_secondary_since_draw)
-
-        self.time = now
-        self.iterations_primary_since_draw += 1
-        self.iterations_secondary_since_draw += 1
+            self.iterations_since_draw[i] += 1
 
         time_now = time.time() * 1000.
-        if self.time_last < 0. or time_now - self.time_last >= self.interval_ms or 0 >= self.interval_ms:
+        if self.time_last < 0. or time_now - self.time_last >= self.interval_draw_ms or 0 >= self.interval_draw_ms:
             self.draw()
             self.time_last = time_now
 
-    @staticmethod
-    def _set_limits(axis: Axis.axes, plots: Sequence[Sequence[float]]):
-        val_min = min(min(each_plot) for each_plot in plots)
-        val_max = max(max(each_plot) for each_plot in plots)
+    def _set_limits(self, index_subplot: int):
+        windows = self.values_windows[index_subplot]
+        val_min = min(min(each_plot) for each_plot in windows.values())
+        val_max = max(max(each_plot) for each_plot in windows.values())
         val_d = .2 * (val_max - val_min)
-        axis.set_ylim([val_min - val_d, val_max + val_d])
+
+        axis_subplot = self.subplots[index_subplot]
+        axis_subplot.set_ylim([val_min - val_d, val_max + val_d])
+
+    def _draw_subplot(self, index_subplot: int):
+        axis_subplot = self.subplots[index_subplot]
+        axis_subplot.clear()
+
+        axis_subplot.set_xlabel("time")
+        axis_subplot.set_ylabel(self.names_axes[index_subplot])
+
+        axis_subplot.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
+        axis_subplot.xaxis.set_major_locator(MaxNLocator(10))
+
+        lines = []
+        for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots[index_subplot], self.values_windows[index_subplot].values(), self.values_current[index_subplot].values())):
+            each_plot.append(each_value)
+            del(each_plot[:-self.size_window])
+            l, = axis_subplot.plot(self.time_window, each_plot, label=f"{each_name:s}")
+            lines.append(l)
+
+        if self.limits[index_subplot] is not None:
+            axis_subplot.set_ylim(ymin=min(self.limits[index_subplot]), ymax=max(self.limits[index_subplot]))
+        else:
+            self._set_limits(index_subplot)
+
+        pyplot.setp(axis_subplot.xaxis.get_majorticklabels(), rotation=90, ha="right", rotation_mode="anchor")
+
+        if self.moving_averages[index_subplot] is not None and self.moving_averages[index_subplot]:
+            self.iterations_since_draw[index_subplot] = 0
+
+        axis_subplot.legend(lines, tuple(each_line.get_label() for each_line in lines))
 
     def draw(self):
-        self.ax_primary.clear()
-        self.ax_secondary.clear()
+        self.time_window.append(self.time_current)
+        del(self.time_window[:-self.size_window])
 
-        self.ax_primary.set_xlabel("time")
-        self.ax_primary.set_ylabel(self.name_axis_primary)
-        self.ax_secondary.set_ylabel(self.name_axis_secondary)
+        for i in range(self.no_axes):
+            self._draw_subplot(i)
 
-        self.time_range.append(self.time)
-        del(self.time_range[:-self.size_window])
-
-        self.ax_primary.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
-        self.ax_primary.xaxis.set_major_locator(MaxNLocator(10))
-
-        self.ax_secondary.xaxis.set_major_formatter(dates.DateFormatter("%d.%m.%Y %H:%M"))
-        self.ax_secondary.xaxis.set_major_locator(MaxNLocator(10))
-
-        primary_lines = []
-        for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots_primary, self.plots_primary, self.values_primary)):
-            each_plot.append(each_value)
-            del(each_plot[:-self.size_window])
-            l, = self.ax_primary.plot(self.time_range, each_plot, label=f"{each_name:s}")
-            primary_lines.append(l)
-
-        for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots_secondary, self.plots_secondary, self.values_secondary)):
-            each_plot.append(each_value)
-            del(each_plot[:-self.size_window])
-            self.ax_secondary.plot(self.time_range, each_plot, label=f"{each_name:s}", alpha=.2)
-
-        if self.limits_primary:
-            self.ax_primary.set_ylim(ymin=min(self.limits_primary), ymax=max(self.limits_primary))
-        else:
-            self._set_limits(self.ax_primary, self.plots_primary)
-
-        if 0 < len(self.plots_secondary):
-            if self.limits_secondary:
-                self.ax_secondary.set_ylim(self.limits_secondary)
-            else:
-                self._set_limits(self.ax_secondary, self.plots_secondary)
-
-        self.add_h_line(.5, color="black", lw=1)
-
-        pyplot.setp(self.ax_primary.xaxis.get_majorticklabels(), rotation=90, ha="right", rotation_mode="anchor")
-
-        pyplot.legend(primary_lines, tuple(line.get_label() for line in primary_lines))
         pyplot.tight_layout()
         pyplot.pause(.05)
-
-        if self.moving_average_primary is not None and self.moving_average_primary:
-            self.iterations_primary_since_draw = 0
-
-        if self.moving_average_secondary is not None and self.moving_average_secondary:
-            self.iterations_secondary_since_draw = 0
