@@ -45,6 +45,9 @@ def trigonometry():
     t.start()
 
 
+# todo: implement reinforcement learning
+# todo: separate investor application and base class (determine portfolio ratio externally)
+
 # todo: make all applications persistable
 # todo: compare greedy with dynamic programming (no approximation! but "strategy" path: Sequence[int] )
 # todo: reinforcement discrete action approximation
