@@ -2,35 +2,31 @@ import datetime
 import random
 from typing import Sequence
 
-from matplotlib import pyplot
-
 from source.approximation.abstract import Approximation
-from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, EXAMPLE
+from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET_VALUE
 from source.data.generators.snapshots_binance import rates_binance_generator
-from source.experiments.tasks.abstract import Application, Experiment, RESULT
+from source.experiments.tasks.abstract import Application, Experiment, ACTION
 
 from source.tools.functions import generate_ratios_send, index_max, get_pairs_from_filesystem, smear
 from source.tools.moving_graph import MovingGraph
 from source.tools.timer import Timer
 
 
+DISTRIBUTION_VALUE_ASSET = Sequence[float]
+
+
 class Investor(Application):
-    def __init__(self, name: str, asset_initial: int = 0):
+    def __init__(self, name: str, no_assets: int, fee: float):
         super().__init__(name)
         self.trades = 0
-        self.asset_current = asset_initial
+        self.no_assets = no_assets
+        self.after_fee = 1. - fee
 
-    @staticmethod
-    def is_valid_snapshot(snapshot: SNAPSHOT) -> bool:
-        return "close_time" in snapshot and any(x.startswith("rate_") for x in snapshot)
+    def learn(self, snapshot: SNAPSHOT):
+        raise NotImplementedError()
 
-    @staticmethod
-    def is_valid_result(result: RESULT) -> bool:
-        return "error" in result and "amount" in result and "ratio_portfolio" in result
-
-    @staticmethod
-    def get_timestamp(snapshot: SNAPSHOT) -> int:
-        return snapshot["close_time"]
+    def act(self) -> DISTRIBUTION_VALUE_ASSET:
+        raise NotImplementedError()
 
     @staticmethod
     def get_rates(snapshot: SNAPSHOT) -> Sequence[float]:
@@ -41,81 +37,58 @@ class Investor(Application):
         )
         return rates
 
-    def get_trades(self) -> int:
-        return self.trades
-
-    def reset_trades(self):
-        self.trades = 0
-
-    def increment_trades(self, by: int = 1):
-        self.trades = self.trades + by
-
-    def cycle(self, snapshot: SNAPSHOT, act: bool = True) -> RESULT:
-        raise NotImplementedError()
+    @staticmethod
+    def get_ratios(snapshot: SNAPSHOT) -> Sequence[float]:
+        ratios = tuple(
+            snapshot[x]
+            for x in sorted(snapshot.keys())
+            if x.startswith("ratio_")
+        )
+        return ratios
+    
+    @staticmethod
+    def get_amounts(snapshot: SNAPSHOT) -> Sequence[float]:
+        amounts = tuple(
+            snapshot[x]
+            for x in sorted(snapshot.keys())
+            if x.startswith("amount_")
+        )
+        return amounts
 
 
 class Balancing(Investor):
-    def __init__(self, name: str, no_assets: int, minutes_to_balance: int, fee: float):
-        super().__init__(name)
-        self.no_assets = no_assets
-        assert minutes_to_balance >= 0
-        self.minutes_to_balance = minutes_to_balance
-        self.after_fee = 1. - fee
+    def __init__(self, name: str, no_assets: int, iterations_to_balance: int, fee: float):
+        super().__init__(name, no_assets, fee)
+        assert iterations_to_balance >= 0
+        self.iterations_to_balance = iterations_to_balance
+        self.iterations_since_balance = 0
+        self.rates = tuple(1. for _ in range(no_assets))
+        self.amount_assets = tuple(0. for _ in range(no_assets))
 
-        self.timestamp_balancing_last = -1
-
-        self.ratio_generator = generate_ratios_send(no_assets)
-        next(self.ratio_generator)
-
-        self.amounts = [float(i == self.asset_current) for i in range(no_assets)]
-
-    def _rebalance(self):
+    def _rebalance(self) -> DISTRIBUTION_VALUE_ASSET:
         print("rebalancing...")
-        s = sum(self.amounts)
-        amount_each = s / self.no_assets
-        for i in range(self.no_assets):
-            self.amounts[i] = amount_each * self.after_fee
-        self.increment_trades(by=self.no_assets)
+        value_after_fee = sum(r * a for r, a in zip(self.rates, self.amount_assets)) * self.after_fee
+        value_individual = value_after_fee / self.no_assets
+        return tuple(value_individual for _ in range(self.no_assets))
 
-    def cycle(self, snapshot: SNAPSHOT, act: bool = True) -> RESULT:
-        timestamp = Investor.get_timestamp(snapshot)
-        rates = Investor.get_rates(snapshot)
+    def learn(self, snapshot: SNAPSHOT):
+        self.rates = Investor.get_rates(snapshot)
+        self.amount_assets = Investor.get_amounts(snapshot)
 
-        ratio_portfolio = 1.
-        error = 1.
-        ratios = self.ratio_generator.send(rates)
-        if ratios is not None:
-            ratio_market = sum(ratios) / self.no_assets
-            ratio_portfolio = sum(r * a for r, a in zip(ratios, self.amounts)) / sum(self.amounts)
-            error = float(ratio_market >= ratio_portfolio)
-
-            if act and 0 < self.minutes_to_balance and (self.timestamp_balancing_last < 0 or (timestamp - self.timestamp_balancing_last) // 60000 >= self.minutes_to_balance):
-                self._rebalance()
-                self.timestamp_balancing_last = timestamp
-
-            for i, each_ratio in enumerate(ratios):
-                self.amounts[i] *= each_ratio
-
-        return {
-            "error": error,
-            "amount": sum(self.amounts),
-            "ratio_portfolio": ratio_portfolio,
-        }
+    def act(self) -> DISTRIBUTION_VALUE_ASSET:
+        self.iterations_since_balance += 1
+        if self.iterations_since_balance % self.iterations_to_balance == 0:
+            self.iterations_since_balance = 0
+            return self._rebalance()
+        return tuple(-1. for _ in range(self.no_assets))
 
 
 class TraderDistribution(Investor):
     def __init__(self, name: str, no_assets: int, fee: float, trail: int = 100):
-        super().__init__(name)
-        self.no_assets = no_assets
-        self.after_fee = 1. - fee
+        super().__init__(name, no_assets, fee)
         self.frequencies_model = [1. for _ in range(no_assets)]
         self.frequencies_current = [0. for _ in range(no_assets)]
         self.trail = trail
-        self.iterations = 0
-        self.generate_ratios = generate_ratios_send(no_assets)
-        next(self.generate_ratios)
-
-        self.amount = 1.
 
     def _update_distributions(self, asset_target: int):
         for i, v in enumerate(self.frequencies_model):
@@ -131,128 +104,93 @@ class TraderDistribution(Investor):
             return asset_target
         return -1
 
-    def cycle(self, snapshot: SNAPSHOT, act: bool = True) -> RESULT:
-        rates = Investor.get_rates(snapshot)
-        ratios = self.generate_ratios.send(rates)
+    def learn(self, snapshot: SNAPSHOT):
+        ratios = Investor.get_ratios(snapshot)
+        asset_target_last = self._get_target(ratios)
+        self._update_distributions(asset_target_last)
 
-        ratio_portfolio = 1.
-        error = 1.
-        if ratios is not None:
-            ratio_market = sum(ratios) / self.no_assets
-            ratio_portfolio = ratios[self.asset_current]
-            error = float(ratio_market >= ratio_portfolio)
-
-            asset_target_last = self._get_target(ratios)
-
-            self._update_distributions(asset_target_last)
-            asset_output, difference = index_max(f_m - f_c for f_m, f_c in zip(self.frequencies_model, self.frequencies_current))
-
-            if asset_output != self.asset_current and act:
-                self.amount *= self.after_fee
-                self.asset_current = asset_output
-                self.increment_trades()
-
-            self.amount *= ratios[self.asset_current]
-
-        self.iterations += 1
-        return {
-            "error": error,
-            "amount": self.amount,
-            "ratio_portfolio": ratio_portfolio,
-        }
+    def act(self) -> DISTRIBUTION_VALUE_ASSET:
+        asset_output, difference = index_max(f_m - f_c for f_m, f_c in zip(self.frequencies_model, self.frequencies_current))
+        return tuple(float(i == asset_output) for i in range(self.no_assets))
 
 
 class InvestorSupervised(Investor):
-    def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
+    def __init__(self, name: str, no_assets: int, fee: float):
+        super().__init__(name, no_assets, fee)
+        self.input = tuple(1. for _ in range(no_assets))
+
+    def _get_input(self, snapshot: SNAPSHOT) -> INPUT_VALUE:
         raise NotImplementedError()
 
-    def _cycle(self, example: EXAMPLE, act: bool) -> RESULT:
-        # includes testing, learning, and applying
+    def _get_target_last(self, snapshot: SNAPSHOT) -> TARGET_VALUE:
         raise NotImplementedError()
 
-    def cycle(self, snapshot: SNAPSHOT, act: bool = True) -> RESULT:
-        example = self._make_example(snapshot)
-        return self._cycle(example, act)
+    def _test(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+        raise NotImplementedError()
+
+    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+        raise NotImplementedError()
+
+    def _act(self, input_values: INPUT_VALUE) -> DISTRIBUTION_VALUE_ASSET:
+        raise NotImplementedError()
+
+    def learn(self, snapshot: SNAPSHOT):
+        target_last = self._get_target_last(snapshot)
+        self._test(self.input, target_last)
+        self._learn(self.input, target_last)
+        self.input = self._get_input(snapshot)
+
+    def act(self) -> DISTRIBUTION_VALUE_ASSET:
+        return self._act(self.input)
 
 
 class TraderApproximation(InvestorSupervised):
-    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, fees: float, certainty: float = 1.):
-        super().__init__(name)
+    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, fee: float, certainty: float = 1.):
+        super().__init__(name, no_assets, fee)
         self.approximation = approximation
-        self.no_assets = no_assets
-        self.amount_current = 1.
-        self.after_fee = 1. - fees
         self.certainty = certainty
+        self.ratios = tuple(1. for _ in range(no_assets))
+        self.iterations = 0
 
-        self.ratio_generator = generate_ratios_send(no_assets)
-        next(self.ratio_generator)
+    def _get_input(self, snapshot: SNAPSHOT) -> INPUT_VALUE:
+        return self.ratios
 
-        self.ratios_last = None
-        self.iteration = 0
+    def _get_target_last(self, snapshot: SNAPSHOT) -> TARGET_VALUE:
+        self.ratios = Investor.get_ratios(snapshot) 
+        return self.ratios
 
-    def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
-        timestamp = Investor.get_timestamp(snapshot)
-        rates = Investor.get_rates(snapshot)
+    def _test(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+        pass
 
-        target_values = self.ratio_generator.send(rates)
-        if target_values is None:
-            target_values = tuple(1. for _ in rates)
+    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+        self.approximation.fit(input_value, target_value, self.iterations)
 
-        if self.ratios_last is None:
-            self.ratios_last = tuple(1. for _ in rates)
-
-        input_values = self.ratios_last
-        self.ratios_last = target_values
-
-        return timestamp, input_values, target_values
-
-    def _learn(self, input_values: Sequence[float], target_values: Sequence[float]):
-        self.approximation.fit(input_values, target_values, self.iteration)
-
-    def _invest(self, asset: int):
-        self.amount_current *= self.after_fee
-        self.asset_current = asset
-        self.increment_trades()
-
-    def _cycle(self, example: EXAMPLE, act: bool) -> RESULT:
-        _, ratios_last, ratios = example
-
-        ratio_market = sum(ratios) / self.no_assets
-        ratio_portfolio = ratios[self.asset_current]
-        error = float(ratio_market >= ratio_portfolio)
-
-        self._learn(ratios_last, ratios)
-
-        output_value = self.approximation.output(ratios)
+    def _act(self, input_values: INPUT_VALUE) -> DISTRIBUTION_VALUE_ASSET:
+        output_value = self.approximation.output(input_values)
         asset_output, amount_output = index_max(output_value)
-        if act and asset_output != self.asset_current and self.certainty / self.after_fee < amount_output:
-            self._invest(asset_output)
-
-        self.amount_current *= ratios[self.asset_current]
-
-        self.iteration += 1
-
-        return {
-            "error": error,
-            "amount": self.amount_current,
-            "ratio_portfolio": ratio_portfolio,
-        }
+        if self.certainty / self.after_fee < amount_output:
+            return tuple(float(asset_output == i) for i in range(self.no_assets))
+        return tuple(-1. for _ in range(self.no_assets))
 
 
 class ExperimentMarket(Experiment):
     def __init__(self, investors: Sequence[Investor], no_assets: int, delay: int = 0, visualize: bool = True):
         super().__init__(investors, delay)
+        self.values = [1. for _ in investors]
+        self.qualities = [1. for _ in investors]
+        self.amounts = tuple([0. for _ in range(no_assets)] for _ in investors)
+
         self.graph = None
         if visualize:
             subplot_amounts = (
-                "amount",
+                "value",
                 tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),
                 True,
                 None,
             )
 
             subplot_ratios = (
-                "ratios",
+                "quality",
                 tuple(f"{str(each_application):s}" for each_application in investors),  # + ("market", "minimum", "maximum"),
                 False,
                 None,
@@ -266,6 +204,12 @@ class ExperimentMarket(Experiment):
         self.no_assets = no_assets
         self.amount_initial_market = 1.
 
+    def _redistribute(self, index_investor: int, distribution: DISTRIBUTION_VALUE_ASSET):
+        value_total = sum
+    def _perform(self, index_application: int, action: ACTION):
+        investor = self.applications[index_application]
+        distribution_value_assets = investor.act()
+
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         pairs = get_pairs_from_filesystem()
         pairs = random.sample(pairs, self.no_assets)
@@ -276,8 +220,21 @@ class ExperimentMarket(Experiment):
         generator_snapshots = rates_binance_generator(pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
         yield from generator_snapshots
 
-    def _postprocess_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
-        assert len(results) == len(self.investors)
+    def get_value(self, amount_assets: Sequence[float], rates: Sequence[float]) -> float:
+        return sum(r * a for r, a in zip(rates, amount_assets))
+
+    def update_measures(self):
+        each_investor: Investor
+        values_new = tuple(each_investor.get_value() for each_investor in self.applications)
+
+        for i, (v_n, v_o) in enumerate(zip(values_new, self.values)):
+            self.qualities[i] = v_n / v_o
+
+        for i, v in enumerate(values_new):
+            self.values[i] = v
+
+    def _process_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
+        assert len(results) == len(self.applications)
         timestamp = Investor.get_timestamp(snapshot)
         dt = datetime.datetime.utcfromtimestamp(timestamp // 1000)
 
@@ -288,12 +245,12 @@ class ExperimentMarket(Experiment):
         ratio_market = sum(ratio) / self.no_assets
 
         # amount points
-        points_amounts = {f"{str(each_application):s}": each_result["amount"] for each_application, each_result in zip(self.investors, results)}
+        points_amounts = {f"{str(each_application):s}": each_result["value"] for each_application, each_result in zip(self.applications, results)}
         points_amounts["market"] = self.amount_initial_market
         self.amount_initial_market *= ratio_market
 
         # ratio points
-        points_ratios = {f"{str(each_application):s}": each_result["ratio_portfolio"] / ratio_market for each_application, each_result in zip(self.investors, results)}
+        points_ratios = {f"{str(each_application):s}": each_result["quality"] / ratio_market for each_application, each_result in zip(self.applications, results)}
         points_ratios["market"] = ratio_market
         points_ratios["minimum"] = min(ratio)
         points_ratios["maximum"] = max(ratio)
@@ -301,6 +258,6 @@ class ExperimentMarket(Experiment):
         self.graph.add_snapshot(dt, (points_amounts, points_ratios))
 
         if Timer.time_passed(1000):
-            for each_investor in self.investors:    # type: Investor
+            for each_investor in self.applications:    # type: Investor
                 print(f"no. trades: {each_investor.get_trades(): 5d} for {str(each_investor):s}")
                 each_investor.reset_trades()

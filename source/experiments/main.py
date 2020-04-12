@@ -32,7 +32,7 @@ def speculation():
         #TraderDistribution("distribution", no_assets_market, fee)
     )
 
-    m = ExperimentMarket(applications, no_assets_market, delay=60 * 24)
+    m = ExperimentMarket(applications, no_assets_market)  # , delay=60 * 24)
     m.start()
 
 

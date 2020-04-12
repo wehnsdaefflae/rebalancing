@@ -62,7 +62,7 @@ class ExperimentTrigonometry(Experiment):
             }
             iteration += 1
 
-    def _postprocess_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
+    def _process_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
         assert len(results) == 1
         result = results[0]
         index_time, input_values, target_values = SineToCosine.make_example(snapshot)
