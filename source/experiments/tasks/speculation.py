@@ -206,6 +206,8 @@ class ExperimentMarket(Experiment):
 
     def _redistribute(self, index_investor: int, distribution: DISTRIBUTION_VALUE_ASSET):
         value_total = sum
+        # todo: here
+
     def _perform(self, index_application: int, action: ACTION):
         investor = self.applications[index_application]
         distribution_value_assets = investor.act()
