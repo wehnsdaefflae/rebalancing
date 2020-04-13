@@ -112,23 +112,23 @@ class TraderApproximation(Investor):
 
 
 class TraderFrequency(Investor):
-    def __init__(self, name: str, no_assets: int, fee: float, certainty_min: float, length_history: int = 1):
+    def __init__(self, name: str, no_assets: int, fee: float, certainty_min: float, length_history: int = 1, pseudo_count=0):
         super().__init__(name, no_assets, fee)
         self.frequencies = dict()
         self.certainty_min = certainty_min
         self.length_history = length_history
         self.history = [-1 for _ in range(length_history)]
         self.rate_last = None
-        self.normalization = z_score_normalized_generator()
-        next(self.normalization)
+        self.pseudo_count = pseudo_count
 
     def update_frequency(self, history: Tuple[int], target: int):
         sub_dict = self.frequencies.get(history)
         if sub_dict is None:
-            sub_dict = {target: 1}
+            sub_dict = dict()
             self.frequencies[history] = sub_dict
-        else:
-            sub_dict[target] = sub_dict.get(target, 0) + 1
+
+        for each_asset in range(self.no_assets):
+            sub_dict[each_asset] = smear(sub_dict.get(each_asset, 0.),  float(target == each_asset), self.pseudo_count)
 
     def _get_target(self, history: Tuple[int]) -> Tuple[int, float]:
         sub_dict = self.frequencies.get(history)
@@ -207,7 +207,8 @@ class ExperimentMarket(Experiment):
         self.rates_last = None
         self.rates = None
 
-        self.datetime = None
+        self.timestamp = -1
+        self.timestamp_last = -1
 
         self.graph = None
         if visualize:
@@ -302,9 +303,16 @@ class ExperimentMarket(Experiment):
             self.values_last = values
 
         if Timer.time_passed(1000):
+            if self.timestamp_last >= 0:
+                interval = self.timestamp - self.timestamp_last
+                interval_dt = datetime.timedelta(milliseconds=interval)
+                print(f"time interval {str(interval_dt):s}")
+
             for index_investor, each_investor in enumerate(self.applications):
                 print(f"no. trades: {self.no_trades[index_investor]: 5d} for {str(each_investor):s}")
                 self.no_trades[index_investor] = 0
+
+            self.timestamp_last = self.timestamp
 
     def __evaluate(self, index_investor: int) -> float:
         amount_assets = self.amounts_assets[index_investor]
