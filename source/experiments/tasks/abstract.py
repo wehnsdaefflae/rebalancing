@@ -26,8 +26,8 @@ class Experiment:
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         raise NotImplementedError()
 
-    def _pre_process(self, snapshot: SNAPSHOT):
-        pass
+    def _pre_process_skip(self, snapshot: SNAPSHOT) -> bool:
+        return False
 
     def _get_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
         raise NotImplementedError()
@@ -43,20 +43,22 @@ class Experiment:
 
         generator_snapshots = self._snapshots()
         for snapshot in generator_snapshots:
-            self._pre_process(snapshot)
+            skip = self._pre_process_skip(snapshot)
 
-            input_value, target_value = self._get_example(snapshot)
+            if not skip:
+                input_value, target_value = self._get_example(snapshot)
 
-            if self.iteration >= self.delay:
-                for index_application, each_application in enumerate(self.applications):
-                    if 0 < self.iteration and not (input_value_last is None or target_value is None):
-                        each_application.learn(input_value_last, target_value)
+                if self.iteration >= self.delay:
+                    for index_application, each_application in enumerate(self.applications):
+                        if 0 < self.iteration and not (input_value_last is None or target_value is None):
+                            each_application.learn(input_value_last, target_value)
 
-                    if input_value is not None:
-                        action = each_application.act(input_value)
-                        self._perform(index_application, action)
+                        if input_value is not None:
+                            action = each_application.act(input_value)
+                            self._perform(index_application, action)
 
-            input_value_last = input_value
+                input_value_last = input_value
 
             self._post_process(snapshot)
+
             self.iteration += 1
