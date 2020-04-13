@@ -2,7 +2,7 @@ import random
 
 from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression
 from source.experiments.tasks.speculation import TraderApproximation, ExperimentMarket, Balancing, TraderDistribution
-from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
+# from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
 
 """
 experiments provides snapshots,
@@ -32,7 +32,7 @@ def speculation():
         #TraderDistribution("distribution", no_assets_market, fee)
     )
 
-    m = ExperimentMarket(applications, no_assets_market)  # , delay=60 * 24)
+    m = ExperimentMarket(applications, no_assets_market, fee)  # , delay=60 * 24)
     m.start()
 
 
@@ -40,9 +40,9 @@ def trigonometry():
     approximation = MultivariatePolynomialFailureRegression(1, 4, 1, .5)
     # approximation = MultivariatePolynomialRecurrentRegression(1, 4, 1)
     # approximation = MultivariatePolynomialRegression(1, 4, 1)
-    application = SineToCosine("non functional approximation", approximation)
-    t = ExperimentTrigonometry(application)
-    t.start()
+    #application = SineToCosine("non functional approximation", approximation)
+    #t = ExperimentTrigonometry(application)
+    #t.start()
 
 
 # todo: implement reinforcement learning

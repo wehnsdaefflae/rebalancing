@@ -5,7 +5,7 @@ from typing import Sequence
 
 from source.approximation.abstract import Approximation
 from source.data.abstract import EXAMPLE, SNAPSHOT, STREAM_SNAPSHOTS
-from source.experiments.tasks.abstract import Application, Experiment, RESULT
+from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.moving_graph import MovingGraph
 
 
@@ -62,7 +62,7 @@ class ExperimentTrigonometry(Experiment):
             }
             iteration += 1
 
-    def _process_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
+    def _post_process(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
         assert len(results) == 1
         result = results[0]
         index_time, input_values, target_values = SineToCosine.make_example(snapshot)

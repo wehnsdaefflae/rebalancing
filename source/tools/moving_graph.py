@@ -82,7 +82,9 @@ class MovingGraph:
         axis_subplot.xaxis.set_major_locator(MaxNLocator(10))
 
         lines = []
-        for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots[index_subplot], self.values_windows[index_subplot].values(), self.values_current[index_subplot].values())):
+        window_subplot = self.values_windows[index_subplot]
+        current_subplot = self.values_current[index_subplot]
+        for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots[index_subplot], window_subplot.values(), current_subplot.values())):
             each_plot.append(each_value)
             del(each_plot[:-self.size_window])
             l, = axis_subplot.plot(self.time_window, each_plot, label=f"{each_name:s}")

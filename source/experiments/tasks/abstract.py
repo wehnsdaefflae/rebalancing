@@ -1,9 +1,6 @@
 from typing import Sequence
 
-from source.data.abstract import STREAM_SNAPSHOTS, SNAPSHOT, TARGET_VALUE
-from source.experiments.tasks.speculation import Investor
-
-ACTION = Sequence[float]
+from source.data.abstract import STREAM_SNAPSHOTS, SNAPSHOT, TARGET_VALUE, INPUT_VALUE, EXAMPLE
 
 
 class Application:
@@ -13,10 +10,10 @@ class Application:
     def __str__(self) -> str:
         return self.name
 
-    def learn(self, snapshot: SNAPSHOT):
+    def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
         raise NotImplementedError()
 
-    def act(self) -> ACTION:
+    def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
         raise NotImplementedError()
 
 
@@ -24,30 +21,42 @@ class Experiment:
     def __init__(self, applications: Sequence[Application], delay: int):
         self.applications = applications
         self.delay = delay
-        self.iterations = 0
+        self.iteration = 0
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         raise NotImplementedError()
 
-    def _process_results(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
+    def _pre_process(self, snapshot: SNAPSHOT):
         pass
 
-    def _perform(self, index_application: int, action: ACTION):
+    def _get_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
         raise NotImplementedError()
 
+    def _perform(self, index_application: int, action: TARGET_VALUE):
+        raise NotImplementedError()
+
+    def _post_process(self, snapshot: SNAPSHOT):
+        pass
+
     def start(self):
+        input_value_last = None
+
         generator_snapshots = self._snapshots()
         for snapshot in generator_snapshots:
-            results = tuple(
-                each_application.learn(snapshot)
-                for each_application in self.applications
-            )
+            self._pre_process(snapshot)
 
-            if self.iterations >= self.delay:
-                each_application: Investor
-                for i, each_application in enumerate(self.applications):
-                    action = each_application.act()
-                    self._perform(i, action)
+            input_value, target_value = self._get_example(snapshot)
 
-            self._process_results(snapshot, results)
-            self.iterations += 1
+            if self.iteration >= self.delay:
+                for index_application, each_application in enumerate(self.applications):
+                    if 0 < self.iteration and not (input_value_last is None or target_value is None):
+                        each_application.learn(input_value_last, target_value)
+
+                    if input_value is not None:
+                        action = each_application.act(input_value)
+                        self._perform(index_application, action)
+
+            input_value_last = input_value
+
+            self._post_process(snapshot)
+            self.iteration += 1
