@@ -1,6 +1,6 @@
 import datetime
 import random
-from typing import Sequence
+from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
 from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET_VALUE, EXAMPLE
@@ -99,18 +99,71 @@ class TraderApproximation(Investor):
         self.iterations = 0
 
     def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
-        self.approximation.fit(input_value, target_value, self.iterations)
+        target_asset, _ = index_max(target_value)
+        target_amplified = tuple(float(i == target_asset) for i in range(self.no_assets))
+        self.approximation.fit(input_value, target_amplified, self.iterations)
 
     def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
         output_value = self.approximation.output(input_value)
         asset_output, amount_output = index_max(output_value)
-        if self.certainty / self.after_fee < amount_output:
+        if self.certainty < amount_output:
             return tuple(float(asset_output == i) for i in range(self.no_assets))
         return tuple(-1. for _ in range(self.no_assets))
 
 
 class TraderFrequency(Investor):
-    pass
+    def __init__(self, name: str, no_assets: int, fee: float, length_history: int = 1):
+        super().__init__(name, no_assets, fee)
+        self.frequencies = dict()
+        self.length_history = length_history
+        self.history = [-1 for _ in range(length_history)]
+        self.rate_last = None
+
+    def update_frequency(self, history: Tuple[int], target: int):
+        sub_dict = self.frequencies.get(history)
+        if sub_dict is None:
+            sub_dict = {target: 1}
+            self.frequencies[history] = sub_dict
+        else:
+            sub_dict[target] = sub_dict.get(target, 0) + 1
+
+    def get_target(self, history: Tuple[int]) -> int:
+        sub_dict = self.frequencies.get(history)
+        if sub_dict is None:
+            return -1
+        asset_target, _ = max(sub_dict.items(), key=lambda x: x[1])
+        return asset_target
+
+    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+        if self.rate_last is None:
+            ratio_last = tuple(1. for _ in range(self.no_assets))
+        else:
+            ratio_last = tuple(r / r_l for r, r_l in zip(self.rate_last, input_value))
+
+        asset_best_prev, _ = index_max(ratio_last)
+        self.history.append(asset_best_prev)
+        del(self.history[:-self.length_history])
+
+        ratio = tuple(r / r_l for r, r_l in zip(target_value, input_value))
+        asset_best, _ = index_max(ratio)
+
+        self.update_frequency(tuple(self.history), asset_best)
+
+        self.rate_last = input_value
+
+    def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+        if self.rate_last is None:
+            ratio = tuple(1. for _ in range(self.no_assets))
+        else:
+            ratio = tuple(r / r_l for r, r_l in zip(self.rate_last, input_value))
+
+        asset_best_prev, _ = index_max(ratio)
+        history_new = self.history[1:] + [asset_best_prev]
+        asset_target = self.get_target(tuple(history_new))
+        if asset_target < 0:
+            return tuple(-1. for _ in range(self.no_assets))
+
+        return tuple(float(i == asset_target) for i in range(self.no_assets))
 
 
 class ExperimentMarket(Experiment):
@@ -185,9 +238,17 @@ class ExperimentMarket(Experiment):
     def _perform(self, index_application: int, distribution_value_target: TARGET_VALUE):
         if any(x < 0. for x in distribution_value_target):
             return
+
         amounts_assets = self.amounts_assets[index_application]
         self.no_trades[index_application] += self.no_assets - amounts_assets.count(0.)
-        self.__redistribute(index_application, distribution_value_target)
+
+        _s = sum(distribution_value_target)
+        distribution_normalized = tuple(x / _s for x in distribution_value_target)
+
+        value_total = self.__evaluate(index_application) * self.after_fee
+        value_distributed = tuple(x * value_total for x in distribution_normalized)
+        for i, (v, r) in enumerate(zip(value_distributed, self.rates)):
+            amounts_assets[i] = v / r
 
     def _post_process(self, snapshot: SNAPSHOT):
         timestamp = ExperimentMarket.get_timestamp(snapshot)
@@ -220,13 +281,6 @@ class ExperimentMarket(Experiment):
             for index_investor, each_investor in enumerate(self.applications):
                 print(f"no. trades: {self.no_trades[index_investor]: 5d} for {str(each_investor):s}")
                 self.no_trades[index_investor] = 0
-
-    def __redistribute(self, index_investor: int, distribution: TARGET_VALUE):
-        _s = sum(distribution)
-        distribution_normalized = tuple(x / _s for x in distribution)
-        value_total = self.__evaluate(index_investor) * self.after_fee
-        value_distributed = tuple(x * value_total for x in distribution_normalized)
-        self.amounts_assets = tuple(d / r for d, r in zip(value_distributed, self.rates))
 
     def __evaluate(self, index_investor: int) -> float:
         amount_assets = self.amounts_assets[index_investor]
