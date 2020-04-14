@@ -1,3 +1,4 @@
+import time
 from typing import Sequence
 
 from source.data.abstract import STREAM_SNAPSHOTS, SNAPSHOT, TARGET_VALUE, INPUT_VALUE, EXAMPLE
@@ -22,11 +23,15 @@ class Experiment:
         self.applications = applications
         self.delay = delay
         self.iteration = 0
+        self.time_sample = -1
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         raise NotImplementedError()
 
-    def _pre_process_skip(self, snapshot: SNAPSHOT) -> bool:
+    def _skip(self) -> bool:
+        return False
+
+    def _pre_process(self, snapshot: SNAPSHOT) -> bool:
         return False
 
     def _get_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
@@ -34,6 +39,9 @@ class Experiment:
 
     def _perform(self, index_application: int, action: TARGET_VALUE):
         raise NotImplementedError()
+
+    def _information_sample(self) -> str:
+        return ""
 
     def _post_process(self, snapshot: SNAPSHOT):
         pass
@@ -43,9 +51,9 @@ class Experiment:
 
         generator_snapshots = self._snapshots()
         for snapshot in generator_snapshots:
-            skip = self._pre_process_skip(snapshot)
+            self._pre_process(snapshot)
 
-            if not skip:
+            if not self._skip():
                 input_value, target_value = self._get_example(snapshot)
 
                 if self.iteration >= self.delay:
@@ -60,5 +68,10 @@ class Experiment:
                 input_value_last = input_value
 
             self._post_process(snapshot)
+
+            time_now = round(time.time() * 1000)
+            if self.time_sample < 0 or 1000 < time_now - self.time_sample:
+                print(self._information_sample() + "\n")
+                self.time_sample = time_now
 
             self.iteration += 1

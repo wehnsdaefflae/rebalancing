@@ -22,7 +22,7 @@ def speculation():
     pairs = random.sample(pairs, no_assets_market)
 
     fee = .1 / 100.
-    certainty = 3. / no_assets_market
+    certainty = 1.2
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
         MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
@@ -31,10 +31,10 @@ def speculation():
     )
     applications = (
         # TraderApproximation("square", approximations[0], no_assets_market, fee, certainty=certainty),
-        TraderFrequency("freq 1", no_assets_market, fee, certainty, length_history=1, pseudo_count=100),
-        TraderFrequency("freq 2", no_assets_market, fee, certainty, length_history=2, pseudo_count=100),
-        TraderFrequency("freq 3", no_assets_market, fee, certainty, length_history=3, pseudo_count=100),
-        TraderFrequency("freq 4", no_assets_market, fee, certainty, length_history=4, pseudo_count=100),
+        TraderFrequency("freq 1", no_assets_market, fee, certainty, length_history=1, inertia=100),
+        TraderFrequency("freq 2", no_assets_market, fee, certainty, length_history=2, inertia=100),
+        TraderFrequency("freq 3", no_assets_market, fee, certainty, length_history=3, inertia=100),
+        TraderFrequency("freq 4", no_assets_market, fee, certainty, length_history=4, inertia=100),
         #TraderApproximation("square rec", approximations[1], no_assets_market, fee, certainty=certainty),
         #TraderApproximation("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
         #Balancing("balancing", no_assets_market, 60 * 24, fee),
@@ -43,6 +43,8 @@ def speculation():
 
     m = ExperimentMarket(applications, pairs, fee)  # , delay=60 * 24)
     m.start()
+    if m.graph is not None:
+        m.graph.draw()
 
 
 def trigonometry():

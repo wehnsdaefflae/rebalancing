@@ -112,16 +112,16 @@ class TraderApproximation(Investor):
 
 
 class TraderFrequency(Investor):
-    def __init__(self, name: str, no_assets: int, fee: float, certainty_min: float, length_history: int = 1, pseudo_count=0):
+    def __init__(self, name: str, no_assets: int, fee: float, certainty_min: float, length_history: int = 1, inertia=100):
         super().__init__(name, no_assets, fee)
         self.frequencies = dict()
-        self.certainty_min = certainty_min
+        self.certainty_min = certainty_min / no_assets
         self.length_history = length_history
         self.history = [-1 for _ in range(length_history)]
         self.rate_last = None
-        self.pseudo_count = pseudo_count
+        self.inertia = inertia
 
-    def update_frequency(self, history: Tuple[int], target: int):
+    def _update_frequency(self, history: Tuple[int], target: int):
         sub_dict = self.frequencies.get(history)
         if sub_dict is None:
             sub_dict = dict()
@@ -129,16 +129,14 @@ class TraderFrequency(Investor):
 
         # to maintain a moving distribution
         for each_asset in range(self.no_assets):
-            sub_dict[each_asset] = smear(sub_dict.get(each_asset, 0.), float(each_asset == target), self.pseudo_count)
+            sub_dict[each_asset] = smear(sub_dict.get(each_asset, 0.), float(each_asset == target), self.inertia)
 
     def _get_target(self, history: Tuple[int]) -> Tuple[int, float]:
         sub_dict = self.frequencies.get(history)
         if sub_dict is None:
             return -1, 0.
         asset_target, asset_frequency = max(sub_dict.items(), key=lambda x: x[1])
-        if 0. >= min(sub_dict.values()):
-            return -1, 0.
-        return asset_target, asset_frequency / sum(sub_dict.values())
+        return asset_target, (asset_frequency + 1.) / (sum(sub_dict.values()) + self.no_assets)
 
     def _get_ratio(self, rate: INPUT_VALUE) -> Sequence[float]:
         if self.rate_last is None:
@@ -157,7 +155,7 @@ class TraderFrequency(Investor):
         ratio = tuple(r / r_l for r, r_l in zip(target_value, input_value))
         asset_best, _ = index_max(ratio)
 
-        self.update_frequency(tuple(self.history), asset_best)
+        self._update_frequency(tuple(self.history), asset_best)
 
         self.rate_last = input_value
 
@@ -206,6 +204,7 @@ class ExperimentMarket(Experiment):
         self.amounts_assets = tuple([0. for _ in range(self.no_assets)] for _ in investors)
         self.values_last = [1. for _ in investors]
         self.no_trades = [0 for _ in investors]
+        self.has_started = [False for _ in self.applications]
 
         self.rates_last = None
         self.rates = None
@@ -238,18 +237,17 @@ class ExperimentMarket(Experiment):
         generator_snapshots = rates_binance_generator(self.pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
         yield from generator_snapshots
 
-    def _pre_process_skip(self, snapshot: SNAPSHOT) -> bool:
+    def _pre_process(self, snapshot: SNAPSHOT):
         self.timestamp = ExperimentMarket.get_timestamp(snapshot)
-
         self.rates = ExperimentMarket.get_rates(snapshot)
+
+    def _skip(self) -> bool:
         if any(0. >= x for x in self.rates):
             print(f"skipping timestamp {self.timestamp:d} due to illegal rates <{', '.join(f'{x:5.2f}' for x in self.rates):s}>.")
             return True
 
-        if 0 >= self.iteration:
+        if 0. >= self.amount_market:
             self.amount_market = self.no_assets / sum(self.rates)
-            for each_amounts in self.amounts_assets:
-                each_amounts[self.asset_initial] = 1. / self.rates[self.asset_initial]
 
         return False
 
@@ -273,6 +271,9 @@ class ExperimentMarket(Experiment):
 
         self.no_trades[index_application] += sum(int(v_n != v_o) for v_n, v_o in zip(amounts_assets, amounts_assets_copy))
 
+        if not self.has_started[index_application]:
+            self.has_started[index_application] = True
+
     def _post_process(self, snapshot: SNAPSHOT):
         faulty = any(0. >= x for x in self.rates)
 
@@ -280,8 +281,9 @@ class ExperimentMarket(Experiment):
         if faulty:
             values = tuple(0. for _ in self.applications)
             value_market = 0.
+
         else:
-            values = tuple(self.__evaluate(i) for i in range(len(self.applications)))
+            values = tuple(self.__evaluate(i) if self.has_started[i] else 1. for i in range(len(self.applications)))
             rate_market = sum(self.rates) / self.no_assets
             value_market = rate_market * self.amount_market
         points_values = {f"{str(each_application):s}": v for each_application, v in zip(self.applications, values)}
@@ -289,18 +291,19 @@ class ExperimentMarket(Experiment):
 
         # quality points
         if self.rates_last is None or faulty:
-            ratio_market = tuple(1. for _ in range(self.no_assets))
+            ratio_market = 1.
         else:
-            ratio_market = tuple(r / r_l for r, r_l in zip(self.rates, self.rates_last))
+            ratio_market = sum(r / r_l for r, r_l in zip(self.rates, self.rates_last)) / self.no_assets
 
         if faulty:
             points_quality = {f"{str(each_application):s}": 1. for each_application in self.applications}
         else:
-            points_quality = {f"{str(each_application):s}": v / v_l for each_application, v, v_l in zip(self.applications, values, self.values_last)}
-
-        points_quality["market"] = sum(ratio_market) / self.no_assets
-        points_quality["minimum"] = min(ratio_market)
-        points_quality["maximum"] = max(ratio_market)
+            points_ratio = tuple(v / v_l for v, v_l in zip(values, self.values_last))
+            points_quality = {
+                f"{str(each_application):s}": r / ratio_market if s else 1.
+                for s, each_application, r in zip(self.has_started, self.applications, points_ratio)
+            }
+        points_quality["market"] = 1.
 
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
         self.graph.add_snapshot(dt, (points_values, points_quality))
@@ -309,18 +312,23 @@ class ExperimentMarket(Experiment):
             self.rates_last = self.rates
             self.values_last = values
 
-        if Timer.time_passed(1000):
-            if self.timestamp_last >= 0:
-                interval = self.timestamp - self.timestamp_last
-                interval_dt = datetime.timedelta(milliseconds=interval)
-                print(f"time interval {str(interval_dt):s}")
+    def _information_sample(self) -> str:
+        info = []
+        if self.timestamp_last >= 0:
+            interval = self.timestamp - self.timestamp_last
+            interval_dt = datetime.timedelta(milliseconds=interval)
+            info.append(f"time interval {str(interval_dt):s}")
 
-            for index_investor, each_investor in enumerate(self.applications):
-                print(f"no. trades: {self.no_trades[index_investor]: 5d} for {str(each_investor):s}")
-                self.no_trades[index_investor] = 0
+        for index_investor, each_investor in enumerate(self.applications):
+            info.append(f"no. trades: {self.no_trades[index_investor]: 5d} for {str(each_investor):s}")
+            self.no_trades[index_investor] = 0
 
-            self.timestamp_last = self.timestamp
+        self.timestamp_last = self.timestamp
+        return "\n".join(info)
 
     def __evaluate(self, index_investor: int) -> float:
+        if not self.has_started[index_investor]:
+            return 1.
+
         amount_assets = self.amounts_assets[index_investor]
         return sum(r * amount_assets[i] for i, r in enumerate(self.rates))
