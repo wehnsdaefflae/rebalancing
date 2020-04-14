@@ -3,7 +3,7 @@ from __future__ import annotations
 import glob
 import itertools
 import os
-from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional, Union
+from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional, Union, Collection
 
 from source.config import RAW_BINANCE_DIR
 
@@ -77,6 +77,27 @@ def smear(average: float, value: float, inertia: int) -> float:
 def index_max(values: Iterable[float], key=lambda x: x) -> Tuple[int, float]:
     i_max, v_max = max(enumerate(values), key=lambda x: key(x[1]))
     return i_max, v_max
+
+
+def indices_max(values: Iterable[float], key=lambda x: x) -> Collection[int]:
+    indices = set()
+    max_v = -1.
+    for i, v in enumerate(values):
+        _v = key(v)
+
+        if len(indices) < 1:
+            max_v = _v
+            indices.add(i)
+
+        elif max_v < _v:
+            indices.clear()
+            indices.add(i)
+            max_v = _v
+
+        elif max_v == _v:
+            indices.add(i)
+
+    return indices
 
 
 T = TypeVar("T")

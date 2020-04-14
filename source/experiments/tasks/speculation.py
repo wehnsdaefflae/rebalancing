@@ -6,7 +6,7 @@ from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET
 from source.data.generators.snapshots_binance import rates_binance_generator
 from source.experiments.tasks.abstract import Application, Experiment
 
-from source.tools.functions import generate_ratios_send, index_max, smear
+from source.tools.functions import generate_ratios_send, index_max, smear, indices_max
 from source.tools.moving_graph import MovingGraph
 
 
@@ -224,6 +224,15 @@ class ExperimentMarket(Experiment):
                 None,
             )
 
+            """
+            subplot_errors = (
+                "error",
+                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),  # "minimum", "maximum"),
+                False,
+                (0., 1,),
+            )
+            """
+
             self.graph = MovingGraph((subplot_amounts, subplot_ratios), 50)
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
@@ -287,9 +296,11 @@ class ExperimentMarket(Experiment):
 
         # quality points
         if self.rates_last is None or faulty:
-            ratio_market = 1.
+            ratio_assets = tuple(1. for _ in range(self.no_assets))
         else:
-            ratio_market = sum(r / r_l for r, r_l in zip(self.rates, self.rates_last)) / self.no_assets
+            ratio_assets = tuple(r / r_l for r, r_l in zip(self.rates, self.rates_last))
+
+        ratio_market = sum(ratio_assets) / self.no_assets
 
         if faulty:
             points_quality = {f"{str(each_application):s}": 1. for each_application in self.applications}
@@ -300,6 +311,13 @@ class ExperimentMarket(Experiment):
                 for s, each_application, r in zip(self.has_started, self.applications, points_ratio)
             }
         points_quality["market"] = 1.
+
+        """
+        # error points
+        assets_best = indices_max(ratio_assets)
+        for i, amount_assets in enumerate(self.amounts_assets):
+            value_assets = tuple(r * amount_assets[i] for i, r in enumerate(self.rates))
+        """
 
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
         self.graph.add_snapshot(dt, (points_values, points_quality))
