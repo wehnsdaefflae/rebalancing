@@ -22,7 +22,7 @@ def speculation():
     pairs = random.sample(pairs, no_assets_market)
 
     fee = .1 / 100.
-    certainty = 5. / no_assets_market
+    certainty = 3. / no_assets_market
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
         MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),

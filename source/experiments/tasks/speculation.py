@@ -127,14 +127,17 @@ class TraderFrequency(Investor):
             sub_dict = dict()
             self.frequencies[history] = sub_dict
 
+        # to maintain a moving distribution
         for each_asset in range(self.no_assets):
-            sub_dict[each_asset] = smear(sub_dict.get(each_asset, 0.),  float(target == each_asset), self.pseudo_count)
+            sub_dict[each_asset] = smear(sub_dict.get(each_asset, 0.), float(each_asset == target), self.pseudo_count)
 
     def _get_target(self, history: Tuple[int]) -> Tuple[int, float]:
         sub_dict = self.frequencies.get(history)
         if sub_dict is None:
             return -1, 0.
         asset_target, asset_frequency = max(sub_dict.items(), key=lambda x: x[1])
+        if 0. >= min(sub_dict.values()):
+            return -1, 0.
         return asset_target, asset_frequency / sum(sub_dict.values())
 
     def _get_ratio(self, rate: INPUT_VALUE) -> Sequence[float]:
@@ -221,12 +224,12 @@ class ExperimentMarket(Experiment):
 
             subplot_ratios = (
                 "quality",
-                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", "minimum", "maximum"),
+                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),  # "minimum", "maximum"),
                 False,
                 None,
             )
 
-            self.graph = MovingGraph((subplot_amounts, subplot_ratios), 100)
+            self.graph = MovingGraph((subplot_amounts, subplot_ratios), 50)
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         time_range = 1532491200000, 1577836856000
@@ -290,7 +293,11 @@ class ExperimentMarket(Experiment):
         else:
             ratio_market = tuple(r / r_l for r, r_l in zip(self.rates, self.rates_last))
 
-        points_quality = {f"{str(each_application):s}": v / v_l for each_application, v, v_l in zip(self.applications, values, self.values_last)}
+        if faulty:
+            points_quality = {f"{str(each_application):s}": 1. for each_application in self.applications}
+        else:
+            points_quality = {f"{str(each_application):s}": v / v_l for each_application, v, v_l in zip(self.applications, values, self.values_last)}
+
         points_quality["market"] = sum(ratio_market) / self.no_assets
         points_quality["minimum"] = min(ratio_market)
         points_quality["maximum"] = max(ratio_market)
