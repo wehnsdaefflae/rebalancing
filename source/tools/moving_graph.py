@@ -111,3 +111,6 @@ class MovingGraph:
 
         pyplot.tight_layout()
         pyplot.pause(.05)
+
+    def show(self):
+        pyplot.show()

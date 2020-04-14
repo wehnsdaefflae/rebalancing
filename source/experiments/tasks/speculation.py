@@ -121,15 +121,15 @@ class TraderFrequency(Investor):
         self.rate_last = None
         self.inertia = inertia
 
-    def _update_frequency(self, history: Tuple[int], target: int):
+    def _update_frequency(self, history: Tuple[int], ratio: Sequence[float]):
         sub_dict = self.frequencies.get(history)
         if sub_dict is None:
             sub_dict = dict()
             self.frequencies[history] = sub_dict
 
         # to maintain a moving distribution
-        for each_asset in range(self.no_assets):
-            sub_dict[each_asset] = smear(sub_dict.get(each_asset, 0.), float(each_asset == target), self.inertia)
+        for i, each_ratio in enumerate(ratio):
+            sub_dict[i] = smear(sub_dict.get(i, 0.), each_ratio, self.inertia)
 
     def _get_target(self, history: Tuple[int]) -> Tuple[int, float]:
         sub_dict = self.frequencies.get(history)
@@ -153,9 +153,8 @@ class TraderFrequency(Investor):
         del(self.history[:-self.length_history])
 
         ratio = tuple(r / r_l for r, r_l in zip(target_value, input_value))
-        asset_best, _ = index_max(ratio)
 
-        self._update_frequency(tuple(self.history), asset_best)
+        self._update_frequency(tuple(self.history), ratio)
 
         self.rate_last = input_value
 
@@ -300,7 +299,7 @@ class ExperimentMarket(Experiment):
         else:
             points_ratio = tuple(v / v_l for v, v_l in zip(values, self.values_last))
             points_quality = {
-                f"{str(each_application):s}": r / ratio_market if s else 1.
+                f"{str(each_application):s}": r / ratio_market if s else 0.
                 for s, each_application, r in zip(self.has_started, self.applications, points_ratio)
             }
         points_quality["market"] = 1.
@@ -332,3 +331,8 @@ class ExperimentMarket(Experiment):
 
         amount_assets = self.amounts_assets[index_investor]
         return sum(r * amount_assets[i] for i, r in enumerate(self.rates))
+
+    def start(self):
+        super().start()
+        if self.graph is not None:
+            self.graph.show()

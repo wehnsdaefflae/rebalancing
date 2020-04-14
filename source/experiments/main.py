@@ -22,7 +22,7 @@ def speculation():
     pairs = random.sample(pairs, no_assets_market)
 
     fee = .1 / 100.
-    certainty = 1.2
+    certainty = 1. / (1. - fee)
     approximations = (
         MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
         MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
@@ -43,8 +43,6 @@ def speculation():
 
     m = ExperimentMarket(applications, pairs, fee)  # , delay=60 * 24)
     m.start()
-    if m.graph is not None:
-        m.graph.draw()
 
 
 def trigonometry():
