@@ -75,3 +75,5 @@ class Experiment:
                 self.time_sample = time_now
 
             self.iteration += 1
+
+        print("done!")

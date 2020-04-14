@@ -47,7 +47,7 @@ class MultipleRegression(Approximation[float]):
             return tuple(parameters)
 
         except numpy.linalg.linalg.LinAlgError:
-            parameters = numpy.linalg.lstsq(self.var_matrix, self.cov_vector)[0]
+            parameters = numpy.linalg.lstsq(self.var_matrix, self.cov_vector, rcond=None)[0]
             return tuple(parameters)
             # return tuple(0. for _ in self.addends)
 

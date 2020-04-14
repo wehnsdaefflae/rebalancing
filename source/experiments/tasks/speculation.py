@@ -1,5 +1,4 @@
 import datetime
-import random
 from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
@@ -7,17 +6,15 @@ from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET
 from source.data.generators.snapshots_binance import rates_binance_generator
 from source.experiments.tasks.abstract import Application, Experiment
 
-from source.tools.functions import generate_ratios_send, index_max, get_pairs_from_filesystem, smear, z_score_normalized_generator
+from source.tools.functions import generate_ratios_send, index_max, smear
 from source.tools.moving_graph import MovingGraph
-from source.tools.timer import Timer
 
 
 class Investor(Application):
-    def __init__(self, name: str, no_assets: int, fee: float):
+    def __init__(self, name: str, no_assets: int):
         super().__init__(name)
         self.trades = 0
         self.no_assets = no_assets
-        self.after_fee = 1. - fee
 
     def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
         raise NotImplementedError()
@@ -35,8 +32,8 @@ class Investor(Application):
 
 
 class Balancing(Investor):
-    def __init__(self, name: str, no_assets: int, iterations_to_balance: int, fee: float):
-        super().__init__(name, no_assets, fee)
+    def __init__(self, name: str, no_assets: int, iterations_to_balance: int):
+        super().__init__(name, no_assets)
         assert iterations_to_balance >= 0
         self.iterations_to_balance = iterations_to_balance
         self.iterations_since_balance = 0
@@ -59,8 +56,8 @@ class Balancing(Investor):
 
 
 class TraderDistribution(Investor):
-    def __init__(self, name: str, no_assets: int, fee: float, trail: int = 100):
-        super().__init__(name, no_assets, fee)
+    def __init__(self, name: str, no_assets: int, trail: int = 100):
+        super().__init__(name, no_assets)
         self.frequencies_model = [1. for _ in range(no_assets)]
         self.frequencies_current = [0. for _ in range(no_assets)]
         self.trail = trail
@@ -90,8 +87,8 @@ class TraderDistribution(Investor):
 
 
 class TraderApproximation(Investor):
-    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, fee: float, certainty: float = 1.):
-        super().__init__(name, no_assets, fee)
+    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, certainty: float = 1.):
+        super().__init__(name, no_assets)
         self.approximation = approximation
         self.certainty = certainty
         self.ratios = tuple(1. for _ in range(no_assets))
@@ -112,8 +109,8 @@ class TraderApproximation(Investor):
 
 
 class TraderFrequency(Investor):
-    def __init__(self, name: str, no_assets: int, fee: float, certainty_min: float, length_history: int = 1, inertia=100):
-        super().__init__(name, no_assets, fee)
+    def __init__(self, name: str, no_assets: int, certainty_min: float, length_history: int = 1, inertia=100):
+        super().__init__(name, no_assets)
         self.frequencies = dict()
         self.certainty_min = certainty_min / no_assets
         self.length_history = length_history
@@ -263,7 +260,7 @@ class ExperimentMarket(Experiment):
         _s = sum(distribution_value_target)
         distribution_normalized = tuple(x / _s for x in distribution_value_target)
 
-        value_total = self.__evaluate(index_application) * self.after_fee
+        value_total = self.__evaluate(index_application) * self.after_fee  # actually just for those assets that to not stay the same
         value_distributed = tuple(x * value_total for x in distribution_normalized)
         for i, (v, r) in enumerate(zip(value_distributed, self.rates)):
             amounts_assets[i] = v / r
@@ -282,9 +279,9 @@ class ExperimentMarket(Experiment):
             value_market = 0.
 
         else:
-            values = tuple(self.__evaluate(i) if self.has_started[i] else 1. for i in range(len(self.applications)))
             rate_market = sum(self.rates) / self.no_assets
             value_market = rate_market * self.amount_market
+            values = tuple(self.__evaluate(i) if self.has_started[i] else 1. for i in range(len(self.applications)))
         points_values = {f"{str(each_application):s}": v for each_application, v in zip(self.applications, values)}
         points_values["market"] = value_market
 
