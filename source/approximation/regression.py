@@ -183,6 +183,7 @@ class MultivariateRecurrentRegression(MultivariateRegression):
 
         if self.last_input is not None:
             for each_memory, each_value in zip(self.regressions_memory, self.values_memory):
+                # todo: fit with last target as input, because that's what functional approximations cannot do
                 each_memory.fit(self.last_input, each_value, drag)  # smaller, fixed drag?
 
         input_contextualized = tuple(in_value) + tuple(self.values_memory)
@@ -220,8 +221,6 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
         self.context = tuple(0. for _ in range(resolution_context))
 
         assert 1. >= error_tolerance >= 0.
-        self.normalization = z_score_normalized_generator()
-        next(self.normalization)
         self.error_tolerance = error_tolerance
 
     def get_state(self) -> Any:
@@ -235,9 +234,8 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
             context_this = tuple(random.random() for _ in range(self.resolution_context))
             output_values = super().output(tuple(input_values) + tuple(context_this))
             e = self.error_context(output_values, target_values)
-            e_z = self.normalization.send(e)
-            if e_z < error_minimal or context_best is None:
-                error_minimal = e_z
+            if e < error_minimal or context_best is None:
+                error_minimal = e
                 context_best = context_this
 
         return context_best, error_minimal
@@ -245,23 +243,17 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
         output_values = super().output(tuple(in_value) + self.context)
         e = self.error_context(output_values, target_value)
-        e_z = self.normalization.send(e)
 
         context_new = None
-        print(f"error {e_z:.2f}")
-        if self.error_tolerance < e_z:
-            print(f"too wrong. next context? {e_z:.2f}")
+        if self.error_tolerance < e:
             context_new = self.approximation_context.output(tuple(in_value) + tuple(output_values) + self.context)
             output_values = super().output(tuple(in_value) + tuple(context_new))
             e = self.error_context(output_values, target_value)
-            e_z = self.normalization.send(e)
 
-        if self.error_tolerance < e_z:
-            print(f"too wrong. any context? {e_z:.2f}")
-            context_new, e_z = self._optimize_context(in_value, target_value)
+        if self.error_tolerance < e:
+            context_new, e = self._optimize_context(in_value, target_value)
 
-        if self.error_tolerance < e_z:
-            print(f"too wrong. new context. {e_z:.2f}")
+        if self.error_tolerance < e:
             context_new = tuple(random.random() for _ in range(self.resolution_context))
 
         if context_new is not None:

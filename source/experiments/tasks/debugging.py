@@ -128,6 +128,16 @@ class ExperimentTimeseries(Experiment):
         self.graph.add_snapshot(self.now + datetime.timedelta(seconds=self.timestamp), points)
         time.sleep(.1)
 
-    def start(self):
-        super().start()
-        self.graph.show()
+
+class ExperimentTimeseriesFailure(ExperimentTimeseries):
+    def __init__(self, applications: Sequence[Application]):
+        super().__init__(applications)
+
+    def _offset_examples(self) -> OFFSET_EXAMPLES:
+        iteration = 0
+        frequency = 10
+        while True:
+            target_last = float((iteration - 1) % frequency >= frequency // 2),
+            input_this = 0.,
+            yield iteration, target_last, input_this
+            iteration += 1

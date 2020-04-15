@@ -5,7 +5,7 @@ from source.approximation.regression import MultivariatePolynomialRegression, Mu
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderDistribution
 
 # from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
-from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
+from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic, ExperimentTimeseriesFailure
 from source.tools.functions import get_pairs_from_filesystem
 
 """
@@ -60,6 +60,14 @@ def debug_static():
     t = ExperimentStatic(application)
     t.start()
 
+
+def debug_nonfunctional():
+    approximation = MultivariatePolynomialFailureRegression(1, 1, 1, .5)
+    applications = [TransformRational(approximation.__class__.__name__, approximation)]
+    t = ExperimentTimeseriesFailure(applications)
+    t.start()
+
+
 # todo: implement trigonometric experiment
 # todo: implement reinforcement learning
 
@@ -71,8 +79,9 @@ def debug_static():
 
 def main():
     # speculation()
-    debug_dynamic()
+    # debug_dynamic()
     # debug_static()
+    debug_nonfunctional()
 
 
 if __name__ == "__main__":
