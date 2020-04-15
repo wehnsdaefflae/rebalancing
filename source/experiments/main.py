@@ -4,7 +4,7 @@ from source.approximation.regression import MultivariatePolynomialRegression, Mu
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderDistribution
 
 # from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
-from source.experiments.tasks.trigonometry import TransformRational, ExperimentTrigonometry
+from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
 from source.tools.functions import get_pairs_from_filesystem
 
 """
@@ -46,12 +46,18 @@ def speculation():
     m.start()
 
 
-def trigonometry():
+def debug_dynamic():
     approximation = MultivariatePolynomialRegression(1, 1, 1)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
-    t = ExperimentTrigonometry(applications)
+    t = ExperimentTimeseries(applications)
     t.start()
 
+
+def debug_static():
+    approximation = MultivariatePolynomialRegression(1, 3, 1)
+    application = TransformRational(approximation.__class__.__name__, approximation)
+    t = ExperimentStatic(application)
+    t.start()
 
 # todo: implement trigonometric experiment
 # todo: implement reinforcement learning
@@ -64,7 +70,8 @@ def trigonometry():
 
 def main():
     # speculation()
-    trigonometry()
+    # debug_dynamic()
+    debug_static()
 
 
 if __name__ == "__main__":

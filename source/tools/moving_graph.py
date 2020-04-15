@@ -43,7 +43,7 @@ class MovingGraph:
         self.iterations_since_draw = [0 for _ in self.names_axes]
         self.time_last = -1.
 
-    def add_timestep(self, now: datetime.datetime, points: Sequence[Dict[str, float]]):
+    def add_snapshot(self, now: datetime.datetime, points: Sequence[Dict[str, float]]):
         assert len(points) == self.no_axes
 
         self.time_current = now

@@ -2,8 +2,8 @@ import datetime
 from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET_VALUE, EXAMPLE
-from source.data.generators.snapshots_binance import rates_binance_generator
+from source.data.abstract import INPUT_VALUE, TARGET_VALUE, OFFSET_EXAMPLES
+from source.data.generators.snapshots_binance import rates_binance_generator, get_timestamp, get_rates
 from source.experiments.tasks.abstract import Application, Experiment
 
 from source.tools.functions import generate_ratios_send, index_max, smear
@@ -163,26 +163,13 @@ class TraderFrequency(Investor):
 
 
 class ExperimentMarket(Experiment):
-    @staticmethod
-    def get_rates(snapshot: SNAPSHOT) -> Sequence[float]:
-        rates = tuple(
-            snapshot[x]
-            for x in sorted(snapshot.keys())
-            if x.startswith("rate_")
-        )
-        return rates
-
-    @staticmethod
-    def get_timestamp(snapshot: SNAPSHOT) -> int:
-        return snapshot["close_time"]
-
     def __init__(self,
                  investors: Sequence[Investor],
                  pairs: Sequence[Tuple[str, str]],
                  fee: float,
-                 asset_initial: int = 0, delay: int = 0, visualize: bool = True):
+                 asset_initial: int = 0, visualize: bool = True):
 
-        super().__init__(investors, delay)
+        super().__init__(investors)
         self.after_fee = 1. - fee
         self.asset_initial = asset_initial
 
@@ -220,21 +207,21 @@ class ExperimentMarket(Experiment):
 
             self.graph = MovingGraph((subplot_amounts, subplot_ratios), 50)
 
-    def _snapshots(self) -> STREAM_SNAPSHOTS:
+    def _offset_examples(self) -> OFFSET_EXAMPLES:
         time_range = 1532491200000, 1577836856000
         interval_minutes = 1
 
         generator_snapshots = rates_binance_generator(self.pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
-        yield from generator_snapshots
 
-    def _pre_process(self, snapshot: SNAPSHOT):
-        self.timestamp = ExperimentMarket.get_timestamp(snapshot)
-        self.rates = ExperimentMarket.get_rates(snapshot)
+        for snapshot in generator_snapshots:
+            timestamp = get_timestamp(snapshot)
+            rate = get_rates(snapshot)
+            yield timestamp, rate, rate
+
+    def _pre_process(self):
+        self.rates = self.target_value_last
         if 0. >= self.amount_market:
             self.amount_market = self.no_assets / sum(self.rates)
-
-    def _get_offset_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
-        return self.rates, self.rates
 
     def _perform(self, index_application: int, distribution_value_target: TARGET_VALUE):
         if any(x < 0. for x in distribution_value_target):
@@ -290,7 +277,7 @@ class ExperimentMarket(Experiment):
         points_quality["market"] = 1.
 
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
-        self.graph.add_timestep(dt, (points_values, points_quality))
+        self.graph.add_snapshot(dt, (points_values, points_quality))
 
         if not faulty:
             self.rates_last = self.rates

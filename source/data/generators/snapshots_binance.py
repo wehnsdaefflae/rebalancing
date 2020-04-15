@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import glob
-from typing import Tuple, Sequence, Generator, Optional, Iterable
+from typing import Tuple, Sequence, Generator, Optional, Iterable, Any, Dict
 
 from source.config import PATH_DIRECTORY_DATA
-from source.data.abstract import SNAPSHOT
 from source.data.tools import generator_file, get_timestamp_close_boundaries, get_pairs_from_filenames
 
 
@@ -13,7 +12,7 @@ def rates_binance_generator(
         timestamp_range: Optional[Tuple[int, int]] = None,
         interval_minutes: int = 1,
         header: Sequence[str] = ("close_time", "close", ),
-        directory_data: str = PATH_DIRECTORY_DATA) -> Generator[SNAPSHOT, None, None]:
+        directory_data: str = PATH_DIRECTORY_DATA) -> Generator[Dict[str, Any], None, None]:
 
     directory_csv = directory_data + "binance/"
     if pairs is None:
@@ -43,3 +42,15 @@ def rates_binance_generator(
             d.update({f"rate_{names_pair[i]:s}_{k:s}": v for k, v in each_snapshot.items() if k != "close_time"})
 
         yield d
+
+
+def get_rates(snapshot: Dict[str, Any]) -> Sequence[float]:
+    rates = tuple(
+        float(snapshot[x])
+        for x in sorted(snapshot.keys())
+        if x.startswith("rate_")
+    )
+    return rates
+
+def get_timestamp(snapshot: Dict[str, Any]) -> int:
+    return int(snapshot["close_time"])

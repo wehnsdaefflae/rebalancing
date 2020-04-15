@@ -1,11 +1,8 @@
-from typing import Generator, Sequence, Tuple, Dict, Any
-
-SNAPSHOT = Dict[str, Any]
-STREAM_SNAPSHOTS = Generator[SNAPSHOT, None, None]
+from typing import Sequence, Tuple, Generator
 
 TIMESTAMP = int
 VECTOR = Sequence[float]
 INPUT_VALUE = VECTOR
 TARGET_VALUE = VECTOR
-EXAMPLE = Tuple[TARGET_VALUE, INPUT_VALUE]
-# STREAM_EXAMPLES = Generator[Tuple[TIMESTAMP, EXAMPLE], None, None]
+EXAMPLE = Tuple[TIMESTAMP, TARGET_VALUE, INPUT_VALUE]
+OFFSET_EXAMPLES = Generator[EXAMPLE, None, None]
