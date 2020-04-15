@@ -18,18 +18,15 @@ class TransformRational(Application):
         self.name = name
         self.approximation = approximation
         self.iterations = 0
-        self.d = dict()
 
     def __str__(self) -> str:
         return self.name
 
     def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
-        # self.d[tuple(input_value)] = tuple(target_value)
         self.approximation.fit(input_value, target_value, self.iterations)
         self.iterations += 1
 
     def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
-        # return self.d.get(tuple(input_value), tuple(input_value))
         return self.approximation.output(input_value)
 
 
@@ -106,18 +103,21 @@ class ExperimentTimeseries(Experiment):
 
     def _offset_examples(self) -> OFFSET_EXAMPLES:
         iteration = 0
-        frequency = 4
+        frequency = 10
         while True:
-            yield iteration, float((iteration - 1) % frequency >= frequency // 2), float(iteration % frequency < frequency // 2)
+            target_last = float((iteration - 1) % frequency >= frequency // 2),
+            input_this = float(iteration % frequency < frequency // 2),
+            yield iteration, target_last, input_this
             iteration += 1
 
     def _perform(self, index_application: int, action: TARGET_VALUE):
         pass
 
     def _post_process(self):
+        input_last = 0. if self.input_value_last is None else self.input_value_last[0]
         points = tuple(
             {
-                "input": 0. if self.input_value_last is None else self.input_value_last[0],
+                "input": input_last,
                 "target": self.target_value_last[0],
                 "output": 0. if output_value_last is None else output_value_last[0],
                 "error": 1. if output_value_last is None else abs(output_value_last[0] - self.target_value_last[0]),

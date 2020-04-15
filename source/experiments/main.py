@@ -71,8 +71,8 @@ def debug_static():
 
 def main():
     # speculation()
-    # debug_dynamic()
-    debug_static()
+    debug_dynamic()
+    # debug_static()
 
 
 if __name__ == "__main__":
