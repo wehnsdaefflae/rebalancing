@@ -1,72 +1,84 @@
 import datetime
-import math
 import time
 from typing import Sequence
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import EXAMPLE, SNAPSHOT, STREAM_SNAPSHOTS
+from source.data.abstract import EXAMPLE, SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET_VALUE
 from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.moving_graph import MovingGraph
 
 
-class SineToCosine(Application):
-    @staticmethod
-    def is_valid_result(result: RESULT) -> bool:
-        return "error" in result and "output" in result
-
-    @staticmethod
-    def is_valid_snapshot(snapshot: SNAPSHOT) -> bool:
-        return all(x in snapshot for x in ("iteration", "input", "target"))
-
+class TransformRational(Application):
     def __init__(self, name: str, approximation: Approximation[Sequence[float]]):
+        super().__init__(name)
         self.name = name
         self.approximation = approximation
-        self.iteration = 0
+        self.iterations = 0
+        self.d = dict()
 
     def __str__(self) -> str:
         return self.name
 
-    @staticmethod
-    def make_example(snapshot: SNAPSHOT) -> EXAMPLE:
-        return snapshot["iteration"], (snapshot["input"], ), (snapshot["target"], )
+    def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+        self.d[tuple(input_value)] = tuple(target_value)
+        # self.approximation.fit(input_value, target_value, self.iterations)
 
-    def _make_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
-        return SineToCosine.make_example(snapshot)
-
-    def _cycle(self, example: EXAMPLE, act: bool) -> RESULT:
-        iterations, input_value, target_value = example
-        output_value = self.approximation.output(input_value)
-        error = abs(output_value[0] - target_value[0])
-        self.approximation.fit(input_value, target_value, self.iteration)
-        return {"error": error, "output": output_value[0]}
+    def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+        return self.d.get(tuple(input_value), tuple(input_value))
+        # return self.approximation.output(input_value)
 
 
 class ExperimentTrigonometry(Experiment):
-    def __init__(self, application: Application):
-        super().__init__((application, ), 0)
+    def __init__(self, applications: Sequence[Application]):
+        super().__init__(applications)
+        info_subplots = tuple(
+            (
+                f"{str(each_application):s}",
+                ("input", "target", "output", "error"),
+                None,
+                None,
+            ) for each_application in applications)
+
         self.graph = MovingGraph(
-            "values", ("input", "target", "predicted"),
-            "error", ("error",),
-            40, moving_average_secondary=None, interval_draw_ms=0
+            info_subplots,
+            20,
+            interval_draw_ms=0,
         )
+
         self.now = datetime.datetime.now()
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
         iteration = 0
         while True:
-            stretched = iteration / 2
             yield {
                 "iteration": iteration,
-                "input": math.sin(stretched),
-                "target": math.cos(stretched),
+                # "input": 0.,
+                "input": float(iteration % 10 < 5),
+                # "target": math.sin(iteration / 2.),
+                "target_last": float((iteration - 1) % 10 >= 5),
             }
             iteration += 1
 
-    def _post_process(self, snapshot: SNAPSHOT, results: Sequence[RESULT]):
-        assert len(results) == 1
-        result = results[0]
-        index_time, input_values, target_values = SineToCosine.make_example(snapshot)
-        error = result["error"]
-        output_value = result["output"]
-        self.graph.add_snapshot(self.now + datetime.timedelta(seconds=index_time), (input_values[0], target_values[0], output_value), (error, ))
+    def _get_offset_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
+        return (snapshot["target_last"], ), (snapshot["input"], )
+
+    def _perform(self, index_application: int, action: TARGET_VALUE):
+        pass
+
+    def _post_process(self):
+        points = tuple(
+            {
+                "input": 0. if self.input_value_last is None else self.input_value_last[0],
+                "target": self.target_value_last[0],
+                "output": 0. if output_value_last is None else output_value_last[0],
+                "error": 1. if output_value_last is None else abs(output_value_last[0] - self.target_value_last[0]),
+            }
+            for output_value_last in self.output_values_last
+        )
+
+        self.graph.add_timestep(self.now + datetime.timedelta(seconds=self.iterations), points)
         time.sleep(.1)
+
+    def start(self):
+        super().start()
+        self.graph.show()

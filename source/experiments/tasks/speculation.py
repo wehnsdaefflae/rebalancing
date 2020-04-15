@@ -6,7 +6,7 @@ from source.data.abstract import SNAPSHOT, STREAM_SNAPSHOTS, INPUT_VALUE, TARGET
 from source.data.generators.snapshots_binance import rates_binance_generator
 from source.experiments.tasks.abstract import Application, Experiment
 
-from source.tools.functions import generate_ratios_send, index_max, smear, indices_max
+from source.tools.functions import generate_ratios_send, index_max, smear
 from source.tools.moving_graph import MovingGraph
 
 
@@ -96,9 +96,9 @@ class TraderApproximation(Investor):
         self.iterations = 0
 
     def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
-        target_asset, _ = index_max(target_value)
-        target_amplified = tuple(float(i == target_asset) for i in range(self.no_assets))
-        self.approximation.fit(input_value, target_amplified, self.iterations)
+        #target_asset, _ = index_max(target_value)
+        #target_amplified = tuple(float(i == target_asset) for i in range(self.no_assets))
+        self.approximation.fit(input_value, target_value, self.iterations)
 
     def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
         output_value = self.approximation.output(input_value)
@@ -115,8 +115,9 @@ class TraderFrequency(Investor):
         self.certainty_min = certainty_min / no_assets
         self.length_history = length_history
         self.history = [-1 for _ in range(length_history)]
-        self.rate_last = None
+        self.ratio = tuple(1. for _ in range(no_assets))
         self.inertia = inertia
+        self.rate_last = None
 
     def _update_frequency(self, history: Tuple[int], ratio: Sequence[float]):
         sub_dict = self.frequencies.get(history)
@@ -135,33 +136,26 @@ class TraderFrequency(Investor):
         asset_target, asset_frequency = max(sub_dict.items(), key=lambda x: x[1])
         return asset_target, (asset_frequency + 1.) / (sum(sub_dict.values()) + self.no_assets)
 
-    def _get_ratio(self, rate: INPUT_VALUE) -> Sequence[float]:
-        if self.rate_last is None:
-            ratio = tuple(1. for _ in range(self.no_assets))
-        else:
-            ratio = tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rate, self.rate_last))
-        return ratio
+    @staticmethod
+    def _get_ratio(rate_last: INPUT_VALUE, rate: INPUT_VALUE) -> Sequence[float]:
+        return tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rate, rate_last))
 
     def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
-        ratio_last = self._get_ratio(input_value)
-
-        asset_best_prev, _ = index_max(ratio_last)
-        self.history.append(asset_best_prev)
-        del(self.history[:-self.length_history])
-
-        ratio = tuple(r / r_l for r, r_l in zip(target_value, input_value))
-
+        ratio = TraderFrequency._get_ratio(input_value, target_value)
         self._update_frequency(tuple(self.history), ratio)
 
+        asset_best_prev, _ = index_max(ratio)
+        self.history.append(asset_best_prev)
+        del(self.history[:-self.length_history])
         self.rate_last = input_value
 
     def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
-        ratio = self._get_ratio(input_value)
-
+        if self.rate_last is None:
+            raise ValueError(f"self.rate_last should be sent by experiment.start() over self.learn().")
+        ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
         asset_best_prev, _ = index_max(ratio)
         history_new = self.history[1:] + [asset_best_prev]
         asset_target, certainty = self._get_target(tuple(history_new))
-        # certainty_normalized = self.normalization.send(certainty)
         if asset_target < 0 or certainty < self.certainty_min:
             return tuple(-1. for _ in range(self.no_assets))
 
@@ -224,15 +218,6 @@ class ExperimentMarket(Experiment):
                 None,
             )
 
-            """
-            subplot_errors = (
-                "error",
-                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),  # "minimum", "maximum"),
-                False,
-                (0., 1,),
-            )
-            """
-
             self.graph = MovingGraph((subplot_amounts, subplot_ratios), 50)
 
     def _snapshots(self) -> STREAM_SNAPSHOTS:
@@ -245,19 +230,11 @@ class ExperimentMarket(Experiment):
     def _pre_process(self, snapshot: SNAPSHOT):
         self.timestamp = ExperimentMarket.get_timestamp(snapshot)
         self.rates = ExperimentMarket.get_rates(snapshot)
-
-    def _skip(self) -> bool:
-        if any(0. >= x for x in self.rates):
-            print(f"skipping timestamp {self.timestamp:d} due to illegal rates <{', '.join(f'{x:5.2f}' for x in self.rates):s}>.")
-            return True
-
         if 0. >= self.amount_market:
             self.amount_market = self.no_assets / sum(self.rates)
 
-        return False
-
-    def _get_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
-        return self.rates_last, self.rates
+    def _get_offset_example(self, snapshot: SNAPSHOT) -> EXAMPLE:
+        return self.rates, self.rates
 
     def _perform(self, index_application: int, distribution_value_target: TARGET_VALUE):
         if any(x < 0. for x in distribution_value_target):
@@ -279,7 +256,7 @@ class ExperimentMarket(Experiment):
         if not self.has_started[index_application]:
             self.has_started[index_application] = True
 
-    def _post_process(self, snapshot: SNAPSHOT):
+    def _post_process(self):
         faulty = any(0. >= x for x in self.rates)
 
         # value points
@@ -312,15 +289,8 @@ class ExperimentMarket(Experiment):
             }
         points_quality["market"] = 1.
 
-        """
-        # error points
-        assets_best = indices_max(ratio_assets)
-        for i, amount_assets in enumerate(self.amounts_assets):
-            value_assets = tuple(r * amount_assets[i] for i, r in enumerate(self.rates))
-        """
-
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
-        self.graph.add_snapshot(dt, (points_values, points_quality))
+        self.graph.add_timestep(dt, (points_values, points_quality))
 
         if not faulty:
             self.rates_last = self.rates

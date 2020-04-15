@@ -23,6 +23,8 @@ class MovingGraph:
         assert 5000. >= interval_draw_ms >= 0.
         no_subplots = len(axes_info)
         self.fig, self.subplots = pyplot.subplots(nrows=no_subplots, ncols=1, sharex="all")
+        if no_subplots == 1:
+            self.subplots = (self.subplots, )
 
         self.names_axes, self.names_plots, self.moving_averages, self.limits = zip(*axes_info)
 
@@ -41,7 +43,7 @@ class MovingGraph:
         self.iterations_since_draw = [0 for _ in self.names_axes]
         self.time_last = -1.
 
-    def add_snapshot(self, now: datetime.datetime, points: Sequence[Dict[str, float]]):
+    def add_timestep(self, now: datetime.datetime, points: Sequence[Dict[str, float]]):
         assert len(points) == self.no_axes
 
         self.time_current = now
@@ -87,7 +89,7 @@ class MovingGraph:
         for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots[index_subplot], window_subplot.values(), current_subplot.values())):
             each_plot.append(each_value)
             del(each_plot[:-self.size_window])
-            l, = axis_subplot.plot(self.time_window, each_plot, label=f"{each_name:s}")
+            l, = axis_subplot.plot(self.time_window, each_plot, label=f"{each_name:s}", alpha=.5)
             lines.append(l)
 
         if self.limits[index_subplot] is not None:
