@@ -1,6 +1,7 @@
 import random
 
-from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression
+from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression, \
+    MultiplePolynomialRegression
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderDistribution
 
 # from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
@@ -54,7 +55,7 @@ def debug_dynamic():
 
 
 def debug_static():
-    approximation = MultivariatePolynomialRegression(1, 3, 1)
+    approximation = MultivariatePolynomialRegression(1, 5, 1)
     application = TransformRational(approximation.__class__.__name__, approximation)
     t = ExperimentStatic(application)
     t.start()

@@ -26,6 +26,7 @@ class TransformRational(Application):
     def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
         # self.d[tuple(input_value)] = tuple(target_value)
         self.approximation.fit(input_value, target_value, self.iterations)
+        self.iterations += 1
 
     def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
         # return self.d.get(tuple(input_value), tuple(input_value))
@@ -65,15 +66,19 @@ class ExperimentStatic(Experiment):
 
         sample_new = self.input_value_last[0], self.target_value_last[0]
         self.samples.append(sample_new)
+        del(self.samples[:-100])
 
         self.subplot.clear()
         self.subplot.set_xlim(xmin=0., xmax=self.max_x)
         self.subplot.set_ylim(ymin=-2., ymax=2.)
 
-        self.subplot.scatter(*list(zip(*self.samples)), alpha=.5)
-        x = tuple(self.max_x * x / 100. for x in range(100))
-        self.subplot.plot(x, tuple(self.function(_x) for _x in x))
-        self.subplot.plot(x, tuple(self.applications[0].act([_x])[0] for _x in x), alpha=.5)
+        self.subplot.scatter(*zip(*self.samples), alpha=.5)
+        input_values = tuple(self.max_x * x / 100. for x in range(100))
+        target_values = tuple(self.function(_x) for _x in input_values)
+        output_values = tuple(self.applications[0].act([_x])[0] for _x in input_values)
+
+        self.subplot.plot(input_values, target_values)
+        self.subplot.plot(input_values, output_values, alpha=.5)
 
         pyplot.tight_layout()
         pyplot.pause(.05)
