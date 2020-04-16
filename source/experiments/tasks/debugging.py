@@ -83,7 +83,7 @@ class ExperimentStatic(Experiment):
 
 
 class ExperimentTimeseries(Experiment):
-    def __init__(self, applications: Sequence[Application]):
+    def __init__(self, applications: Sequence[Application], examples: OFFSET_EXAMPLES):
         super().__init__(applications)
         info_subplots = tuple(
             (
@@ -95,20 +95,12 @@ class ExperimentTimeseries(Experiment):
 
         self.graph = MovingGraph(
             info_subplots,
-            20,
+            50,
             interval_draw_ms=0,
         )
 
         self.now = datetime.datetime.now()
-
-    def _offset_examples(self) -> OFFSET_EXAMPLES:
-        iteration = 0
-        frequency = 10
-        while True:
-            target_last = float((iteration - 1) % frequency >= frequency // 2),
-            input_this = float(iteration % frequency < frequency // 2),
-            yield iteration, target_last, input_this
-            iteration += 1
+        self.examples = examples
 
     def _perform(self, index_application: int, action: TARGET_VALUE):
         pass
@@ -128,12 +120,28 @@ class ExperimentTimeseries(Experiment):
         self.graph.add_snapshot(self.now + datetime.timedelta(seconds=self.timestamp), points)
         time.sleep(.1)
 
+    @staticmethod
+    def f_square() -> OFFSET_EXAMPLES:
+        iteration = 0
+        frequency = 10
+        while True:
+            target_last = float((iteration - 1) % frequency >= frequency // 2),
+            input_this = float(iteration % frequency < frequency // 2),
+            yield iteration, target_last, input_this
+            iteration += 1
 
-class ExperimentTimeseriesFailure(ExperimentTimeseries):
-    def __init__(self, applications: Sequence[Application]):
-        super().__init__(applications)
+    @staticmethod
+    def nf_triangle() -> OFFSET_EXAMPLES:
+        iteration = 0
+        period = 10.
+        while True:
+            target_last = 2. * abs(iteration / period - math.floor(iteration / period + 1. / 2.)),
+            input_this = 0.,
+            yield iteration, target_last, input_this
+            iteration += 1
 
-    def _offset_examples(self) -> OFFSET_EXAMPLES:
+    @staticmethod
+    def nf_square() -> OFFSET_EXAMPLES:
         iteration = 0
         frequency = 10
         while True:
@@ -141,3 +149,17 @@ class ExperimentTimeseriesFailure(ExperimentTimeseries):
             input_this = 0.,
             yield iteration, target_last, input_this
             iteration += 1
+
+    @staticmethod
+    def nf_trigonometry() -> OFFSET_EXAMPLES:
+        iteration = 0
+        period = math.pi
+        while True:
+            # target_last = float((iteration - 1) % frequency >= frequency // 2),
+            target_last = (math.cos(iteration / period) + 1.) / 2.,
+            input_this = (math.sin((iteration + 1) / period) + 1.) / 2.,
+            yield iteration, target_last, input_this
+            iteration += 1
+
+    def _offset_examples(self) -> OFFSET_EXAMPLES:
+        return self.examples

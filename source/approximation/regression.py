@@ -246,14 +246,17 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
 
         context_new = None
         if self.error_tolerance < e:
+            print("standard context wrong")
             context_new = self.approximation_context.output(tuple(in_value) + tuple(output_values) + self.context)
             output_values = super().output(tuple(in_value) + tuple(context_new))
             e = self.error_context(output_values, target_value)
 
         if self.error_tolerance < e:
+            print("next context wrong")
             context_new, e = self._optimize_context(in_value, target_value)
 
         if self.error_tolerance < e:
+            print("all contexts wrong")
             context_new = tuple(random.random() for _ in range(self.resolution_context))
 
         if context_new is not None:

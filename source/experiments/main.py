@@ -1,11 +1,9 @@
 import random
 
-from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression, \
-    MultiplePolynomialRegression
-from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderDistribution
+from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression
+from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing
 
-# from source.experiments.tasks.trigonometry import ExperimentTrigonometry, SineToCosine
-from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic, ExperimentTimeseriesFailure
+from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
 from source.tools.functions import get_pairs_from_filesystem
 
 """
@@ -50,7 +48,7 @@ def speculation():
 def debug_dynamic():
     approximation = MultivariatePolynomialRegression(1, 1, 1)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
-    t = ExperimentTimeseries(applications)
+    t = ExperimentTimeseries(applications, ExperimentTimeseries.nf_trigonometry())
     t.start()
 
 
@@ -62,9 +60,14 @@ def debug_static():
 
 
 def debug_nonfunctional():
+    # ExperimentTimeseries.f_square()
+    # ExperimentTimeseries.nf_triangle()
+    # ExperimentTimeseries.nf_square()
+    # ExperimentTimeseries.nf_trigonometry()
+
     approximation = MultivariatePolynomialFailureRegression(1, 1, 1, .5)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
-    t = ExperimentTimeseriesFailure(applications)
+    t = ExperimentTimeseries(applications, ExperimentTimeseries.nf_trigonometry())
     t.start()
 
 
@@ -79,9 +82,9 @@ def debug_nonfunctional():
 
 def main():
     # speculation()
-    # debug_dynamic()
+    debug_dynamic()
     # debug_static()
-    debug_nonfunctional()
+    # debug_nonfunctional()
 
 
 if __name__ == "__main__":
