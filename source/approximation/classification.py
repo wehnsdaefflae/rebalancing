@@ -70,11 +70,22 @@ class NaiveBayesClassification(Classification):
 
 
 class SemioticModelClassification(Classification):
-    def __init__(self, regression: MultivariateRegression, no_classes: int, threshold: float):
-        super().__init__(regression, no_classes)
+    def __init__(self, threshold: float):
         self.threshold = threshold
 
-    def _get_classification(self) -> Classification:
+    def output(self, in_value: int) -> int:
+        pass
+
+    def output_info(self, in_value: int) -> Tuple[int, Dict[str, Any]]:
+        pass
+
+    def fit(self, in_value: int, target_value: int, drag: int):
+        pass
+
+    def get_parameters(self) -> Sequence[float]:
+        pass
+
+    def _get_sub_classification(self) -> Classification:
         pass
 
 
