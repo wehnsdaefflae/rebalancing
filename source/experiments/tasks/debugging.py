@@ -9,6 +9,7 @@ from matplotlib import pyplot
 from source.approximation.abstract import Approximation
 from source.data.abstract import INPUT_VALUE, TARGET_VALUE, OFFSET_EXAMPLES
 from source.experiments.tasks.abstract import Application, Experiment
+from source.tools.functions import smear
 from source.tools.moving_graph import MovingGraph
 
 
@@ -33,7 +34,8 @@ class TransformRational(Application):
 class ExperimentStatic(Experiment):
     def __init__(self, application: Application):
         super().__init__((application,))
-        self.function = lambda x: math.sin(x)
+        # self.function = lambda x: math.cos(.2 * x ** 2.)
+        self.function = lambda x: math.cos(10. * math.log(x + 1.))
         self.fig, self.subplot = pyplot.subplots(nrows=1, ncols=1)
         self.errors = [1. for _ in self.applications]
         self.max_x = 10.
@@ -66,13 +68,16 @@ class ExperimentStatic(Experiment):
         del(self.samples[:-100])
 
         self.subplot.clear()
-        self.subplot.set_xlim(xmin=0., xmax=self.max_x)
-        self.subplot.set_ylim(ymin=-2., ymax=2.)
 
         self.subplot.scatter(*zip(*self.samples), alpha=.5)
         input_values = tuple(self.max_x * x / 100. for x in range(100))
         target_values = tuple(self.function(_x) for _x in input_values)
         output_values = tuple(self.applications[0].act([_x])[0] for _x in input_values)
+
+        self.subplot.set_xlim(xmin=0., xmax=self.max_x)
+        target_min, target_max = min(target_values), max(target_values)
+        target_span = (target_max - target_min) * .1
+        self.subplot.set_ylim(ymin=target_min - target_span, ymax=target_max + target_span)
 
         self.subplot.plot(input_values, target_values)
         self.subplot.plot(input_values, output_values, alpha=.5)
@@ -88,7 +93,7 @@ class ExperimentTimeseries(Experiment):
         info_subplots = tuple(
             (
                 f"{str(each_application):s}",
-                ("input", "target", "output", "error"),
+                ("input", "target", "output", "average error"),
                 None,
                 None,
             ) for each_application in applications)
@@ -101,20 +106,26 @@ class ExperimentTimeseries(Experiment):
 
         self.now = datetime.datetime.now()
         self.examples = examples
+        self.errors = [-1. for _ in self.applications]
+        self.iterations = 0
 
     def _perform(self, index_application: int, action: TARGET_VALUE):
         pass
 
     def _post_process(self):
         input_last = 0. if self.input_value_last is None else self.input_value_last[0]
+        for i, (output_value_last, each_error) in enumerate(zip(self.output_values_last, self.errors)):
+            self.errors[i] = smear(each_error, 1. if output_value_last is None else abs(output_value_last[0] - self.target_value_last[0]), self.iterations)
+        self.iterations += 1
+
         points = tuple(
             {
                 "input": input_last,
                 "target": self.target_value_last[0],
                 "output": 0. if output_value_last is None else output_value_last[0],
-                "error": 1. if output_value_last is None else abs(output_value_last[0] - self.target_value_last[0]),
+                "average error": each_error,
             }
-            for output_value_last in self.output_values_last
+            for output_value_last, each_error in zip(self.output_values_last, self.errors)
         )
 
         self.graph.add_snapshot(self.now + datetime.timedelta(seconds=self.timestamp), points)

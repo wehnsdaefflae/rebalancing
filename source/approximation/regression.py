@@ -9,7 +9,7 @@ from source.approximation.abstract import Approximation
 from source.tools.functions import smear, product, accumulating_combinations_with_replacement, z_score_normalized_generator
 
 
-class MultipleRegression(Approximation[float]):
+class MultipleRegression(Approximation[Sequence[float], float]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> MultipleRegression:
         pass
@@ -83,7 +83,7 @@ class MultiplePolynomialRegression(MultipleRegression):
         super().__init__(MultiplePolynomialRegression.polynomial_addends(no_arguments, degree))
 
 
-class MultivariateRegression(Approximation[Sequence[float]]):
+class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         pass
@@ -211,14 +211,14 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
                  no_outputs: int,
                  error_tolerance: float,
                  error_context: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance,
-                 resolution_context: int = 1,
                  ):
-        super().__init__(no_arguments + resolution_context, degree, no_outputs)
-        # todo: make context approximation a parameter
-        self.approximation_context = MultivariatePolynomialRegression(no_arguments + no_outputs + resolution_context, degree, resolution_context)
-        self.resolution_context = resolution_context
+        super().__init__(no_arguments + 1, degree, no_outputs)
+        self.approximation_context = None
+        self.no_arguments_context = no_arguments + no_outputs + 1
+        self.degree = degree
         self.error_context = error_context
-        self.context = tuple(0. for _ in range(resolution_context))
+        self.context = 0.
+        # todo: make regression switch ;)
 
         assert 1. >= error_tolerance >= 0.
         self.error_tolerance = error_tolerance
@@ -226,13 +226,13 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
     def get_state(self) -> Any:
         return self.approximation_context, self.context
 
-    def _optimize_context(self, input_values: Sequence[float], target_values: Sequence[float]) -> Tuple[Sequence[float], float]:
+    def _optimize_context(self, input_values: Sequence[float], target_values: Sequence[float]) -> Tuple[float, float]:
         error_minimal = -1.
         context_best = None
-        # todo: equidistant sampling
-        for i in range(100):    # ? whatevs...
-            context_this = tuple(random.random() for _ in range(self.resolution_context))
-            output_values = super().output(tuple(input_values) + tuple(context_this))
+        # todo: gradient optimization
+        for i in range(100):
+            context_this = i / 100.
+            output_values = super().output(tuple(input_values) + (context_this, ))
             e = self.error_context(output_values, target_values)
             if e < error_minimal or context_best is None:
                 error_minimal = e
@@ -241,29 +241,33 @@ class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
         return context_best, error_minimal
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        output_values = super().output(tuple(in_value) + self.context)
+        output_values = super().output(tuple(in_value) + (self.context, ))
         e = self.error_context(output_values, target_value)
 
-        context_new = None
         if self.error_tolerance < e:
             print("standard context wrong")
-            context_new = self.approximation_context.output(tuple(in_value) + tuple(output_values) + self.context)
-            output_values = super().output(tuple(in_value) + tuple(context_new))
+            if self.approximation_context is None:
+                self.approximation_context = MultivariatePolynomialRegression(self.no_arguments_context, self.degree, 1)
+
+            context_new, = self.approximation_context.output(tuple(in_value) + tuple(output_values) + (self.context,))
+            output_values = super().output(tuple(in_value) + (context_new,))
             e = self.error_context(output_values, target_value)
+            drag_context = drag
 
-        if self.error_tolerance < e:
-            print("next context wrong")
-            context_new, e = self._optimize_context(in_value, target_value)
+            if self.error_tolerance < e:
+                print("next context wrong")
+                context_new, e = self._optimize_context(in_value, target_value)
+                # drag_context = 1
 
-        if self.error_tolerance < e:
-            print("all contexts wrong")
-            context_new = tuple(random.random() for _ in range(self.resolution_context))
+                if self.error_tolerance < e:
+                    print("all contexts wrong")
+                    context_new = random.random()
+                    drag_context = 1
 
-        if context_new is not None:
-            self.approximation_context.fit(tuple(in_value) + tuple(output_values) + tuple(self.context), context_new, drag)
+            self.approximation_context.fit(tuple(in_value) + tuple(output_values) + (self.context, ), (context_new, ), drag_context)
             self.context = context_new
 
-        super().fit(tuple(in_value) + tuple(self.context), target_value, drag)
+        super().fit(tuple(in_value) + (self.context,), target_value, drag)
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        return super().output(tuple(in_value) + self.context)
+        return super().output(tuple(in_value) + (self.context,))

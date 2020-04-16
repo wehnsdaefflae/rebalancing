@@ -3,10 +3,11 @@ from typing import Generic, Dict, Any, Sequence, TypeVar
 
 from source.tools.serialization import JsonSerializable
 
-OUTPUT = TypeVar("OUTPUT", Sequence[float], float)
+OUTPUT_VALUE = TypeVar("OUTPUT_VALUE", Sequence[float], float, int)
+INPUT_VALUE = TypeVar("INPUT_VALUE", Sequence[float], float, int)
 
 
-class Approximation(JsonSerializable, Generic[OUTPUT]):
+class Approximation(JsonSerializable, Generic[INPUT_VALUE, OUTPUT_VALUE]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         raise NotImplementedError()
@@ -14,10 +15,10 @@ class Approximation(JsonSerializable, Generic[OUTPUT]):
     def to_dict(self) -> Dict[str, Any]:
         raise NotImplementedError()
 
-    def output(self, in_value: Sequence[float]) -> OUTPUT:
+    def output(self, in_value: INPUT_VALUE) -> OUTPUT_VALUE:
         raise NotImplementedError()
 
-    def fit(self, in_value: Sequence[float], target_value: OUTPUT, drag: int):
+    def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         raise NotImplementedError()
 
     def __str__(self) -> str:

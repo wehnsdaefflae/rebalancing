@@ -53,7 +53,7 @@ def debug_dynamic():
 
 
 def debug_static():
-    approximation = MultivariatePolynomialRegression(1, 5, 1)
+    approximation = MultivariatePolynomialRegression(1, 10, 1)
     application = TransformRational(approximation.__class__.__name__, approximation)
     t = ExperimentStatic(application)
     t.start()
@@ -65,26 +65,26 @@ def debug_nonfunctional():
     # ExperimentTimeseries.nf_square()
     # ExperimentTimeseries.nf_trigonometry()
 
-    approximation = MultivariatePolynomialFailureRegression(1, 1, 1, .5)
+    approximation = MultivariatePolynomialFailureRegression(1, 3, 1, .2)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
     t = ExperimentTimeseries(applications, ExperimentTimeseries.nf_trigonometry())
     t.start()
 
 
-# todo: implement trigonometric experiment
+# todo: failure regression test
+# todo: failure regression equidistant sampling
+
 # todo: implement reinforcement learning
 
 # todo: make all applications persistable
 # todo: reinforcement discrete action approximation
-# todo: failure regression test
-# todo: failure regression equidistant sampling
 
 
 def main():
     # speculation()
-    debug_dynamic()
+    # debug_dynamic()
     # debug_static()
-    # debug_nonfunctional()
+    debug_nonfunctional()
 
 
 if __name__ == "__main__":
