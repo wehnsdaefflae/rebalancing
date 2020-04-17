@@ -2,7 +2,7 @@
 from typing import Sequence, Iterator, Iterable
 
 # from matplotlib import pyplot
-from source.tools.functions import generate_ratios_nested, index_max
+from source.tools.functions import generate_ratios_nested, max_index
 from source.tools.timer import Timer
 
 
@@ -49,7 +49,7 @@ def make_path(matrix: Sequence[Sequence[float]]) -> Sequence[int]:
     i = len_path - 1
     while i >= 0:
         amounts = matrix[i]
-        asset_last, _ = index_max(amounts)
+        asset_last, _ = max_index(amounts)
         path.insert(0, asset_last)
         i -= 1
         if Timer.time_passed(2000):

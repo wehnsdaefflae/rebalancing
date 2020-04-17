@@ -1,10 +1,13 @@
-from typing import Dict, Any, Sequence, Callable, Tuple
+from typing import Dict, Any, Sequence, Tuple, Generic, TypeVar, Hashable
 
-from source.approximation.abstract import Approximation
-from source.approximation.regression import MultivariateRegression, MultivariatePolynomialRegression, MultivariateRecurrentRegression, MultiplePolynomialRegression
+from source.approximation.abstract import Approximation, ApproximationProbabilistic
+from source.approximation.regression import RegressionMultivariate, RegressionMultivariatePolynomial
+from source.tools.functions import max_single
+
+INPUT_VALUE = TypeVar("INPUT_VALUE")
 
 
-class Classification(Approximation[int, int]):
+class Classification(Approximation[INPUT_VALUE, int], Generic[INPUT_VALUE]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         pass
@@ -12,52 +15,65 @@ class Classification(Approximation[int, int]):
     def to_dict(self) -> Dict[str, Any]:
         pass
 
-    def output(self, in_value: int) -> int:
+    def output(self, in_value: INPUT_VALUE) -> int:
         raise NotImplementedError()
 
-    def output_info(self, in_value: int) -> Tuple[int, Dict[str, Any]]:
+    def output_info(self, in_value: INPUT_VALUE) -> Tuple[int, Dict[str, Any]]:
         raise NotImplementedError()
 
-    def fit(self, in_value: int, target_value: int, drag: int):
+    def fit(self, in_value: INPUT_VALUE, target_value: int, drag: int):
         raise NotImplementedError()
 
     def get_parameters(self) -> Sequence[float]:
         raise NotImplementedError()
 
 
-class NaiveBayesClassification(Classification):
-    def __init__(self, regression: MultivariateRegression, length_history: int):
-        super().__init__(regression)
-        self.length_history = length_history
-        self.history = [-1 for _ in range(length_history)]
+INPUT_HASHABLE = TypeVar("INPUT_HASHABLE", bound=Hashable)
+TARGET_VALUE = TypeVar("TARGET_VALUE")
+
+
+class ClassificationNaiveBayes(Classification[INPUT_HASHABLE], ApproximationProbabilistic[INPUT_HASHABLE, int], Generic[INPUT_HASHABLE]):
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> Approximation:
+        pass
+
+    def to_dict(self) -> Dict[str, Any]:
+        pass
+
+    def __init__(self):
         self.frequencies = dict()
 
-    def output(self, in_value: int) -> int:
-        history_tuple = tuple(self.history[1:] + [in_value])
-        sub_dict = self.frequencies.get(history_tuple)
+    def output(self, in_value: INPUT_HASHABLE) -> int:
+        sub_dict = self.frequencies.get(in_value)
         if sub_dict is None:
             return -1
         output_class, _ = max(sub_dict.items(), lambda x: x[1])
         return output_class
 
-    def output_info(self, in_value: int) -> Tuple[int, Dict[str, Any]]:
-        history_tuple = tuple(self.history[1:] + [in_value])
-        sub_dict = self.frequencies.get(history_tuple)
+    def get_probability(self, in_value: INPUT_HASHABLE, target: int, no_classes: int = -1):
+        sub_dict = self.frequencies.get(in_value)
         if sub_dict is None:
-            return -1, dict()
-        f = tuple(sub_dict.values())
-        s = sum(f)
+            return 1.
+
+        f = sub_dict.get(target, 0) + 1
+        f_tot = sum(sub_dict.values()) + max(no_classes, len(sub_dict))
+        return f / f_tot
+
+    def output_info(self, in_value: INPUT_HASHABLE) -> Tuple[int, Dict[str, Any]]:
+        sub_dict = self.frequencies.get(in_value)
+        if sub_dict is None:
+            return -1, {"k_total": 0, "p_normalized": 1.}
+        f_tot = sum(sub_dict.values())
         output_class, f_max = max(sub_dict.items(), lambda x: x[1])
+        f_tot_smooth = f_tot + len(sub_dict)
         info = {
-            "k_total": s,
-            "d_normalized": 0. if 0. >= s else f_max / s,
+            "k_total": f_tot,
+            "p_normalized": 1. if 0 >= f_tot_smooth else (f_max + 1) / f_tot_smooth,
         }
         return output_class, info
 
-    def fit(self, in_value: int, target_value: int, drag: int):
-        self.history.append(in_value)
-        del(self.history[:-self.length_history])
-        history_tuple = tuple(self.history)
+    def fit(self, in_value: INPUT_HASHABLE, target_value: int, drag: int):
+        history_tuple = tuple(in_value)
         sub_dict = self.frequencies.get(history_tuple)
         if sub_dict is None:
             sub_dict = {target_value: 1}
@@ -69,27 +85,7 @@ class NaiveBayesClassification(Classification):
         pass
 
 
-class SemioticModelClassification(Classification):
-    def __init__(self, threshold: float):
-        self.threshold = threshold
-
-    def output(self, in_value: int) -> int:
-        pass
-
-    def output_info(self, in_value: int) -> Tuple[int, Dict[str, Any]]:
-        pass
-
-    def fit(self, in_value: int, target_value: int, drag: int):
-        pass
-
-    def get_parameters(self) -> Sequence[float]:
-        pass
-
-    def _get_sub_classification(self) -> Classification:
-        pass
-
-
-class RegressionClassification(Approximation[Sequence[float], int]):
+class ClassificationRegression(Approximation[Sequence[float], int]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         pass
@@ -100,28 +96,14 @@ class RegressionClassification(Approximation[Sequence[float], int]):
     def get_parameters(self) -> Sequence[float]:
         return self.regression.get_parameters()
 
-    def __init__(self, regression: MultivariateRegression):
+    def __init__(self, regression: RegressionMultivariate):
         self.regression = regression
         self.no_classes = len(regression.regressions)
 
     @staticmethod
-    def max_single(vector: Sequence[float]) -> int:
-        index_max = -1
-        value_max = 0.
-        for i, v in enumerate(vector):
-            if index_max < i or value_max < v:
-                index_max = i
-                value_max = v
-
-            elif value_max == v:
-                return -1
-
-        return index_max
-
-    @staticmethod
     def error_class(output_value: Sequence[float], target_value: Sequence[float]) -> float:
-        index_output = RegressionClassification.max_single(output_value)
-        index_target = RegressionClassification.max_single(target_value)
+        index_output = max_single(output_value)
+        index_target = max_single(target_value)
         return float(index_output != index_target or 0 >= index_target)
 
     @staticmethod
@@ -150,24 +132,11 @@ class RegressionClassification(Approximation[Sequence[float], int]):
         return output_class
 
     def fit(self, in_value: Sequence[float], target_class: int, drag: int):
-        target_values = RegressionClassification.class_to_one_hot(target_class, self.no_classes)
+        target_values = ClassificationRegression.class_to_one_hot(target_class, self.no_classes)
         self.regression.fit(in_value, target_values, drag)
 
 
-class PolynomialClassification(RegressionClassification):
+class ClassificationPolynomial(ClassificationRegression):
     def __init__(self, no_arguments: int, degree: int, no_classes: int):
-        regression = MultivariatePolynomialRegression(no_arguments, degree, no_classes)
+        regression = RegressionMultivariatePolynomial(no_arguments, degree, no_classes)
         super().__init__(regression)
-
-
-class RecurrentClassification(RegressionClassification):
-    def __init__(self, no_classes: int, addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]], no_memories: int = 1):
-        regression = MultivariateRecurrentRegression(no_classes, addends, addends_memory, resolution_memory=no_memories, error_memory=RegressionClassification.error_class)
-        super().__init__(regression)
-
-
-class RecurrentPolynomialClassification(RecurrentClassification):
-    def __init__(self, no_arguments: int, degree: int, no_classes: int, no_memories: int = 1):
-        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + no_memories, degree)
-        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + no_memories, degree)
-        super().__init__(no_classes, addends_basic, addends_memory, no_memories=no_memories)

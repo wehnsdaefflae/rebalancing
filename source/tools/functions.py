@@ -3,7 +3,7 @@ from __future__ import annotations
 import glob
 import itertools
 import os
-from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional, Union, Collection
+from typing import TypeVar, Sequence, Iterable, Tuple, Generator, Optional, Union, Collection, Any
 
 from source.config import RAW_BINANCE_DIR
 
@@ -74,12 +74,27 @@ def smear(average: float, value: float, inertia: int) -> float:
     return (inertia * average + value) / (inertia + 1.)
 
 
-def index_max(values: Iterable[float], key=lambda x: x) -> Tuple[int, float]:
+def max_single(values: Sequence[Any], key=lambda x: x) -> int:
+    index_max = -1
+    value_max = 0.
+    for i, v in enumerate(values):
+        _v = key(v)
+        if index_max < i or value_max < _v:
+            index_max = i
+            value_max = _v
+
+        elif value_max == _v:
+            return -1
+
+    return index_max
+
+
+def max_index(values: Iterable[Any], key=lambda x: x) -> Tuple[int, Any]:
     i_max, v_max = max(enumerate(values), key=lambda x: key(x[1]))
     return i_max, v_max
 
 
-def indices_max(values: Iterable[float], key=lambda x: x) -> Collection[int]:
+def max_indices(values: Iterable[Any], key=lambda x: x) -> Collection[int]:
     indices = set()
     max_v = -1.
     for i, v in enumerate(values):

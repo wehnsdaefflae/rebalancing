@@ -1,17 +1,16 @@
 from __future__ import annotations
 import math
-import random
-from typing import Dict, Any, Sequence, Callable, List, Tuple
+from typing import Dict, Any, Sequence, Callable
 
 import numpy
 
 from source.approximation.abstract import Approximation
-from source.tools.functions import smear, product, accumulating_combinations_with_replacement, z_score_normalized_generator
+from source.tools.functions import smear, product, accumulating_combinations_with_replacement
 
 
-class MultipleRegression(Approximation[Sequence[float], float]):
+class RegressionMultiple(Approximation[Sequence[float], float]):
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> MultipleRegression:
+    def from_dict(d: Dict[str, Any]) -> RegressionMultiple:
         pass
 
     def to_dict(self) -> Dict[str, Any]:
@@ -57,7 +56,7 @@ class MultipleRegression(Approximation[Sequence[float], float]):
         return sum(results_addends)
 
 
-class MultiplePolynomialRegression(MultipleRegression):
+class RegressionMultiplePolynomial(RegressionMultiple):
     @staticmethod
     def polynomial_addends(no_arguments: int, degree: int) -> Sequence[Callable[[Sequence[float]], float]]:
         # todo: make functions persistable by generation them from a function that is stored, retrieved with the json trick in JSONSerializable
@@ -80,10 +79,10 @@ class MultiplePolynomialRegression(MultipleRegression):
         return addends
 
     def __init__(self, no_arguments: int, degree: int):
-        super().__init__(MultiplePolynomialRegression.polynomial_addends(no_arguments, degree))
+        super().__init__(RegressionMultiplePolynomial.polynomial_addends(no_arguments, degree))
 
 
-class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
+class RegressionMultivariate(Approximation[Sequence[float], Sequence[float]]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         pass
@@ -92,7 +91,7 @@ class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
         pass
 
     def __init__(self, no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]]):
-        self.regressions = tuple(MultipleRegression(addends) for _ in range(no_outputs))
+        self.regressions = tuple(RegressionMultiple(addends) for _ in range(no_outputs))
 
     @staticmethod
     def error_distance(output: Sequence[float], target: Sequence[float]) -> float:
@@ -106,7 +105,7 @@ class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
 
     @staticmethod
     def normalize(vector: Sequence[float]) -> Sequence[float]:
-        length = MultivariateRegression.length(vector)
+        length = RegressionMultivariate.length(vector)
         if length < 0.:
             raise ValueError("Length of vector cannot be negative.")
         elif length == 0.:
@@ -115,8 +114,8 @@ class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
 
     @staticmethod
     def error_distance_normalized(output: Sequence[float], target: Sequence[float]) -> float:
-        output_normalized = MultivariateRegression.normalize(output)
-        target_normalized = MultivariateRegression.normalize(target)
+        output_normalized = RegressionMultivariate.normalize(output)
+        target_normalized = RegressionMultivariate.normalize(target)
 
         sum_output = sum(output_normalized)
         sum_target = sum(target_normalized)
@@ -127,7 +126,7 @@ class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
         if 0. == sum_output or 0. == sum_target:
             return 1.
 
-        return MultivariateRegression.error_distance(output_normalized, target_normalized) // 2.
+        return RegressionMultivariate.error_distance(output_normalized, target_normalized) // 2.
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
         output_value = tuple(each_regression.output(in_value) for each_regression in self.regressions)
@@ -141,133 +140,8 @@ class MultivariateRegression(Approximation[Sequence[float], Sequence[float]]):
         return tuple(x for each_regression in self.regressions for x in each_regression.get_parameters())
 
 
-class MultivariatePolynomialRegression(MultivariateRegression):
+class RegressionMultivariatePolynomial(RegressionMultivariate):
     def __init__(self, no_arguments: int, degree: int, no_outputs: int):
-        super().__init__(no_outputs, MultiplePolynomialRegression.polynomial_addends(no_arguments, degree))
+        super().__init__(no_outputs, RegressionMultiplePolynomial.polynomial_addends(no_arguments, degree))
 
 
-class MultivariateRecurrentRegression(MultivariateRegression):
-    def __init__(self,
-                 no_outputs: int,
-                 addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]],
-                 resolution_memory: int = 1,
-                 error_memory: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
-                 ):
-        super().__init__(no_outputs, addends)
-        self.regressions_memory = tuple(MultipleRegression(addends_memory) for _ in range(resolution_memory))
-        self.values_memory = [0. for _ in range(resolution_memory)]
-        self.error_memory = error_memory
-        self.last_input = None
-        self.normalization = z_score_normalized_generator()
-        next(self.normalization)
-
-    def _get_memory(self, in_values: Sequence[float]) -> List[float]:
-        return [each_memory.output(in_values) for each_memory in self.regressions_memory]
-
-    def get_state(self) -> Any:
-        return self.regressions_memory, self.values_memory
-
-    def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        input_contextualized = tuple(in_value) + tuple(self.values_memory)
-        self.values_memory = self._get_memory(input_contextualized)
-        return super().output(input_contextualized)
-
-    def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        output_value = super().output(tuple(in_value) + tuple(self.values_memory))
-
-        e = self.error_memory(output_value, target_value)
-        e_z = self.normalization.send(e)
-        for i in range(len(self.values_memory)):
-            if random.random() < e_z:
-                self.values_memory[i] = random.random()
-
-        if self.last_input is not None:
-            for each_memory, each_value in zip(self.regressions_memory, self.values_memory):
-                # todo: fit with last target as input, because that's what functional approximations cannot do
-                each_memory.fit(self.last_input, each_value, drag)  # smaller, fixed drag?
-
-        input_contextualized = tuple(in_value) + tuple(self.values_memory)
-        super().fit(input_contextualized, target_value, drag)
-
-    def get_parameters(self) -> Sequence[float]:
-        return tuple(super().get_parameters()) + tuple(x for each_memory in self.regressions_memory for x in each_memory.get_parameters())
-
-
-class MultivariatePolynomialRecurrentRegression(MultivariateRecurrentRegression):
-    def __init__(self,
-                 no_arguments: int, degree: int, no_outputs: int,
-                 resolution_memory: int = 1,
-                 error_memory: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance
-                 ):
-        addends_basic = MultiplePolynomialRegression.polynomial_addends(no_arguments + resolution_memory, degree)
-        addends_memory = MultiplePolynomialRegression.polynomial_addends(no_arguments + resolution_memory, degree)
-        super().__init__(no_outputs, addends_basic, addends_memory, resolution_memory=resolution_memory, error_memory=error_memory)
-
-
-class MultivariatePolynomialFailureRegression(MultivariatePolynomialRegression):
-    def __init__(self,
-                 no_arguments: int,
-                 degree: int,
-                 no_outputs: int,
-                 error_tolerance: float,
-                 error_context: Callable[[Sequence[float], Sequence[float]], float] = MultivariateRegression.error_distance,
-                 ):
-        super().__init__(no_arguments + 1, degree, no_outputs)
-        self.approximation_context = None
-        self.no_arguments_context = no_arguments + no_outputs + 1
-        self.degree = degree
-        self.error_context = error_context
-        self.context = 0.
-        # todo: make regression switch ;)
-
-        assert 1. >= error_tolerance >= 0.
-        self.error_tolerance = error_tolerance
-
-    def get_state(self) -> Any:
-        return self.approximation_context, self.context
-
-    def _optimize_context(self, input_values: Sequence[float], target_values: Sequence[float]) -> Tuple[float, float]:
-        error_minimal = -1.
-        context_best = None
-        # todo: gradient optimization
-        for i in range(100):
-            context_this = i / 100.
-            output_values = super().output(tuple(input_values) + (context_this, ))
-            e = self.error_context(output_values, target_values)
-            if e < error_minimal or context_best is None:
-                error_minimal = e
-                context_best = context_this
-
-        return context_best, error_minimal
-
-    def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        output_values = super().output(tuple(in_value) + (self.context, ))
-        e = self.error_context(output_values, target_value)
-
-        if self.error_tolerance < e:
-            print("standard context wrong")
-            if self.approximation_context is None:
-                self.approximation_context = MultivariatePolynomialRegression(self.no_arguments_context, self.degree, 1)
-
-            context_new, = self.approximation_context.output(tuple(in_value) + tuple(output_values) + (self.context,))
-            output_values = super().output(tuple(in_value) + (context_new,))
-            e = self.error_context(output_values, target_value)
-            drag_context = drag
-
-            if self.error_tolerance < e:
-                print("next context wrong")
-                context_new, e = self._optimize_context(in_value, target_value)
-                # drag_context = 1
-
-                if self.error_tolerance < e:
-                    print("all contexts wrong")
-                    context_new = random.random()
-                    drag_context = 1
-
-            self.approximation_context.fit(tuple(in_value) + tuple(output_values) + (self.context, ), (context_new, ), drag_context)
-            self.context = context_new
-
-        super().fit(tuple(in_value) + (self.context,), target_value, drag)
-
-    def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        return super().output(tuple(in_value) + (self.context,))

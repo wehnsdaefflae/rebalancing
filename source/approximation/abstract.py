@@ -15,17 +15,35 @@ class Approximation(JsonSerializable, Generic[INPUT_VALUE, OUTPUT_VALUE]):
     def to_dict(self) -> Dict[str, Any]:
         raise NotImplementedError()
 
+    def __str__(self) -> str:
+        return self.__class__.__name__
+
     def output(self, in_value: INPUT_VALUE) -> OUTPUT_VALUE:
         raise NotImplementedError()
 
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         raise NotImplementedError()
 
-    def __str__(self) -> str:
-        return self.__class__.__name__
+    def get_parameters(self) -> Sequence[float]:
+        raise NotImplementedError()
+
+
+class ApproximationProbabilistic(Approximation[INPUT_VALUE, OUTPUT_VALUE], Generic[INPUT_VALUE, OUTPUT_VALUE]):
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> Approximation:
+        raise NotImplementedError()
+
+    def to_dict(self) -> Dict[str, Any]:
+        raise NotImplementedError()
+
+    def output(self, in_value: INPUT_VALUE) -> OUTPUT_VALUE:
+        raise NotImplementedError()
+
+    def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
+        raise NotImplementedError()
 
     def get_parameters(self) -> Sequence[float]:
         raise NotImplementedError()
 
-    def get_state(self) -> Any:
-        return None
+    def get_probability(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE) -> float:
+        raise NotImplementedError()

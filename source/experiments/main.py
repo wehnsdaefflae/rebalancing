@@ -1,6 +1,7 @@
 import random
 
-from source.approximation.regression import MultivariatePolynomialRegression, MultivariatePolynomialRecurrentRegression, MultivariatePolynomialFailureRegression
+from source.approximation.regression import RegressionMultivariatePolynomial
+from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing
 
 from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
@@ -24,9 +25,9 @@ def speculation():
     fee = .1 / 100.
     certainty = 1. / (1. - fee)
     approximations = (
-        MultivariatePolynomialRegression(no_assets_market, 2, no_assets_market),
-        MultivariatePolynomialRecurrentRegression(no_assets_market, 2, no_assets_market),
-        MultivariatePolynomialFailureRegression(no_assets_market, 2, no_assets_market, .5),
+        RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
+        RegressionMultivariatePolynomialRecurrent(no_assets_market, 2, no_assets_market),
+        RegressionMultivariatePolynomialFailure(no_assets_market, 2, no_assets_market, .5),
 
     )
     applications = (
@@ -46,14 +47,14 @@ def speculation():
 
 
 def debug_dynamic():
-    approximation = MultivariatePolynomialRegression(1, 1, 1)
+    approximation = RegressionMultivariatePolynomial(1, 1, 1)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
     t = ExperimentTimeseries(applications, ExperimentTimeseries.nf_trigonometry())
     t.start()
 
 
 def debug_static():
-    approximation = MultivariatePolynomialRegression(1, 10, 1)
+    approximation = RegressionMultivariatePolynomial(1, 10, 1)
     application = TransformRational(approximation.__class__.__name__, approximation)
     t = ExperimentStatic(application)
     t.start()
@@ -65,7 +66,7 @@ def debug_nonfunctional():
     # ExperimentTimeseries.nf_square()
     # ExperimentTimeseries.nf_trigonometry()
 
-    approximation = MultivariatePolynomialFailureRegression(1, 3, 1, .2)
+    approximation = RegressionMultivariatePolynomialFailure(1, 1, 1, .2)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
     t = ExperimentTimeseries(applications, ExperimentTimeseries.nf_trigonometry())
     t.start()

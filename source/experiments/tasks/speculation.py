@@ -6,7 +6,7 @@ from source.data.abstract import INPUT_VALUE, TARGET_VALUE, OFFSET_EXAMPLES
 from source.data.generators.snapshots_binance import rates_binance_generator, get_timestamp, get_rates
 from source.experiments.tasks.abstract import Application, Experiment
 
-from source.tools.functions import generate_ratios_send, index_max, smear
+from source.tools.functions import generate_ratios_send, max_index, smear
 from source.tools.moving_graph import MovingGraph
 
 
@@ -82,12 +82,12 @@ class TraderDistribution(Investor):
         self._update_distributions(asset_target_last)
 
     def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
-        asset_output, difference = index_max(f_m - f_c for f_m, f_c in zip(self.frequencies_model, self.frequencies_current))
+        asset_output, difference = max_index(f_m - f_c for f_m, f_c in zip(self.frequencies_model, self.frequencies_current))
         return tuple(float(i == asset_output) for i in range(self.no_assets))
 
 
 class TraderApproximation(Investor):
-    def __init__(self, name: str, approximation: Approximation[Sequence[float]], no_assets: int, certainty: float = 1.):
+    def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]], no_assets: int, certainty: float = 1.):
         super().__init__(name, no_assets)
         self.approximation = approximation
         self.certainty = certainty
@@ -102,7 +102,7 @@ class TraderApproximation(Investor):
 
     def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
         output_value = self.approximation.output(input_value)
-        asset_output, amount_output = index_max(output_value)
+        asset_output, amount_output = max_index(output_value)
         if self.certainty < amount_output:
             return tuple(float(asset_output == i) for i in range(self.no_assets))
         return tuple(-1. for _ in range(self.no_assets))
@@ -144,7 +144,7 @@ class TraderFrequency(Investor):
         ratio = TraderFrequency._get_ratio(input_value, target_value)
         self._update_frequency(tuple(self.history), ratio)
 
-        asset_best_prev, _ = index_max(ratio)
+        asset_best_prev, _ = max_index(ratio)
         self.history.append(asset_best_prev)
         del(self.history[:-self.length_history])
         self.rate_last = input_value
@@ -153,7 +153,7 @@ class TraderFrequency(Investor):
         if self.rate_last is None:
             raise ValueError(f"self.rate_last should be sent by experiment.start() over self.learn().")
         ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
-        asset_best_prev, _ = index_max(ratio)
+        asset_best_prev, _ = max_index(ratio)
         history_new = self.history[1:] + [asset_best_prev]
         asset_target, certainty = self._get_target(tuple(history_new))
         if asset_target < 0 or certainty < self.certainty_min:

@@ -14,7 +14,7 @@ from source.tools.moving_graph import MovingGraph
 
 
 class TransformRational(Application):
-    def __init__(self, name: str, approximation: Approximation[Sequence[float]]):
+    def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]]):
         super().__init__(name)
         self.name = name
         self.approximation = approximation
