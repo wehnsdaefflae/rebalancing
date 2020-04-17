@@ -109,7 +109,7 @@ class TraderApproximation(Investor):
 
 
 class TraderFrequency(Investor):
-    def __init__(self, name: str, no_assets: int, certainty_min: float, length_history: int = 1, inertia=100):
+    def __init__(self, name: str, no_assets: int, certainty_min: float = 1., length_history: int = 1, inertia=100):
         super().__init__(name, no_assets)
         self.frequencies = dict()
         self.certainty_min = certainty_min / no_assets
@@ -163,6 +163,61 @@ class TraderFrequency(Investor):
         return tuple(float(i == asset_target) for i in range(self.no_assets))
 
 
+class TraderFrequencyInverted(Investor):
+    def __init__(self, name: str, no_assets: int, certainty_max: float = 1., length_history: int = 1, inertia=100):
+        super().__init__(name, no_assets)
+        self.frequencies = dict()
+        self.certainty_max = certainty_max / no_assets
+        self.length_history = length_history
+        self.history = [-1 for _ in range(length_history)]
+        self.ratio = tuple(1. for _ in range(no_assets))
+        self.inertia = inertia
+        self.rate_last = None
+
+    def _update_frequency(self, history: Tuple[int], ratio: Sequence[float]):
+        sub_dict = self.frequencies.get(history)
+        if sub_dict is None:
+            sub_dict = dict()
+            self.frequencies[history] = sub_dict
+
+        # to maintain a moving distribution
+        for i, each_ratio in enumerate(ratio):
+            sub_dict[i] = smear(sub_dict.get(i, 0.), each_ratio, self.inertia)
+
+    def _get_target(self, history: Tuple[int]) -> Tuple[int, float]:
+        sub_dict = self.frequencies.get(history)
+        if sub_dict is None:
+            return -1, 0.
+        asset_target, asset_frequency = min(sub_dict.items(), key=lambda x: x[1])
+        return asset_target, (asset_frequency + 1.) / (sum(sub_dict.values()) + self.no_assets)
+
+    @staticmethod
+    def _get_ratio(rate_last: INPUT_VALUE, rate: INPUT_VALUE) -> Sequence[float]:
+        return tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rate, rate_last))
+
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+        ratio = TraderFrequency._get_ratio(input_value, target_value)
+        self._update_frequency(tuple(self.history), ratio)
+
+        asset_best_prev, _ = max_index(ratio)
+        self.history.append(asset_best_prev)
+        del(self.history[:-self.length_history])
+        self.rate_last = input_value
+
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+        if self.rate_last is None:
+            return tuple(-1. for _ in range(self.no_assets))
+
+        ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
+        asset_best_prev, _ = max_index(ratio)
+        history_new = self.history[1:] + [asset_best_prev]
+        asset_target, certainty = self._get_target(tuple(history_new))
+        if asset_target < 0 or certainty >= self.certainty_max:
+            return tuple(-1. for _ in range(self.no_assets))
+
+        return tuple(float(i == asset_target) for i in range(self.no_assets))
+
+
 class ExperimentMarket(Experiment):
     def __init__(self,
                  investors: Sequence[Investor],
@@ -171,6 +226,7 @@ class ExperimentMarket(Experiment):
                  asset_initial: int = 0, visualize: bool = True):
 
         super().__init__(investors)
+        # todo: deal better with data gaps
         self.after_fee = 1. - fee
         self.asset_initial = asset_initial
 
@@ -263,6 +319,7 @@ class ExperimentMarket(Experiment):
             rate_market = sum(self.rates) / self.no_assets
             value_market = rate_market * self.amount_market
             values = tuple(self.__evaluate(i) if self.has_started[i] else 1. for i in range(len(self.applications)))
+
         points_values = {f"{str(each_application):s}": v for each_application, v in zip(self.applications, values)}
         points_values["market"] = value_market
 
@@ -277,7 +334,7 @@ class ExperimentMarket(Experiment):
         if faulty:
             points_quality = {f"{str(each_application):s}": 1. for each_application in self.applications}
         else:
-            points_ratio = tuple(v / v_l for v, v_l in zip(values, self.values_last))
+            points_ratio = tuple(0. if 0. >= v_l else v / v_l for v, v_l in zip(values, self.values_last))
             points_quality = {
                 f"{str(each_application):s}": r / ratio_market if s else 0.
                 for s, each_application, r in zip(self.has_started, self.applications, points_ratio)

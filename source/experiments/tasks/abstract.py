@@ -79,7 +79,9 @@ class Experiment:
 
             time_now = round(time.time() * 1000)
             if self.time_sample < 0 or 1000 < time_now - self.time_sample:
-                print(self._information_sample() + "\n")
+                info = self._information_sample()
+                if 0 < len(info):
+                    print(info + "\n")
                 self.time_sample = time_now
 
         print("done!")

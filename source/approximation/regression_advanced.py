@@ -104,7 +104,7 @@ class RegressionMultivariatePolynomialFailure(RegressionMultivariatePolynomial):
         e = self.error_context(output_values, target_value)
 
         if self.error_tolerance < e:
-            print("standard context wrong")
+            #print("standard context wrong")
             if self.approximation_context is None:
                 self.approximation_context = RegressionMultivariatePolynomial(self.no_arguments_context, self.degree, 1)
 
@@ -114,12 +114,12 @@ class RegressionMultivariatePolynomialFailure(RegressionMultivariatePolynomial):
             drag_context = drag
 
             if self.error_tolerance < e:
-                print("next context wrong")
+                #print("next context wrong")
                 context_new, e = self._optimize_context(in_value, target_value)
                 # drag_context = 1
 
                 if self.error_tolerance < e:
-                    print("all contexts wrong")
+                    #print("all contexts wrong")
                     context_new = random.random()
                     drag_context = 1
 

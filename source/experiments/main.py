@@ -4,7 +4,7 @@ from source.approximation.abstract_advanced import ApproximationSemioticModel
 from source.approximation.regression import RegressionMultivariatePolynomial
 from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure, \
     RegressionMultivariatePolynomialProbabilistic
-from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing
+from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderFrequencyInverted
 
 from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
 from source.tools.functions import get_pairs_from_filesystem
@@ -18,7 +18,7 @@ applications translate snapshots to examples
 
 
 def speculation():
-    random.seed(4548547)
+    random.seed(454568547)
 
     no_assets_market = 10
     pairs = get_pairs_from_filesystem()
@@ -27,7 +27,7 @@ def speculation():
     factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
 
     fee = .1 / 100.
-    certainty = 1.  #/ (1. - fee)
+    certainty = 1. / (1. - fee)
     approximations = (
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialRecurrent(no_assets_market, 2, no_assets_market),
@@ -36,15 +36,16 @@ def speculation():
 
     )
     applications = (
-        TraderApproximation("square", approximations[0], no_assets_market, certainty=certainty),
-        TraderApproximation("semiotic", approximations[3], no_assets_market, certainty=certainty),
-        #TraderFrequency("freq 1", no_assets_market, certainty, length_history=1, inertia=100),
-        # TraderFrequency("freq 2", no_assets_market, certainty, length_history=2, inertia=100),
-        # TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
-        # TraderFrequency("freq 4", no_assets_market, certainty, length_history=4, inertia=100),
+        # TraderApproximation("square", approximations[0], no_assets_market, certainty=certainty),
+        # TraderApproximation("semiotic", approximations[3], no_assets_market, certainty=certainty),
+        # TraderFrequency("freq 1", no_assets_market, certainty, length_history=1, inertia=100),
+        TraderFrequency("freq 2", no_assets_market, certainty_min=certainty, length_history=2, inertia=100),
+        TraderFrequencyInverted("freq 2 inv", no_assets_market, certainty_max=1. / certainty, length_history=2, inertia=100),
+        #TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
+        #TraderFrequency("freq 4", no_assets_market, certainty, length_history=4, inertia=100),
         #TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
         #TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
-        Balancing("balancing", no_assets_market, 60),
+        #Balancing("balancing", no_assets_market, 60),
         # TraderDistribution("distribution", no_assets_market, fee),
     )
 
