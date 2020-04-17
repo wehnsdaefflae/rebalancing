@@ -1,6 +1,7 @@
-from typing import Sequence, Callable
+import random
+from typing import Sequence, Callable, TypeVar, Generic, Tuple, Dict, Any
 
-from source.approximation.classification import ClassificationRegression
+from source.approximation.classification import ClassificationRegression, ClassificationNaiveBayes
 from source.approximation.regression import RegressionMultiplePolynomial
 from source.approximation.regression_advanced import RegressionMultivariateRecurrent
 
@@ -16,3 +17,51 @@ class ClassificationRecurrentPolynomial(ClassificationRecurrent):
         addends_basic = RegressionMultiplePolynomial.polynomial_addends(no_arguments + no_memories, degree)
         addends_memory = RegressionMultiplePolynomial.polynomial_addends(no_arguments + no_memories, degree)
         super().__init__(no_classes, addends_basic, addends_memory, no_memories=no_memories)
+
+
+INPUT_VALUE = TypeVar("INPUT_VALUE")
+
+
+class MixinClassificationHistoric(Generic[INPUT_VALUE]):
+    def __init__(self, length_history: int):
+        self.length_history = length_history
+        self.history = [-1 for _ in range(length_history)]
+
+    def output(self, in_value: INPUT_VALUE) -> int:
+        history_tuple = tuple(self.history[1:] + [in_value])
+        return super().output(history_tuple)
+
+    def output_info(self, in_value: INPUT_VALUE) -> Tuple[int, Dict[str, Any]]:
+        history_tuple = tuple(self.history[1:] + [in_value])
+        return super().output_info(history_tuple)
+
+    def fit(self, in_value: INPUT_VALUE, target_value: int, drag: int):
+        self.history.append(in_value)
+        del(self.history[:-self.length_history])
+        history_tuple = tuple(self.history)
+        super().fit(history_tuple, target_value, drag)
+
+    def get_parameters(self) -> Sequence[float]:
+        return super().get_parameters()
+
+
+class ClassificationNaiveBayesHistoric(MixinClassificationHistoric[INPUT_VALUE], ClassificationNaiveBayes[Tuple[INPUT_VALUE, ...]], Generic[INPUT_VALUE]):
+    def __init__(self, length_history: int):
+        ClassificationNaiveBayes.__init__(self)
+        MixinClassificationHistoric.__init__(self, length_history)
+
+
+def main():
+    c = ClassificationNaiveBayesHistoric[int](2)
+    iterations = 0
+    while True:
+        value_in = random.randint(0, 9)
+        print(c.output(value_in))
+        value_out = random.randint(0, 9)
+        c.fit(value_in, value_out, iterations)
+        print()
+        iterations += 1
+
+
+if __name__ == "__main__":
+    main()

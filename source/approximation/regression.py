@@ -4,7 +4,7 @@ from typing import Dict, Any, Sequence, Callable
 
 import numpy
 
-from source.approximation.abstract import Approximation
+from source.approximation.abstract import Approximation, ApproximationProbabilistic, INPUT_VALUE, OUTPUT_VALUE
 from source.tools.functions import smear, product, accumulating_combinations_with_replacement
 
 
@@ -145,3 +145,11 @@ class RegressionMultivariatePolynomial(RegressionMultivariate):
         super().__init__(no_outputs, RegressionMultiplePolynomial.polynomial_addends(no_arguments, degree))
 
 
+class RegressionMultivariatePolynomialProbabilistic(RegressionMultivariatePolynomial, ApproximationProbabilistic[Sequence[float], Sequence[float]]):
+    def __init__(self, no_arguments: int, degree: int, no_outputs: int):
+        super().__init__(no_arguments, degree, no_outputs)
+
+    def get_probability(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE) -> float:
+        output_value = self.output(input_value)
+        error = RegressionMultivariate.error_distance(output_value, target_value)
+        return 1. / (1. + error)

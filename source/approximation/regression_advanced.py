@@ -77,7 +77,6 @@ class RegressionMultivariatePolynomialFailure(RegressionMultivariatePolynomial):
         self.degree = degree
         self.error_context = error_context
         self.context = 0.
-        # todo: make regression switch ;)
 
         assert 1. >= error_tolerance >= 0.
         self.error_tolerance = error_tolerance

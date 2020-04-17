@@ -2,7 +2,7 @@ import datetime
 from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import INPUT_VALUE, TARGET_VALUE, OFFSET_EXAMPLES
+from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, OFFSET_EXAMPLES
 from source.data.generators.snapshots_binance import rates_binance_generator, get_timestamp, get_rates
 from source.experiments.tasks.abstract import Application, Experiment
 
@@ -16,17 +16,17 @@ class Investor(Application):
         self.trades = 0
         self.no_assets = no_assets
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         raise NotImplementedError()
 
-    def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         assert all(x >= 0. for x in input_value)
         self._learn(input_value, target_value)
 
-    def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         raise NotImplementedError()
 
-    def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         assert all(x >= 0. for x in input_value)
         return self._act(input_value)
 
@@ -40,14 +40,14 @@ class Balancing(Investor):
         self.rates = tuple(1. for _ in range(no_assets))
         self.amount_assets = tuple(0. for _ in range(no_assets))
 
-    def _rebalance(self) -> TARGET_VALUE:
+    def _rebalance(self) -> OUTPUT_VALUE:
         value_each = 1. / self.no_assets
         return tuple(value_each for _ in range(self.no_assets))
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         pass
 
-    def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         self.iterations_since_balance += 1
         if self.iterations_since_balance % self.iterations_to_balance == 0:
             self.iterations_since_balance = 0
@@ -76,12 +76,12 @@ class TraderDistribution(Investor):
             return asset_target
         return -1
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         ratios = tuple(r / r_l for r, r_l in zip(target_value, input_value))
         asset_target_last = self._get_target_asset(ratios)
         self._update_distributions(asset_target_last)
 
-    def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         asset_output, difference = max_index(f_m - f_c for f_m, f_c in zip(self.frequencies_model, self.frequencies_current))
         return tuple(float(i == asset_output) for i in range(self.no_assets))
 
@@ -95,12 +95,12 @@ class TraderApproximation(Investor):
         self.generate_ratios = generate_ratios_send(no_assets)
         self.iterations = 0
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         #target_asset, _ = index_max(target_value)
         #target_amplified = tuple(float(i == target_asset) for i in range(self.no_assets))
         self.approximation.fit(input_value, target_value, self.iterations)
 
-    def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         output_value = self.approximation.output(input_value)
         asset_output, amount_output = max_index(output_value)
         if self.certainty < amount_output:
@@ -140,7 +140,7 @@ class TraderFrequency(Investor):
     def _get_ratio(rate_last: INPUT_VALUE, rate: INPUT_VALUE) -> Sequence[float]:
         return tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rate, rate_last))
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         ratio = TraderFrequency._get_ratio(input_value, target_value)
         self._update_frequency(tuple(self.history), ratio)
 
@@ -149,7 +149,7 @@ class TraderFrequency(Investor):
         del(self.history[:-self.length_history])
         self.rate_last = input_value
 
-    def _act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         if self.rate_last is None:
             raise ValueError(f"self.rate_last should be sent by experiment.start() over self.learn().")
         ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
@@ -223,7 +223,7 @@ class ExperimentMarket(Experiment):
         if 0. >= self.amount_market:
             self.amount_market = self.no_assets / sum(self.rates)
 
-    def _perform(self, index_application: int, distribution_value_target: TARGET_VALUE):
+    def _perform(self, index_application: int, distribution_value_target: OUTPUT_VALUE):
         if any(x < 0. for x in distribution_value_target):
             return
 

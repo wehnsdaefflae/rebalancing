@@ -1,7 +1,7 @@
 import time
 from typing import Sequence, List, Optional
 
-from source.data.abstract import TARGET_VALUE, INPUT_VALUE, EXAMPLE, OFFSET_EXAMPLES
+from source.data.abstract import OUTPUT_VALUE, INPUT_VALUE, EXAMPLE, OFFSET_EXAMPLES
 
 
 class Application:
@@ -11,10 +11,10 @@ class Application:
     def __str__(self) -> str:
         return self.name
 
-    def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         raise NotImplementedError()
 
-    def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         raise NotImplementedError()
 
 
@@ -30,10 +30,10 @@ class Experiment:
         self.input_value_last: Optional[INPUT_VALUE]
         self.input_value_last = None
 
-        self.target_value_last: Optional[TARGET_VALUE]
+        self.target_value_last: Optional[OUTPUT_VALUE]
         self.target_value_last = None
 
-        self.output_values_last: List[Optional[TARGET_VALUE]]
+        self.output_values_last: List[Optional[OUTPUT_VALUE]]
         self.output_values_last = [None for _ in applications]
 
     def _offset_examples(self) -> OFFSET_EXAMPLES:
@@ -42,7 +42,7 @@ class Experiment:
     def _pre_process(self):
         pass
 
-    def _perform(self, index_application: int, action: TARGET_VALUE):
+    def _perform(self, index_application: int, action: OUTPUT_VALUE):
         # changes experiment state for postprocessing (eg. plot)
         raise NotImplementedError()
 
@@ -58,7 +58,7 @@ class Experiment:
             self._pre_process()
 
             # initialize input, target, output
-            output_values_this: List[Optional[TARGET_VALUE]]
+            output_values_this: List[Optional[OUTPUT_VALUE]]
             output_values_this = [None for _ in self.applications]
 
             for index_application, each_application in enumerate(self.applications):

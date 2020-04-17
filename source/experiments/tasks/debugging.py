@@ -7,7 +7,7 @@ from typing import Sequence
 from matplotlib import pyplot
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import INPUT_VALUE, TARGET_VALUE, OFFSET_EXAMPLES
+from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, OFFSET_EXAMPLES
 from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.functions import smear
 from source.tools.moving_graph import MovingGraph
@@ -23,11 +23,11 @@ class TransformRational(Application):
     def __str__(self) -> str:
         return self.name
 
-    def learn(self, input_value: INPUT_VALUE, target_value: TARGET_VALUE):
+    def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         self.approximation.fit(input_value, target_value, self.iterations)
         self.iterations += 1
 
-    def act(self, input_value: INPUT_VALUE) -> TARGET_VALUE:
+    def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         return self.approximation.output(input_value)
 
 
@@ -52,7 +52,7 @@ class ExperimentStatic(Experiment):
             iterations += 1
             target_last = target_this
 
-    def _perform(self, index_application: int, action: TARGET_VALUE):
+    def _perform(self, index_application: int, action: OUTPUT_VALUE):
         pass
 
     def _post_process(self):
@@ -109,7 +109,7 @@ class ExperimentTimeseries(Experiment):
         self.errors = [-1. for _ in self.applications]
         self.iterations = 0
 
-    def _perform(self, index_application: int, action: TARGET_VALUE):
+    def _perform(self, index_application: int, action: OUTPUT_VALUE):
         pass
 
     def _post_process(self):

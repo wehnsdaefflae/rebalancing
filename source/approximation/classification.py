@@ -29,7 +29,6 @@ class Classification(Approximation[INPUT_VALUE, int], Generic[INPUT_VALUE]):
 
 
 INPUT_HASHABLE = TypeVar("INPUT_HASHABLE", bound=Hashable)
-TARGET_VALUE = TypeVar("TARGET_VALUE")
 
 
 class ClassificationNaiveBayes(Classification[INPUT_HASHABLE], ApproximationProbabilistic[INPUT_HASHABLE, int], Generic[INPUT_HASHABLE]):
@@ -47,7 +46,7 @@ class ClassificationNaiveBayes(Classification[INPUT_HASHABLE], ApproximationProb
         sub_dict = self.frequencies.get(in_value)
         if sub_dict is None:
             return -1
-        output_class, _ = max(sub_dict.items(), lambda x: x[1])
+        output_class, _ = max(sub_dict.items(), key=lambda x: x[1])
         return output_class
 
     def get_probability(self, in_value: INPUT_HASHABLE, target: int, no_classes: int = -1):
@@ -73,11 +72,10 @@ class ClassificationNaiveBayes(Classification[INPUT_HASHABLE], ApproximationProb
         return output_class, info
 
     def fit(self, in_value: INPUT_HASHABLE, target_value: int, drag: int):
-        history_tuple = tuple(in_value)
-        sub_dict = self.frequencies.get(history_tuple)
+        sub_dict = self.frequencies.get(in_value)
         if sub_dict is None:
             sub_dict = {target_value: 1}
-            self.frequencies[history_tuple] = sub_dict
+            self.frequencies[in_value] = sub_dict
         else:
             sub_dict[target_value] = sub_dict.get(target_value, 0) + 1
 
