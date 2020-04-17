@@ -94,8 +94,9 @@ class ExperimentTimeseries(Experiment):
             (
                 f"{str(each_application):s}",
                 ("input", "target", "output", "average error"),
+                "None",
                 None,
-                None,
+                "regular"
             ) for each_application in applications)
 
         self.graph = MovingGraph(
@@ -113,6 +114,8 @@ class ExperimentTimeseries(Experiment):
         pass
 
     def _post_process(self):
+        print(f"{self.applications[0].approximation.index_classifier_current:03d}: {str(self.applications[0].approximation.get_structure()):s}")
+
         input_last = 0. if self.input_value_last is None else self.input_value_last[0]
         for i, (output_value_last, each_error) in enumerate(zip(self.output_values_last, self.errors)):
             self.errors[i] = smear(each_error, 1. if output_value_last is None else abs(output_value_last[0] - self.target_value_last[0]), self.iterations)

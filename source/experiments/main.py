@@ -24,22 +24,26 @@ def speculation():
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, no_assets_market)
 
+    factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
+
     fee = .1 / 100.
-    certainty = 1. / (1. - fee)
+    certainty = 1.  #/ (1. - fee)
     approximations = (
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialRecurrent(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialFailure(no_assets_market, 2, no_assets_market, .5),
+        ApproximationSemioticModel(.999, factory)
 
     )
     applications = (
         TraderApproximation("square", approximations[0], no_assets_market, certainty=certainty),
-        # TraderFrequency("freq 1", no_assets_market, certainty, length_history=1, inertia=100),
+        TraderApproximation("semiotic", approximations[3], no_assets_market, certainty=certainty),
+        #TraderFrequency("freq 1", no_assets_market, certainty, length_history=1, inertia=100),
         # TraderFrequency("freq 2", no_assets_market, certainty, length_history=2, inertia=100),
         # TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
-        TraderFrequency("freq 4", no_assets_market, certainty, length_history=4, inertia=100),
-        # TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
-        # TraderApproximation("square fail", approximations[2], no_assets_market, fee, certainty=certainty),
+        # TraderFrequency("freq 4", no_assets_market, certainty, length_history=4, inertia=100),
+        #TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
+        #TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
         Balancing("balancing", no_assets_market, 60),
         # TraderDistribution("distribution", no_assets_market, fee),
     )
@@ -68,7 +72,7 @@ def debug_nonfunctional():
     # ExperimentTimeseries.nf_square()
     # ExperimentTimeseries.nf_trigonometry()
 
-    factory = lambda: RegressionMultivariatePolynomialProbabilistic(1, 1, 1)
+    factory = lambda: RegressionMultivariatePolynomialProbabilistic(1, 3, 1)
     approximation = ApproximationSemioticModel(.9, factory)
 
     #approximation = RegressionMultivariatePolynomialFailure(1, 1, 1, .2)
@@ -87,10 +91,10 @@ def debug_nonfunctional():
 
 
 def main():
-    # speculation()
+    speculation()
     # debug_dynamic()
     # debug_static()
-    debug_nonfunctional()
+    # debug_nonfunctional()
 
 
 if __name__ == "__main__":

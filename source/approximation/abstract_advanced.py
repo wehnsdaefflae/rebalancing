@@ -52,6 +52,15 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
         self.index_classifier_current = 0
         self.classifiers = [self.classifier_current]
 
+    def get_structure(self) -> Sequence[int]:
+        structure = []
+        model = self
+        while model is not None:
+            structure.append(len(model.classifiers))
+            model = model.classifier_parent
+
+        return structure
+
     def output(self, in_value: INPUT_VALUE) -> int:
         return self.classifier_current.output(in_value)
 
@@ -62,10 +71,13 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
             if self.classifier_parent is None:
                 self.classifier_parent = ApproximationSemioticModel[Tuple[int, ...], int](self.minimal_probability, lambda: ClassificationNaiveBayes())
 
-            in_value_parent = (self.index_classifier_current, ) + (in_value, )
+            in_value_parent = (self.index_classifier_current, )   # + (in_value, ) todo: maybe add input when classifying?
             index_successor = self.classifier_parent.output(in_value_parent)
 
-            probability = self.classifiers[index_successor].get_probability(in_value, target_value)
+            if index_successor < 0:
+                probability = -1.
+            else:
+                probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
             if probability < self.minimal_probability:
                 print("next doesnt fit")

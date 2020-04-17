@@ -9,9 +9,10 @@ from source.tools.functions import smear
 
 NAME_Y = str
 NAMES_PLOTS = Sequence[str]
-MOVING_AVERAGE = Optional[bool]
+MOVING_AVERAGE = str
 LIMITS = Optional[Tuple[float, float]]
-INFO_AXIS = Tuple[NAME_Y, NAMES_PLOTS, MOVING_AVERAGE, LIMITS]
+TYPE = str
+INFO_AXIS = Tuple[NAME_Y, NAMES_PLOTS, MOVING_AVERAGE, LIMITS, TYPE]
 
 
 class MovingGraph:
@@ -26,7 +27,9 @@ class MovingGraph:
         if no_subplots == 1:
             self.subplots = (self.subplots, )
 
-        self.names_axes, self.names_plots, self.moving_averages, self.limits = zip(*axes_info)
+        self.names_axes, self.names_plots, self.moving_averages, self.limits, self.types = zip(*axes_info)
+        assert all(x in ("None", "accumulate", "moving", "full") for x in self.moving_averages)
+        assert all(x in ("regular", "step") for x in self.types)
 
         self.interval_draw_ms = interval_draw_ms
         self.size_window = size_window
@@ -34,7 +37,9 @@ class MovingGraph:
         self.no_axes = len(self.names_axes)
         self.no_plots = tuple(len(names) for names in self.names_plots)
 
-        self.time_current = None
+        self.datetime_current = None
+        self.datetime_last = None
+
         self.values_current = tuple({each_name: 0. for each_name in each_names_plot} for each_names_plot in self.names_plots)
 
         self.time_window = []
@@ -43,14 +48,19 @@ class MovingGraph:
         self.iterations_since_draw = [0 for _ in self.names_axes]
         self.time_last = -1.
 
-    def add_snapshot(self, now: datetime.datetime, points: Sequence[Dict[str, float]]):
+    def add_snapshot(self, datetime_now: datetime.datetime, points: Sequence[Dict[str, float]]):
         assert len(points) == self.no_axes
 
-        self.time_current = now
+        self.datetime_current = datetime_now
         for i, (value_current, limits, is_moving_average, points_axis) in enumerate(zip(self.values_current, self.limits, self.moving_averages, points)):
-            if is_moving_average is None:
+            if is_moving_average == "None":
                 for name_plot in value_current:
                     value_current[name_plot] = points_axis[name_plot]
+
+            elif is_moving_average == "accumulate":
+                for name_plot in value_current:
+                    value_current[name_plot] += points_axis[name_plot]
+
             else:
                 for name_plot, value_last in value_current.items():
                     value_current[name_plot] = smear(value_last, points_axis[name_plot], self.iterations_since_draw[i])
@@ -59,6 +69,10 @@ class MovingGraph:
 
         time_now = time.time() * 1000.
         if self.time_last < 0. or time_now - self.time_last >= self.interval_draw_ms or 0 >= self.interval_draw_ms:
+            if self.datetime_last is not None:
+                print(f"time interval {str(datetime_now - self.datetime_last):s}")
+            self.datetime_last = datetime_now
+
             self.draw()
             self.time_last = time_now
 
@@ -89,7 +103,10 @@ class MovingGraph:
         for i, (each_name, each_plot, each_value) in enumerate(zip(self.names_plots[index_subplot], window_subplot.values(), current_subplot.values())):
             each_plot.append(each_value)
             del(each_plot[:-self.size_window])
-            l, = axis_subplot.plot(self.time_window, each_plot, label=f"{each_name:s}", alpha=.5)
+            if self.types[index_subplot] == "step":
+                l, = axis_subplot.step(self.time_window, each_plot, label=f"{each_name:s}", alpha=.5)
+            else:
+                l, = axis_subplot.plot(self.time_window, each_plot, label=f"{each_name:s}", alpha=.5)
             lines.append(l)
 
         if self.limits[index_subplot] is not None:
@@ -99,13 +116,18 @@ class MovingGraph:
 
         pyplot.setp(axis_subplot.xaxis.get_majorticklabels(), rotation=90, ha="right", rotation_mode="anchor")
 
-        if self.moving_averages[index_subplot] is not None and self.moving_averages[index_subplot]:
+        values_subplot = self.values_current[index_subplot]
+        if self.moving_averages[index_subplot] == "accumulate":
+            for name_plot in values_subplot:
+                values_subplot[name_plot] = 0
+
+        if self.moving_averages[index_subplot] != "full":
             self.iterations_since_draw[index_subplot] = 0
 
         axis_subplot.legend(lines, tuple(each_line.get_label() for each_line in lines))
 
     def draw(self):
-        self.time_window.append(self.time_current)
+        self.time_window.append(self.datetime_current)
         del(self.time_window[:-self.size_window])
 
         for i in range(self.no_axes):

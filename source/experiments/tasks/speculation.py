@@ -151,7 +151,8 @@ class TraderFrequency(Investor):
 
     def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         if self.rate_last is None:
-            raise ValueError(f"self.rate_last should be sent by experiment.start() over self.learn().")
+            return tuple(-1. for _ in range(self.no_assets))
+
         ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
         asset_best_prev, _ = max_index(ratio)
         history_new = self.history[1:] + [asset_best_prev]
@@ -186,26 +187,33 @@ class ExperimentMarket(Experiment):
         self.rates_last = None
         self.rates = None
 
-        self.timestamp = -1
-        self.timestamp_last = -1
-
         self.graph = None
         if visualize:
             subplot_amounts = (
                 "value",
                 tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),
-                True,
+                "moving",
                 None,
+                "regular"
             )
 
             subplot_ratios = (
                 "quality",
                 tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),  # "minimum", "maximum"),
-                False,
+                "full",
                 None,
+                "regular"
             )
 
-            self.graph = MovingGraph((subplot_amounts, subplot_ratios), 50)
+            subplot_trades = (
+                "trades",
+                tuple(f"{str(each_application):s}" for each_application in investors),
+                "accumulate",
+                None,
+                "step"
+            )
+
+            self.graph = MovingGraph((subplot_amounts, subplot_ratios, subplot_trades), 50)
 
     def _offset_examples(self) -> OFFSET_EXAMPLES:
         time_range = 1532491200000, 1577836856000
@@ -236,7 +244,7 @@ class ExperimentMarket(Experiment):
         value_total = self.__evaluate(index_application) * self.after_fee  # actually just for those assets that to not stay the same
         value_distributed = tuple(x * value_total for x in distribution_normalized)
         for i, (v, r) in enumerate(zip(value_distributed, self.rates)):
-            amounts_assets[i] = v / r
+            amounts_assets[i] = 0. if 0. >= r else v / r
 
         self.no_trades[index_application] += sum(int(v_n != v_o) for v_n, v_o in zip(amounts_assets, amounts_assets_copy))
 
@@ -276,26 +284,16 @@ class ExperimentMarket(Experiment):
             }
         points_quality["market"] = 1.
 
+        points_trades = {f"{str(each_application):s}": self.no_trades[i] for i, each_application in enumerate(self.applications)}
+        for index_investor, each_investor in enumerate(self.applications):
+            self.no_trades[index_investor] = 0
+
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
-        self.graph.add_snapshot(dt, (points_values, points_quality))
+        self.graph.add_snapshot(dt, (points_values, points_quality, points_trades))
 
         if not faulty:
             self.rates_last = self.rates
             self.values_last = values
-
-    def _information_sample(self) -> str:
-        info = []
-        if self.timestamp_last >= 0:
-            interval = self.timestamp - self.timestamp_last
-            interval_dt = datetime.timedelta(milliseconds=interval)
-            info.append(f"time interval {str(interval_dt):s}")
-
-        for index_investor, each_investor in enumerate(self.applications):
-            info.append(f"no. trades: {self.no_trades[index_investor]: 5d} for {str(each_investor):s}")
-            self.no_trades[index_investor] = 0
-
-        self.timestamp_last = self.timestamp
-        return "\n".join(info)
 
     def __evaluate(self, index_investor: int) -> float:
         if not self.has_started[index_investor]:
