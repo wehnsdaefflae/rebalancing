@@ -1,7 +1,7 @@
 import time
 from typing import Sequence, List, Optional
 
-from source.data.abstract import OUTPUT_VALUE, INPUT_VALUE, EXAMPLE, OFFSET_EXAMPLES
+from source.data.abstract import OUTPUT_VALUE, INPUT_VALUE, OFFSET_EXAMPLES
 
 
 class Application:

@@ -1,4 +1,3 @@
-import random
 from typing import Sequence, Callable, TypeVar, Generic, Tuple, Dict, Any
 
 from source.approximation.classification import ClassificationRegression, ClassificationNaiveBayes
@@ -41,27 +40,8 @@ class MixinClassificationHistoric(Generic[INPUT_VALUE]):
         history_tuple = tuple(self.history)
         super().fit(history_tuple, target_value, drag)
 
-    def get_parameters(self) -> Sequence[float]:
-        return super().get_parameters()
-
 
 class ClassificationNaiveBayesHistoric(MixinClassificationHistoric[INPUT_VALUE], ClassificationNaiveBayes[Tuple[INPUT_VALUE, ...]], Generic[INPUT_VALUE]):
     def __init__(self, length_history: int):
         ClassificationNaiveBayes.__init__(self)
         MixinClassificationHistoric.__init__(self, length_history)
-
-
-def main():
-    c = ClassificationNaiveBayesHistoric[int](2)
-    iterations = 0
-    while True:
-        value_in = random.randint(0, 9)
-        print(c.output(value_in))
-        value_out = random.randint(0, 9)
-        c.fit(value_in, value_out, iterations)
-        print()
-        iterations += 1
-
-
-if __name__ == "__main__":
-    main()

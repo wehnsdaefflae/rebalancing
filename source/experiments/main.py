@@ -2,7 +2,8 @@ import random
 
 from source.approximation.abstract_advanced import ApproximationSemioticModel
 from source.approximation.regression import RegressionMultivariatePolynomial
-from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure
+from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure, \
+    RegressionMultivariatePolynomialProbabilistic
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing
 
 from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
@@ -67,8 +68,8 @@ def debug_nonfunctional():
     # ExperimentTimeseries.nf_square()
     # ExperimentTimeseries.nf_trigonometry()
 
-    factory = lambda: RegressionMultivariatePolynomial(1, 1, 1)
-    approximation = ApproximationSemioticModel(.5, 1, factory)
+    factory = lambda: RegressionMultivariatePolynomialProbabilistic(1, 1, 1)
+    approximation = ApproximationSemioticModel(.9, factory)
 
     #approximation = RegressionMultivariatePolynomialFailure(1, 1, 1, .2)
     applications = [TransformRational(approximation.__class__.__name__, approximation)]
