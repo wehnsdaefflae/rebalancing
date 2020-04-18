@@ -42,7 +42,7 @@ class ExperimentStatic(Experiment):
 
         self.samples = []
 
-    def _offset_examples(self) -> OFFSET_EXAMPLES:
+    def _states(self) -> OFFSET_EXAMPLES:
         iterations = 0
         target_last = 0.
         while True:
@@ -175,5 +175,5 @@ class ExperimentTimeseries(Experiment):
             yield iteration, target_last, input_this
             iteration += 1
 
-    def _offset_examples(self) -> OFFSET_EXAMPLES:
+    def _states(self) -> OFFSET_EXAMPLES:
         return self.examples

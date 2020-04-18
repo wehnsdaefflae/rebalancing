@@ -2,11 +2,11 @@ import datetime
 from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, OFFSET_EXAMPLES
+from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, STATE, EXAMPLE
 from source.data.generators.snapshots_binance import rates_binance_generator, get_timestamp, get_rates
 from source.experiments.tasks.abstract import Application, Experiment
 
-from source.tools.functions import generate_ratios_send, max_index, smear
+from source.tools.functions import generate_ratios_send, max_index, smear, normalize
 from source.tools.moving_graph import MovingGraph
 
 
@@ -20,15 +20,16 @@ class Investor(Application):
         raise NotImplementedError()
 
     def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        assert all(x >= 0. for x in input_value)
-        self._learn(input_value, target_value)
+        if all(x >= 0. for x in input_value) and all(x >= 0. for x in target_value):
+            self._learn(input_value, target_value)
 
     def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         raise NotImplementedError()
 
     def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
-        assert all(x >= 0. for x in input_value)
-        return self._act(input_value)
+        if all(x >= 0. for x in input_value):
+            return self._act(input_value)
+        return tuple(-1. for _ in range(self.no_assets))
 
 
 class Balancing(Investor):
@@ -223,26 +224,11 @@ class ExperimentMarket(Experiment):
                  investors: Sequence[Investor],
                  pairs: Sequence[Tuple[str, str]],
                  fee: float,
-                 asset_initial: int = 0, visualize: bool = True):
+                 visualize: bool = True):
 
         super().__init__(investors)
-        # todo: deal better with data gaps
         self.after_fee = 1. - fee
-        self.asset_initial = asset_initial
-
         self.pairs = pairs
-        self.no_assets = len(self.pairs)
-
-        self.amount_market = 0.
-
-        self.amounts_assets = tuple([0. for _ in range(self.no_assets)] for _ in investors)
-        self.values_last = [1. for _ in investors]
-        self.no_trades = [0 for _ in investors]
-        self.has_started = [False for _ in self.applications]
-
-        self.rates_last = None
-        self.rates = None
-
         self.graph = None
         if visualize:
             subplot_amounts = (
@@ -254,7 +240,7 @@ class ExperimentMarket(Experiment):
             )
 
             subplot_ratios = (
-                "quality",
+                "relative growth",
                 tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),  # "minimum", "maximum"),
                 "full",
                 None,
@@ -262,7 +248,7 @@ class ExperimentMarket(Experiment):
             )
 
             subplot_trades = (
-                "trades",
+                "no. trades",
                 tuple(f"{str(each_application):s}" for each_application in investors),
                 "accumulate",
                 None,
@@ -271,93 +257,118 @@ class ExperimentMarket(Experiment):
 
             self.graph = MovingGraph((subplot_amounts, subplot_ratios, subplot_trades), 50)
 
-    def _offset_examples(self) -> OFFSET_EXAMPLES:
+    def _initialize_state(self):
+        self.state_experiment.clear()
+        self.state_experiment["portfolios"] = tuple([0. for _ in self.pairs] for _ in self.applications)
+        self.state_experiment["no_trades"] = [0. for _ in self.applications]
+        self.state_experiment["value_market_last"] = 1.
+        self.state_experiment["value_portfolios_last"] = [-1. for _ in self.applications]
+
+    def _states(self) -> STATE:
         time_range = 1532491200000, 1577836856000
         interval_minutes = 1
+        yield from rates_binance_generator(self.pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
 
-        generator_snapshots = rates_binance_generator(self.pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
+    def _update_experiment(self, state_raw: STATE):
+        self.state_experiment["timestamp"] = get_timestamp(state_raw)
+        rates = tuple(-1. if 0. >= r else r for r in get_rates(state_raw))
+        rates_last = self.state_experiment.get("rates")
+        self.state_experiment["rates"] = rates
+        growths = tuple(1. for _ in rates) if rates_last is None else tuple(-1. if 0. >= r_l or 0. >= r else r / r_l for r, r_l in zip(rates, rates_last))
+        self.state_experiment["growths"] = growths
 
-        for snapshot in generator_snapshots:
-            timestamp = get_timestamp(snapshot)
-            rate = get_rates(snapshot)
-            yield timestamp, rate, rate
+    def _get_offset_example(self) -> EXAMPLE:
+        rates = self.state_experiment["rates"]
+        return self.state_experiment["timestamp"], rates, rates
 
     def _pre_process(self):
-        self.rates = self.target_value_last
-        if 0. >= self.amount_market:
-            self.amount_market = self.no_assets / sum(self.rates)
+        pass
 
-    def _perform(self, index_application: int, distribution_value_target: OUTPUT_VALUE):
-        if any(x < 0. for x in distribution_value_target):
+    def _perform(self, index_investor: int, distribution_value_target: OUTPUT_VALUE):
+        if any(x < 0. for x in distribution_value_target) or all(x == 0. for x in distribution_value_target):
             return
 
-        amounts_assets = self.amounts_assets[index_application]
-        amounts_assets_copy = list(amounts_assets)
+        rates = self.state_experiment["rates"]
+        if any(0. >= x for x in rates):
+            print(f"erroneous rates: {str(rates):s}. skipping...")
+            return
 
-        _s = sum(distribution_value_target)
-        distribution_normalized = tuple(x / _s for x in distribution_value_target)
+        portfolios = self.state_experiment["portfolios"]
+        no_trades = self.state_experiment["no_trades"]
 
-        value_total = self.__evaluate(index_application) * self.after_fee  # actually just for those assets that to not stay the same
-        value_distributed = tuple(x * value_total for x in distribution_normalized)
-        for i, (v, r) in enumerate(zip(value_distributed, self.rates)):
-            amounts_assets[i] = 0. if 0. >= r else v / r
+        portfolio = portfolios[index_investor]
+        portfolio_copy = list(portfolio)
 
-        self.no_trades[index_application] += sum(int(v_n != v_o) for v_n, v_o in zip(amounts_assets, amounts_assets_copy))
+        value = self.__evaluate(index_investor) * self.after_fee  # actually just for those assets that do not stay the same
+        distribution_normalized = normalize(distribution_value_target)
+        value_distributed = tuple(x * value for x in distribution_normalized)
+        for i, (v, r) in enumerate(zip(value_distributed, rates)):
+            portfolio[i] = v / r
 
-        if not self.has_started[index_application]:
-            self.has_started[index_application] = True
+        no_trades[index_investor] = sum(int(a_n != a_o) for a_n, a_o in zip(portfolio, portfolio_copy))
 
     def _post_process(self):
-        faulty = any(0. >= x for x in self.rates)
+        growths = self.state_experiment["growths"]
+        if any(0. >= x for x in growths):
+            print(f"erroneous growths: {str(growths):s}. skipping...")
+            return
+
+        value_market_last = self.state_experiment["value_market_last"]
+        value_portfolios_last = self.state_experiment["value_portfolios_last"]
+        portfolios = self.state_experiment["portfolios"]
+
+        growth_market = self.__get_growth_market(growths)
+        value_market = value_market_last * growth_market
+        value_portfolios = tuple(self.__evaluate(i) for i in range(len(self.applications)))
+        for each_value in value_portfolios:
+            assert 0. < each_value
+
+        growth_portfolios = self.__get_growth_portfolios(value_portfolios, value_portfolios_last)
+        self.__add_to_graph(growth_market, value_market, growth_portfolios, value_portfolios)
+
+        for i, each_portfolio in enumerate(portfolios):
+            if value_portfolios_last[i] == -1:
+                assert value_portfolios[i] == 1.
+                assert all(0. >= x for x in each_portfolio)
+                assert growth_portfolios[i] == 1.
+
+        self.state_experiment["value_market_last"] = value_market
+        self.state_experiment["value_portfolios_last"] = value_portfolios
+
+    def __get_growth_portfolios(self, value_portfolios: Sequence[float], value_portfolios_last: Sequence[float]) -> Sequence[float]:
+        return tuple(1. if v_l == -1. else v / v_l for v, v_l in zip(value_portfolios, value_portfolios_last))
+
+    def __get_growth_market(self, growths: Sequence[float]) -> float:
+        return sum(growths) / len(growths)
+
+    def __add_to_graph(self, growth_market: float, value_market: float, growth_investors: Sequence[float], value_portfolios: Sequence[float]):
+        no_trades = self.state_experiment["no_trades"]
 
         # value points
-        if faulty:
-            values = tuple(0. for _ in self.applications)
-            value_market = 0.
-
-        else:
-            rate_market = sum(self.rates) / self.no_assets
-            value_market = rate_market * self.amount_market
-            values = tuple(self.__evaluate(i) if self.has_started[i] else 1. for i in range(len(self.applications)))
-
-        points_values = {f"{str(each_application):s}": v for each_application, v in zip(self.applications, values)}
+        points_values = {f"{str(each_application):s}": v for each_application, v in zip(self.applications, value_portfolios)}
         points_values["market"] = value_market
 
-        # quality points
-        if self.rates_last is None or faulty:
-            ratio_assets = tuple(1. for _ in range(self.no_assets))
-        else:
-            ratio_assets = tuple(r / r_l for r, r_l in zip(self.rates, self.rates_last))
+        # relative growth points
+        points_growth = {
+            f"{str(each_application):s}": r / growth_market
+            for each_application, r in zip(self.applications, growth_investors)
+        }
+        points_growth["market"] = 1.
 
-        ratio_market = sum(ratio_assets) / self.no_assets
-
-        if faulty:
-            points_quality = {f"{str(each_application):s}": 1. for each_application in self.applications}
-        else:
-            points_ratio = tuple(0. if 0. >= v_l else v / v_l for v, v_l in zip(values, self.values_last))
-            points_quality = {
-                f"{str(each_application):s}": r / ratio_market if s else 0.
-                for s, each_application, r in zip(self.has_started, self.applications, points_ratio)
-            }
-        points_quality["market"] = 1.
-
-        points_trades = {f"{str(each_application):s}": self.no_trades[i] for i, each_application in enumerate(self.applications)}
-        for index_investor, each_investor in enumerate(self.applications):
-            self.no_trades[index_investor] = 0
-
+        # trade points
+        points_trades = {f"{str(each_application):s}": no_trades[i] for i, each_application in enumerate(self.applications)}
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
-        self.graph.add_snapshot(dt, (points_values, points_quality, points_trades))
 
-        if not faulty:
-            self.rates_last = self.rates
-            self.values_last = values
+        self.graph.add_snapshot(dt, (points_values, points_growth, points_trades))
 
-    def __evaluate(self, index_investor: int) -> float:
-        if not self.has_started[index_investor]:
+    def __evaluate(self, index_application: int) -> float:
+        value_portfolios_last = self.state_experiment["value_portfolios_last"]
+        if value_portfolios_last[index_application] < 0.:
             return 1.
 
-        amount_assets = self.amounts_assets[index_investor]
-        return sum(r * amount_assets[i] for i, r in enumerate(self.rates))
+        portfolios = self.state_experiment["portfolios"]
+        rates = self.state_experiment["rates"]
+        return sum(a * r for a, r in zip(portfolios[index_application], rates))
 
     def start(self):
         super().start()

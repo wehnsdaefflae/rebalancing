@@ -129,6 +129,13 @@ def product(values: Iterable[float]) -> float:
     return output
 
 
+def normalize(values: Sequence[float]) -> Sequence[float]:
+    s = sum(values)
+    if s == 0.:
+        return tuple(0. for _ in values)
+    return tuple(v / s for v in values)
+
+
 def generate_ratios_nested(generator_values: Iterable[Sequence[float]]) -> Iterable[Sequence[float]]:
     values_last = None
     for values_this in generator_values:

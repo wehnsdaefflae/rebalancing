@@ -52,5 +52,6 @@ def get_rates(snapshot: Dict[str, Any]) -> Sequence[float]:
     )
     return rates
 
+
 def get_timestamp(snapshot: Dict[str, Any]) -> int:
     return int(snapshot["close_time"])

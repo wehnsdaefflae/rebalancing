@@ -4,7 +4,7 @@ from source.approximation.abstract_advanced import ApproximationSemioticModel
 from source.approximation.regression import RegressionMultivariatePolynomial
 from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure, \
     RegressionMultivariatePolynomialProbabilistic
-from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderFrequencyInverted
+from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderFrequencyInverted
 
 from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
 from source.tools.functions import get_pairs_from_filesystem

@@ -1,7 +1,6 @@
-import time
 from typing import Sequence, List, Optional
 
-from source.data.abstract import OUTPUT_VALUE, INPUT_VALUE, OFFSET_EXAMPLES
+from source.data.abstract import OUTPUT_VALUE, INPUT_VALUE, GENERATOR_STATES, STATE, EXAMPLE
 
 
 class Application:
@@ -21,22 +20,27 @@ class Application:
 class Experiment:
     def __init__(self, applications: Sequence[Application]):
         self.applications = applications
+
+        self.state_experiment = dict()
+
+        self.input_last = None
+        self.target_last = None
+        self.outputs_last = None
+
         self.timestamp = -1
-        self.time_sample = -1
+        self.input_this = None
+        self.target_this = None
 
-        self.input_value_this: Optional[INPUT_VALUE]
-        self.input_value_this = None
+    def _update_experiment(self, state_raw: STATE):
+        raise NotImplementedError()
 
-        self.input_value_last: Optional[INPUT_VALUE]
-        self.input_value_last = None
+    def _get_offset_example(self) -> EXAMPLE:
+        raise NotImplementedError()
 
-        self.target_value_last: Optional[OUTPUT_VALUE]
-        self.target_value_last = None
+    def _states(self) -> GENERATOR_STATES:
+        raise NotImplementedError()
 
-        self.output_values_last: List[Optional[OUTPUT_VALUE]]
-        self.output_values_last = [None for _ in applications]
-
-    def _offset_examples(self) -> OFFSET_EXAMPLES:
+    def _initialize_state(self) -> STATE:
         raise NotImplementedError()
 
     def _pre_process(self):
@@ -46,42 +50,35 @@ class Experiment:
         # changes experiment state for postprocessing (eg. plot)
         raise NotImplementedError()
 
-    def _information_sample(self) -> str:
-        return ""
-
     def _post_process(self):
         pass
 
     def start(self):
-        generator_snapshots = self._offset_examples()
-        for self.timestamp, self.target_value_last, self.input_value_this in generator_snapshots:
+        self._initialize_state()
+
+        generator_states = self._states()
+        for state_environment in generator_states:
+            self._update_experiment(state_environment)
+
+            self.input_last = self.input_this
+            self.timestamp, self.target_last, self.input_this = self._get_offset_example()
+
             self._pre_process()
 
-            # initialize input, target, output
             output_values_this: List[Optional[OUTPUT_VALUE]]
             output_values_this = [None for _ in self.applications]
 
             for index_application, each_application in enumerate(self.applications):
-                if self.input_value_last is not None:
-                    each_application.learn(self.input_value_last, self.target_value_last)
+                if self.input_last is not None:
+                    each_application.learn(self.input_last, self.target_last)
 
-                if self.input_value_this is not None:
-                    output_value = each_application.act(self.input_value_this)
-                    self._perform(index_application, output_value)
-                    output_values_this[index_application] = output_value
+                output_value = each_application.act(self.input_this)
+                self._perform(index_application, output_value)
+                output_values_this[index_application] = output_value
 
             self._post_process()
 
-            # remember input, output
-            self.input_value_last = self.input_value_this
-            for i, output_value in enumerate(output_values_this):
-                self.output_values_last[i] = output_value
-
-            time_now = round(time.time() * 1000)
-            if self.time_sample < 0 or 1000 < time_now - self.time_sample:
-                info = self._information_sample()
-                if 0 < len(info):
-                    print(info + "\n")
-                self.time_sample = time_now
+            self.input_last = self.input_this
+            self.outputs_last = tuple(output_values_this)
 
         print("done!")
