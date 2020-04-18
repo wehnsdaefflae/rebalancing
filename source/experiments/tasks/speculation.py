@@ -134,8 +134,9 @@ class TraderFrequency(Investor):
         sub_dict = self.frequencies.get(history)
         if sub_dict is None:
             return -1, 0.
-        asset_target, asset_frequency = max(sub_dict.items(), key=lambda x: x[1])
-        return asset_target, (asset_frequency + 1.) / (sum(sub_dict.values()) + self.no_assets)
+        items = sub_dict.items()
+        asset_target, asset_frequency = max(items, key=lambda x: x[1])
+        return asset_target, (asset_frequency + 1.) / (sum(x[1] for x in items) + self.no_assets)
 
     @staticmethod
     def _get_ratio(rate_last: INPUT_VALUE, rate: INPUT_VALUE) -> Sequence[float]:
@@ -159,61 +160,6 @@ class TraderFrequency(Investor):
         history_new = self.history[1:] + [asset_best_prev]
         asset_target, certainty = self._get_target(tuple(history_new))
         if asset_target < 0 or certainty < self.certainty_min:
-            return tuple(-1. for _ in range(self.no_assets))
-
-        return tuple(float(i == asset_target) for i in range(self.no_assets))
-
-
-class TraderFrequencyInverted(Investor):
-    def __init__(self, name: str, no_assets: int, certainty_max: float = 1., length_history: int = 1, inertia=100):
-        super().__init__(name, no_assets)
-        self.frequencies = dict()
-        self.certainty_max = certainty_max / no_assets
-        self.length_history = length_history
-        self.history = [-1 for _ in range(length_history)]
-        self.ratio = tuple(1. for _ in range(no_assets))
-        self.inertia = inertia
-        self.rate_last = None
-
-    def _update_frequency(self, history: Tuple[int], ratio: Sequence[float]):
-        sub_dict = self.frequencies.get(history)
-        if sub_dict is None:
-            sub_dict = dict()
-            self.frequencies[history] = sub_dict
-
-        # to maintain a moving distribution
-        for i, each_ratio in enumerate(ratio):
-            sub_dict[i] = smear(sub_dict.get(i, 0.), each_ratio, self.inertia)
-
-    def _get_target(self, history: Tuple[int]) -> Tuple[int, float]:
-        sub_dict = self.frequencies.get(history)
-        if sub_dict is None:
-            return -1, 0.
-        asset_target, asset_frequency = min(sub_dict.items(), key=lambda x: x[1])
-        return asset_target, (asset_frequency + 1.) / (sum(sub_dict.values()) + self.no_assets)
-
-    @staticmethod
-    def _get_ratio(rate_last: INPUT_VALUE, rate: INPUT_VALUE) -> Sequence[float]:
-        return tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rate, rate_last))
-
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        ratio = TraderFrequency._get_ratio(input_value, target_value)
-        self._update_frequency(tuple(self.history), ratio)
-
-        asset_best_prev, _ = max_index(ratio)
-        self.history.append(asset_best_prev)
-        del(self.history[:-self.length_history])
-        self.rate_last = input_value
-
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
-        if self.rate_last is None:
-            return tuple(-1. for _ in range(self.no_assets))
-
-        ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
-        asset_best_prev, _ = max_index(ratio)
-        history_new = self.history[1:] + [asset_best_prev]
-        asset_target, certainty = self._get_target(tuple(history_new))
-        if asset_target < 0 or certainty >= self.certainty_max:
             return tuple(-1. for _ in range(self.no_assets))
 
         return tuple(float(i == asset_target) for i in range(self.no_assets))
@@ -259,7 +205,7 @@ class ExperimentMarket(Experiment):
 
     def _initialize_state(self):
         self.state_experiment.clear()
-        self.state_experiment["portfolios"] = tuple([0. for _ in self.pairs] for _ in self.applications)
+        self.state_experiment["portfolios"] = tuple([-1. for _ in self.pairs] for _ in self.applications)
         self.state_experiment["no_trades"] = [0. for _ in self.applications]
         self.state_experiment["value_market_last"] = 1.
         self.state_experiment["value_portfolios_last"] = [-1. for _ in self.applications]
@@ -282,7 +228,9 @@ class ExperimentMarket(Experiment):
         return self.state_experiment["timestamp"], rates, rates
 
     def _pre_process(self):
-        pass
+        no_trades = self.state_experiment["no_trades"]
+        for i in range(len(no_trades)):
+            no_trades[i] = 0
 
     def _perform(self, index_investor: int, distribution_value_target: OUTPUT_VALUE):
         if any(x < 0. for x in distribution_value_target) or all(x == 0. for x in distribution_value_target):
@@ -313,9 +261,14 @@ class ExperimentMarket(Experiment):
             print(f"erroneous growths: {str(growths):s}. skipping...")
             return
 
+        rates = self.state_experiment["rates"]
+        if any(0. >= x for x in rates):
+            print(f"erroneous rates: {str(rates):s}. skipping...")
+            return
+
         value_market_last = self.state_experiment["value_market_last"]
-        value_portfolios_last = self.state_experiment["value_portfolios_last"]
         portfolios = self.state_experiment["portfolios"]
+        value_portfolios_last = self.state_experiment["value_portfolios_last"]
 
         growth_market = self.__get_growth_market(growths)
         value_market = value_market_last * growth_market
@@ -323,20 +276,22 @@ class ExperimentMarket(Experiment):
         for each_value in value_portfolios:
             assert 0. < each_value
 
-        growth_portfolios = self.__get_growth_portfolios(value_portfolios, value_portfolios_last)
+        growth_portfolios = self.__get_growth_portfolios(portfolios, value_portfolios_last, rates)
         self.__add_to_graph(growth_market, value_market, growth_portfolios, value_portfolios)
-
-        for i, each_portfolio in enumerate(portfolios):
-            if value_portfolios_last[i] == -1:
-                assert value_portfolios[i] == 1.
-                assert all(0. >= x for x in each_portfolio)
-                assert growth_portfolios[i] == 1.
 
         self.state_experiment["value_market_last"] = value_market
         self.state_experiment["value_portfolios_last"] = value_portfolios
 
-    def __get_growth_portfolios(self, value_portfolios: Sequence[float], value_portfolios_last: Sequence[float]) -> Sequence[float]:
-        return tuple(1. if v_l == -1. else v / v_l for v, v_l in zip(value_portfolios, value_portfolios_last))
+    def __get_growth_portfolios(self, portfolios: Sequence[Sequence[float]], value_portfolios_last: Sequence[float], rates: Sequence[float]) -> Sequence[float]:
+        return tuple(
+            0. if each_value_last == 0.
+            else
+            1.
+            if -1. >= max(each_portfolio) or each_value_last < 0.
+            else
+            sum(a * r for a, r in zip(each_portfolio, rates)) / each_value_last
+            for i, (each_portfolio, each_value_last) in enumerate(zip(portfolios, value_portfolios_last))
+        )
 
     def __get_growth_market(self, growths: Sequence[float]) -> float:
         return sum(growths) / len(growths)
@@ -362,13 +317,12 @@ class ExperimentMarket(Experiment):
         self.graph.add_snapshot(dt, (points_values, points_growth, points_trades))
 
     def __evaluate(self, index_application: int) -> float:
-        value_portfolios_last = self.state_experiment["value_portfolios_last"]
-        if value_portfolios_last[index_application] < 0.:
-            return 1.
-
         portfolios = self.state_experiment["portfolios"]
+        portfolio = portfolios[index_application]
+        if -1. >= max(portfolio):
+            return 1.
         rates = self.state_experiment["rates"]
-        return sum(a * r for a, r in zip(portfolios[index_application], rates))
+        return sum(a * r for a, r in zip(portfolio, rates))
 
     def start(self):
         super().start()

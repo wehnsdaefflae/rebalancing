@@ -3,6 +3,7 @@ import math
 from typing import Dict, Any, Sequence, Callable
 
 import numpy
+import torch
 
 from source.approximation.abstract import Approximation
 from source.tools.functions import smear, product, accumulating_combinations_with_replacement
@@ -42,6 +43,9 @@ class RegressionMultiple(Approximation[Sequence[float], float]):
     def get_parameters(self) -> Sequence[float]:
         try:
             # gaussian elimination
+
+            # todo: check out torch.solve
+            # parameters, _ = torch.solve(torch.FloatTensor(self.var_matrix), torch.FloatTensor(self.cov_vector))
             parameters = numpy.linalg.solve(self.var_matrix, self.cov_vector)
             return tuple(parameters)
 
@@ -52,6 +56,7 @@ class RegressionMultiple(Approximation[Sequence[float], float]):
 
     def output(self, in_values: Sequence[float]) -> float:
         parameters = self.get_parameters()
+        # todo: do this with torch as well ;)
         results_addends = tuple(p * f_a(in_values) for p, f_a in zip(parameters, self.addends))
         return sum(results_addends)
 

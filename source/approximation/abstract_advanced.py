@@ -67,7 +67,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         probability = self.classifier_current.get_probability(in_value, target_value)
         if probability < self.minimal_probability:
-            print("this doesnt fit")
+            #print("this doesnt fit")
             if self.classifier_parent is None:
                 self.classifier_parent = ApproximationSemioticModel[Tuple[int, ...], int](self.minimal_probability, lambda: ClassificationNaiveBayes())
 
@@ -80,7 +80,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
                 probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
             if probability < self.minimal_probability:
-                print("next doesnt fit")
+                #print("next doesnt fit")
                 index_successor = max(
                     range(len(self.classifiers)),
                     key=lambda x: self.classifiers[x].get_probability(in_value, target_value)
@@ -88,7 +88,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
                 probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
             if probability < self.minimal_probability:
-                print("none fits")
+                #print("none fits")
                 index_successor = len(self.classifiers)
                 self.classifiers.append(self.make_approximation())
 
@@ -97,6 +97,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
             self.classifier_current = self.classifiers[self.index_classifier_current]
 
         self.classifier_current.fit(in_value, target_value)
+        print(f"{self.index_classifier_current:03d}: {str(self.get_structure()):s}")
 
     def get_parameters(self) -> Sequence[float]:
         pass
