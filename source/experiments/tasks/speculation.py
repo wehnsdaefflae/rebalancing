@@ -167,6 +167,11 @@ class TraderFrequency(Investor):
         return tuple(float(i == asset_target) for i in range(self.no_assets))
 
 
+class TraderHistoric(Investor):
+    # todo: implement one approximator for each asset with history of n last ratios
+    raise NotImplementedError()
+
+
 class ExperimentMarket(Experiment):
     def __init__(self,
                  investors: Sequence[Investor],
