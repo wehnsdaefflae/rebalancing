@@ -43,7 +43,7 @@ def speculation():
         #TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
         #TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
         #TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
-        Balancing("balancing", no_assets_market, 60),
+        Balancing("balancing", no_assets_market, 60 * 24),
         # TraderDistribution("distribution", no_assets_market, fee),
     )
 
