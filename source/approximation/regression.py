@@ -40,16 +40,27 @@ class RegressionMultiple(Approximation[Sequence[float], float]):
 
             self.cov_vector[i] = smear(self.cov_vector[i], target_value * component_a, drag)
 
+    @staticmethod
+    def solve_numpy(a: Sequence[Sequence[float]], b: Sequence[float]) -> Sequence[float]:
+        parameters = numpy.linalg.solve(a, b)
+        return tuple(parameters)
+
+    @staticmethod
+    def solve_torch(a: Sequence[Sequence[float]], b: Sequence[float]) -> Sequence[float]:
+        b = torch.FloatTensor([b])
+        a = torch.FloatTensor(a)
+        parameters, _ = torch.solve(b.t(), a.t())
+        parameters = parameters.t()
+        parameters = parameters[0].tolist()
+        return tuple(parameters)
+
     def get_parameters(self) -> Sequence[float]:
         try:
             # gaussian elimination
+            #return RegressionMultiple.solve_numpy(self.var_matrix, self.cov_vector)
+            return RegressionMultiple.solve_torch(self.var_matrix, self.cov_vector)
 
-            # todo: check out torch.solve
-            # parameters, _ = torch.solve(torch.FloatTensor(self.var_matrix), torch.FloatTensor(self.cov_vector))
-            parameters = numpy.linalg.solve(self.var_matrix, self.cov_vector)
-            return tuple(parameters)
-
-        except numpy.linalg.linalg.LinAlgError:
+        except (RuntimeError, numpy.linalg.linalg.LinAlgError):
             parameters = numpy.linalg.lstsq(self.var_matrix, self.cov_vector, rcond=None)[0]
             return tuple(parameters)
             # return tuple(0. for _ in self.addends)
@@ -111,10 +122,13 @@ class RegressionMultivariate(Approximation[Sequence[float], Sequence[float]]):
     @staticmethod
     def normalize(vector: Sequence[float]) -> Sequence[float]:
         length = RegressionMultivariate.length(vector)
+
         if length < 0.:
             raise ValueError("Length of vector cannot be negative.")
+
         elif length == 0.:
             return tuple(vector)
+
         return tuple(x / length for x in vector)
 
     @staticmethod

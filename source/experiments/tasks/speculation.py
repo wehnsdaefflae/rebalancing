@@ -2,12 +2,14 @@ import datetime
 from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
+from source.approximation.abstract_advanced import ApproximationSemioticModel
 from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, STATE, EXAMPLE
 from source.data.generators.snapshots_binance import rates_binance_generator, get_timestamp, get_rates
 from source.experiments.tasks.abstract import Application, Experiment
 
 from source.tools.functions import generate_ratios_send, max_index, smear, normalize
 from source.tools.moving_graph import MovingGraph
+from source.tools.timer import Timer
 
 
 class Investor(Application):
@@ -278,6 +280,14 @@ class ExperimentMarket(Experiment):
 
         growth_portfolios = self.__get_growth_portfolios(portfolios, value_portfolios_last, rates)
         self.__add_to_graph(growth_market, value_market, growth_portfolios, value_portfolios)
+
+        if Timer.time_passed(2000):
+            for each_application in self.applications:
+                if not isinstance(each_application, TraderApproximation):
+                    continue
+                each_approximation = each_application.approximation
+                if isinstance(each_approximation, ApproximationSemioticModel):
+                    print(f"{each_approximation.index_classifier_current:>3d}: {str(each_approximation.get_structure()):s}")
 
         self.state_experiment["value_market_last"] = value_market
         self.state_experiment["value_portfolios_last"] = value_portfolios

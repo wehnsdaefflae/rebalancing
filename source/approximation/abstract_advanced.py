@@ -97,7 +97,6 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
             self.classifier_current = self.classifiers[self.index_classifier_current]
 
         self.classifier_current.fit(in_value, target_value)
-        print(f"{self.index_classifier_current:03d}: {str(self.get_structure()):s}")
 
     def get_parameters(self) -> Sequence[float]:
         pass
