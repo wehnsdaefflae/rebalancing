@@ -43,11 +43,11 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
         pass
 
     def __init__(self,
-                 maximal_error: float,
+                 min_probability: float,
                  factory_approximation: Callable[[], ApproximationProbabilistic[Tuple[INPUT_VALUE, ...], OUTPUT_VALUE]],
                  max_approximations: int = 0,
                  ):
-        self.maximal_error = maximal_error
+        self.min_probability = min_probability
         self.classifier_parent = None
         self.make_approximation = lambda: CapsuleIterating(factory_approximation())
         self.classifier_current = self.make_approximation()
@@ -70,10 +70,10 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
 
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         probability = self.classifier_current.get_probability(in_value, target_value)
-        if probability < self.maximal_error:
+        if probability < self.min_probability:
             #print("this doesnt fit")
             if self.classifier_parent is None:
-                self.classifier_parent = ApproximationSemioticModel[Tuple[int, ...], int](self.maximal_error, lambda: ClassificationNaiveBayes())
+                self.classifier_parent = ApproximationSemioticModel[Tuple[int, ...], int](self.min_probability, lambda: ClassificationNaiveBayes())
 
             in_value_parent = (self.index_classifier_current, )   # + (in_value, ) todo: maybe add input when classifying?
             index_successor = self.classifier_parent.output(in_value_parent)
@@ -83,7 +83,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
             else:
                 probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
-            if probability < self.maximal_error:
+            if probability < self.min_probability:
                 #print("next doesnt fit")
                 index_successor = max(
                     range(len(self.classifiers)),
@@ -91,7 +91,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
                 )
                 probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
-            if probability < self.maximal_error and (self.max_approximations == 0 or len(self.classifiers) < self.max_approximations):
+            if probability < self.min_probability and (self.max_approximations == 0 or len(self.classifiers) < self.max_approximations):
                 #print("none fits")
                 index_successor = len(self.classifiers)
                 self.classifiers.append(self.make_approximation())

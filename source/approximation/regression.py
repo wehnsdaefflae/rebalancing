@@ -133,6 +133,7 @@ class RegressionMultivariate(Approximation[Sequence[float], Sequence[float]]):
 
     @staticmethod
     def error_distance_normalized(output: Sequence[float], target: Sequence[float]) -> float:
+        # is that right?!
         output_normalized = RegressionMultivariate.normalize(output)
         target_normalized = RegressionMultivariate.normalize(target)
 

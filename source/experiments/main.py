@@ -32,7 +32,7 @@ def speculation():
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialRecurrent(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialFailure(no_assets_market, 2, no_assets_market, .5),
-        ApproximationSemioticModel(.9, factory, max_approximations=2)
+        ApproximationSemioticModel(.9, factory, max_approximations=50)
 
     )
     applications = (

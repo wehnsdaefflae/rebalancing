@@ -135,8 +135,12 @@ class RegressionMultivariatePolynomialFailure(RegressionMultivariatePolynomial):
 class RegressionMultivariatePolynomialProbabilistic(RegressionMultivariatePolynomial, ApproximationProbabilistic[Sequence[float], Sequence[float]]):
     def __init__(self, no_arguments: int, degree: int, no_outputs: int):
         super().__init__(no_arguments, degree, no_outputs)
+        #self.normalize = z_score_normalized_generator()
+        #next(self.normalize)
 
     def get_probability(self, input_value: INPUT_VALUE, output_value: OUTPUT_VALUE) -> float:
-        output_value = self.output(input_value)
-        error = RegressionMultivariate.error_distance(output_value, output_value)
+        expected_value = self.output(input_value)
+        error = RegressionMultivariate.error_distance(expected_value, output_value)
         return 1. / (1. + error)
+        #error_normalized = self.normalize.send(error)
+        #return 1. - error_normalized
