@@ -18,7 +18,7 @@ applications translate snapshots to examples
 
 
 def speculation():
-    random.seed(45446547)
+    random.seed(454546547)
 
     no_assets_market = 10
     pairs = get_pairs_from_filesystem()
