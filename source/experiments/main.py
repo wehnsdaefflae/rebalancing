@@ -26,7 +26,7 @@ def speculation():
 
     factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
 
-    fee = 1. / 100.
+    fee = .1 / 100.
     certainty = 1. / (1. - fee)
     approximations = (
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
