@@ -90,10 +90,10 @@ def debug_nonfunctional():
 
 
 def main():
-    speculation()
+    # speculation()
     # debug_dynamic()
     # debug_static()
-    # debug_nonfunctional()
+    debug_nonfunctional()
 
 
 if __name__ == "__main__":

@@ -215,9 +215,9 @@ class ExperimentMarket(Experiment):
         interval_minutes = 1
         yield from rates_binance_generator(self.pairs, timestamp_range=time_range, interval_minutes=interval_minutes)
 
-    def _update_experiment(self, state_raw: STATE):
-        self.state_experiment["timestamp"] = get_timestamp(state_raw)
-        rates = tuple(-1. if 0. >= r else r for r in get_rates(state_raw))
+    def _update_experiment(self, state_environment: STATE):
+        self.state_experiment["timestamp"] = get_timestamp(state_environment)
+        rates = tuple(-1. if 0. >= r else r for r in get_rates(state_environment))
         rates_last = self.state_experiment.get("rates")
         self.state_experiment["rates"] = rates
         growths = tuple(1. for _ in rates) if rates_last is None else tuple(-1. if 0. >= r_l or 0. >= r else r / r_l for r, r_l in zip(rates, rates_last))

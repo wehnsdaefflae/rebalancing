@@ -31,7 +31,7 @@ class Experiment:
         self.input_this = None
         self.target_this = None
 
-    def _update_experiment(self, state_raw: STATE):
+    def _update_experiment(self, state_environment: STATE):
         raise NotImplementedError()
 
     def _get_offset_example(self) -> EXAMPLE:

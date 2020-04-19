@@ -7,7 +7,7 @@ from typing import Sequence
 from matplotlib import pyplot
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, OFFSET_EXAMPLES
+from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, OFFSET_EXAMPLES, STATE, EXAMPLE, GENERATOR_STATES
 from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.functions import smear
 from source.tools.moving_graph import MovingGraph
@@ -32,6 +32,15 @@ class TransformRational(Application):
 
 
 class ExperimentStatic(Experiment):
+    def _update_experiment(self, state_environment: STATE):
+        self.state_experiment.update(state_environment)
+
+    def _get_offset_example(self) -> EXAMPLE:
+        return self.state_experiment["iterations"], self.state_experiment["target_last"], self.state_experiment["input_this"]
+
+    def _initialize_state(self) -> STATE:
+        pass
+
     def __init__(self, application: Application):
         super().__init__((application,))
         # self.function = lambda x: math.cos(.2 * x ** 2.)
@@ -42,13 +51,14 @@ class ExperimentStatic(Experiment):
 
         self.samples = []
 
-    def _states(self) -> OFFSET_EXAMPLES:
+    def _states(self) -> GENERATOR_STATES:
         iterations = 0
         target_last = 0.
         while True:
             input_this = random.uniform(0., self.max_x)
             target_this = self.function(input_this)
-            yield iterations, (target_last,), (input_this,)
+            state_environment = {"iterations": iterations, "target_last": (target_last,), "input_this": (input_this,)}
+            yield state_environment
             iterations += 1
             target_last = target_this
 
@@ -56,14 +66,14 @@ class ExperimentStatic(Experiment):
         pass
 
     def _post_process(self):
-        if None not in self.output_values_last:
-            for i, each_output in enumerate(self.output_values_last):
-                self.errors[i] = abs(each_output[0] - self.target_value_last[0])
+        if self.outputs_last is not None:
+            for i, each_output in enumerate(self.outputs_last):
+                self.errors[i] = abs(each_output[0] - self.target_last[0])
 
-        if self.input_value_last is None:
+        if self.input_last is None:
             return
 
-        sample_new = self.input_value_last[0], self.target_value_last[0]
+        sample_new = self.input_last[0], self.target_last[0]
         self.samples.append(sample_new)
         del(self.samples[:-100])
 
@@ -88,7 +98,7 @@ class ExperimentStatic(Experiment):
 
 
 class ExperimentTimeseries(Experiment):
-    def __init__(self, applications: Sequence[Application], examples: OFFSET_EXAMPLES):
+    def __init__(self, applications: Sequence[Application], examples: STATE):
         super().__init__(applications)
         info_subplots = tuple(
             (
@@ -110,70 +120,77 @@ class ExperimentTimeseries(Experiment):
         self.errors = [-1. for _ in self.applications]
         self.iterations = 0
 
+    def _update_experiment(self, state_environment: STATE):
+        self.state_experiment.update(state_environment)
+
+    def _get_offset_example(self) -> EXAMPLE:
+        return self.state_experiment["iteration"], self.state_experiment["target_last"], self.state_experiment["input_this"]
+
+    def _initialize_state(self) -> STATE:
+        pass
+
     def _perform(self, index_application: int, action: OUTPUT_VALUE):
         pass
 
     def _post_process(self):
-        print(f"{self.applications[0].approximation.index_classifier_current:03d}: {str(self.applications[0].approximation.get_structure()):s}")
-
-        input_last = 0. if self.input_value_last is None else self.input_value_last[0]
-        for i, (output_value_last, each_error) in enumerate(zip(self.output_values_last, self.errors)):
-            self.errors[i] = smear(each_error, 1. if output_value_last is None else abs(output_value_last[0] - self.target_value_last[0]), self.iterations)
+        input_last = 0. if self.input_last is None else self.input_last[0]
+        for i, each_error in enumerate(self.errors):
+            self.errors[i] = smear(each_error, 1. if self.outputs_last is None else abs(self.outputs_last[i][0] - self.target_last[0]), self.iterations)
         self.iterations += 1
 
         points = tuple(
             {
                 "input": input_last,
-                "target": self.target_value_last[0],
-                "output": 0. if output_value_last is None else output_value_last[0],
+                "target": self.target_last[0],
+                "output": 0. if self.outputs_last is None else self.outputs_last[i][0],
                 "average error": each_error,
             }
-            for output_value_last, each_error in zip(self.output_values_last, self.errors)
+            for i, each_error in enumerate(self.errors)
         )
 
         self.graph.add_snapshot(self.now + datetime.timedelta(seconds=self.timestamp), points)
         time.sleep(.1)
 
     @staticmethod
-    def f_square() -> OFFSET_EXAMPLES:
+    def f_square() -> STATE:
         iteration = 0
         frequency = 10
         while True:
             target_last = float((iteration - 1) % frequency >= frequency // 2),
             input_this = float(iteration % frequency < frequency // 2),
-            yield iteration, target_last, input_this
+            yield {"iteration": iteration, "target_last": target_last, "input_this": input_this}
             iteration += 1
 
     @staticmethod
-    def nf_triangle() -> OFFSET_EXAMPLES:
+    def nf_triangle() -> STATE:
         iteration = 0
         period = 10.
         while True:
             target_last = 2. * abs(iteration / period - math.floor(iteration / period + 1. / 2.)),
             input_this = 0.,
-            yield iteration, target_last, input_this
+            yield {"iteration": iteration, "target_last": target_last, "input_this": input_this}
             iteration += 1
 
     @staticmethod
-    def nf_square() -> OFFSET_EXAMPLES:
+    def nf_square() -> STATE:
         iteration = 0
         frequency = 10
         while True:
             target_last = float((iteration - 1) % frequency >= frequency // 2),
             input_this = 0.,
-            yield iteration, target_last, input_this
+            yield {"iteration": iteration, "target_last": target_last, "input_this": input_this}
             iteration += 1
 
     @staticmethod
-    def nf_trigonometry() -> OFFSET_EXAMPLES:
+    def nf_trigonometry() -> STATE:
         iteration = 0
         period = math.pi
         while True:
             # target_last = float((iteration - 1) % frequency >= frequency // 2),
             target_last = (math.cos(iteration / period) + 1.) / 2.,
             input_this = (math.sin((iteration + 1) / period) + 1.) / 2.,
-            yield iteration, target_last, input_this
+            yield {"iteration": iteration, "target_last": target_last, "input_this": input_this}
             iteration += 1
 
-    def _states(self) -> OFFSET_EXAMPLES:
+    def _states(self) -> STATE:
         return self.examples
