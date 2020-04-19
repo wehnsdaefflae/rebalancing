@@ -18,7 +18,7 @@ applications translate snapshots to examples
 
 
 def speculation():
-    random.seed(454568547)
+    random.seed(4545346547)
 
     no_assets_market = 10
     pairs = get_pairs_from_filesystem()
@@ -26,7 +26,7 @@ def speculation():
 
     factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
 
-    fee = .1 / 100.
+    fee = 1. / 100.
     certainty = 1. / (1. - fee)
     approximations = (
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
@@ -43,7 +43,7 @@ def speculation():
         #TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
         #TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
         #TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
-        #Balancing("balancing", no_assets_market, 60),
+        Balancing("balancing", no_assets_market, 60),
         # TraderDistribution("distribution", no_assets_market, fee),
     )
 
