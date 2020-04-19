@@ -45,5 +45,5 @@ class ApproximationProbabilistic(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
     def get_parameters(self) -> Sequence[float]:
         raise NotImplementedError()
 
-    def get_probability(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE) -> float:
+    def get_probability(self, input_value: INPUT_VALUE, output_value: OUTPUT_VALUE) -> float:
         raise NotImplementedError()

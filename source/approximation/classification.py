@@ -1,6 +1,6 @@
 from typing import Dict, Any, Sequence, Tuple, Generic, TypeVar, Hashable
 
-from source.approximation.abstract import Approximation, ApproximationProbabilistic
+from source.approximation.abstract import Approximation
 from source.approximation.regression import RegressionMultivariate, RegressionMultivariatePolynomial
 from source.tools.functions import max_single
 
@@ -31,7 +31,7 @@ class Classification(Approximation[INPUT_VALUE, int], Generic[INPUT_VALUE]):
 INPUT_HASHABLE = TypeVar("INPUT_HASHABLE", bound=Hashable)
 
 
-class ClassificationNaiveBayes(Classification[INPUT_HASHABLE], ApproximationProbabilistic[INPUT_HASHABLE, int], Generic[INPUT_HASHABLE]):
+class ClassificationNaiveBayes(Classification[INPUT_HASHABLE], Approximation[INPUT_HASHABLE, int], Generic[INPUT_HASHABLE]):
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> Approximation:
         pass

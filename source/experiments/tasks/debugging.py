@@ -7,7 +7,7 @@ from typing import Sequence
 from matplotlib import pyplot
 
 from source.approximation.abstract import Approximation
-from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, OFFSET_EXAMPLES, STATE, EXAMPLE, GENERATOR_STATES
+from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, STATE, EXAMPLE, GENERATOR_STATES
 from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.functions import smear
 from source.tools.moving_graph import MovingGraph

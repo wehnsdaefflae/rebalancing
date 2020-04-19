@@ -18,7 +18,7 @@ applications translate snapshots to examples
 
 
 def speculation():
-    random.seed(4545346547)
+    random.seed(45446547)
 
     no_assets_market = 10
     pairs = get_pairs_from_filesystem()
@@ -32,7 +32,7 @@ def speculation():
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialRecurrent(no_assets_market, 2, no_assets_market),
         RegressionMultivariatePolynomialFailure(no_assets_market, 2, no_assets_market, .5),
-        ApproximationSemioticModel(.99, factory)
+        ApproximationSemioticModel(.9, factory, max_approximations=2)
 
     )
     applications = (

@@ -124,7 +124,7 @@ class MovingGraph:
         if self.moving_averages[index_subplot] != "full":
             self.iterations_since_draw[index_subplot] = 0
 
-        axis_subplot.legend(lines, tuple(each_line.get_label() for each_line in lines))
+        axis_subplot.legend(lines, tuple(each_line.get_label() for each_line in lines), loc="lower left")
 
     def draw(self):
         self.time_window.append(self.datetime_current)

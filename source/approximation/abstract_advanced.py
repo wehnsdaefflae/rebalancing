@@ -2,6 +2,7 @@ from typing import Generic, TypeVar, Tuple, Sequence, Dict, Any, Callable
 
 from source.approximation.abstract import ApproximationProbabilistic, Approximation
 from source.approximation.classification import ClassificationNaiveBayes
+from source.approximation.regression import RegressionMultivariate
 
 INPUT_VALUE = TypeVar("INPUT_VALUE")
 OUTPUT_VALUE = TypeVar("OUTPUT_VALUE")
@@ -26,8 +27,8 @@ class CapsuleIterating(ApproximationProbabilistic[INPUT_VALUE, OUTPUT_VALUE], Ge
         self.approximation.fit(in_value, target_value, self.iterations)
         self.iterations += 1
 
-    def get_probability(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE) -> float:
-        return self.approximation.get_probability(input_value, target_value)
+    def get_probability(self, input_value: INPUT_VALUE, output_value: OUTPUT_VALUE) -> float:
+        return self.approximation.get_probability(input_value, output_value)
 
     def get_parameters(self) -> Sequence[float]:
         return self.approximation.get_parameters()
@@ -42,15 +43,18 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
         pass
 
     def __init__(self,
-                 minimal_probability: float,
+                 maximal_error: float,
                  factory_approximation: Callable[[], ApproximationProbabilistic[Tuple[INPUT_VALUE, ...], OUTPUT_VALUE]],
+                 max_approximations: int = 0,
                  ):
-        self.minimal_probability = minimal_probability
+        self.maximal_error = maximal_error
         self.classifier_parent = None
         self.make_approximation = lambda: CapsuleIterating(factory_approximation())
         self.classifier_current = self.make_approximation()
         self.index_classifier_current = 0
         self.classifiers = [self.classifier_current]
+        assert max_approximations >= 0
+        self.max_approximations = max_approximations
 
     def get_structure(self) -> Sequence[int]:
         structure = []
@@ -66,10 +70,10 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
 
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         probability = self.classifier_current.get_probability(in_value, target_value)
-        if probability < self.minimal_probability:
+        if probability < self.maximal_error:
             #print("this doesnt fit")
             if self.classifier_parent is None:
-                self.classifier_parent = ApproximationSemioticModel[Tuple[int, ...], int](self.minimal_probability, lambda: ClassificationNaiveBayes())
+                self.classifier_parent = ApproximationSemioticModel[Tuple[int, ...], int](self.maximal_error, lambda: ClassificationNaiveBayes())
 
             in_value_parent = (self.index_classifier_current, )   # + (in_value, ) todo: maybe add input when classifying?
             index_successor = self.classifier_parent.output(in_value_parent)
@@ -79,7 +83,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
             else:
                 probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
-            if probability < self.minimal_probability:
+            if probability < self.maximal_error:
                 #print("next doesnt fit")
                 index_successor = max(
                     range(len(self.classifiers)),
@@ -87,7 +91,7 @@ class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
                 )
                 probability = self.classifiers[index_successor].get_probability(in_value, target_value)
 
-            if probability < self.minimal_probability:
+            if probability < self.maximal_error and (self.max_approximations == 0 or len(self.classifiers) < self.max_approximations):
                 #print("none fits")
                 index_successor = len(self.classifiers)
                 self.classifiers.append(self.make_approximation())
