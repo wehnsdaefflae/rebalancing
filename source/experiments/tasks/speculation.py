@@ -3,11 +3,12 @@ from typing import Sequence, Tuple
 
 from source.approximation.abstract import Approximation
 from source.approximation.abstract_advanced import ApproximationSemioticModel
+from source.approximation.regression import RegressionMultiple
 from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, STATE, EXAMPLE
 from source.data.generators.snapshots_binance import rates_binance_generator, get_timestamp, get_rates
 from source.experiments.tasks.abstract import Application, Experiment
 
-from source.tools.functions import generate_ratios_send, max_index, smear, normalize
+from source.tools.functions import max_index, smear, normalize
 from source.tools.moving_graph import MovingGraph
 from source.tools.timer import Timer
 
@@ -18,20 +19,30 @@ class Investor(Application):
         self.trades = 0
         self.no_assets = no_assets
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+    def _learn(self, rates_last: INPUT_VALUE, rates_now: OUTPUT_VALUE):
         raise NotImplementedError()
 
     def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
         if all(x >= 0. for x in input_value) and all(x >= 0. for x in target_value):
             self._learn(input_value, target_value)
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def _act(self, rates_now: INPUT_VALUE) -> OUTPUT_VALUE:
         raise NotImplementedError()
 
     def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         if all(x >= 0. for x in input_value):
             return self._act(input_value)
+
         return tuple(-1. for _ in range(self.no_assets))
+
+    @staticmethod
+    def one_hotify(vector: OUTPUT_VALUE, value_min: float) -> OUTPUT_VALUE:
+        index_max, value_max = max(enumerate(vector), key=lambda x: x[1])
+
+        if value_max >= value_min:
+            tuple(float(i == index_max) for i in range(len(vector)))
+
+        return tuple(-1. for _ in vector)
 
 
 class Balancing(Investor):
@@ -47,10 +58,10 @@ class Balancing(Investor):
         value_each = 1. / self.no_assets
         return tuple(value_each for _ in range(self.no_assets))
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+    def _learn(self, rates_last: INPUT_VALUE, rates_now: OUTPUT_VALUE):
         pass
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def _act(self, rates_now: INPUT_VALUE) -> OUTPUT_VALUE:
         self.iterations_since_balance += 1
         if self.iterations_since_balance % self.iterations_to_balance == 0:
             self.iterations_since_balance = 0
@@ -58,11 +69,43 @@ class Balancing(Investor):
         return tuple(-1. for _ in range(self.no_assets))
 
 
-class TraderDistribution(Investor):
-    def __init__(self, name: str, no_assets: int, trail: int = 100):
+class InvestorRatio(Investor):
+    def __init__(self, name: str, no_assets: int):
+        super().__init__(name, no_assets)
+        self.rate_last = tuple(-1. for _ in range(no_assets))
+        # self.ratio_last = tuple(1. for _ in range(no_assets))
+
+    @staticmethod
+    def get_ratio(rates_last: Sequence[float], rates_now: Sequence[float]) -> Sequence[float]:
+        return tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rates_now, rates_last))
+
+    def _learn(self, ratios_last: INPUT_VALUE, ratios_now: OUTPUT_VALUE):
+        raise NotImplementedError()
+
+    def learn(self, rates_last: INPUT_VALUE, rates_now: OUTPUT_VALUE):
+        if all(x >= 0. for x in rates_last) and all(x >= 0. for x in rates_now):
+            ratio_last = InvestorRatio.get_ratio(self.rate_last, rates_last)
+            ratio_this = InvestorRatio.get_ratio(rates_last, rates_now)
+            self._learn(ratio_last, ratio_this)
+
+        self.rate_last = rates_last
+
+    def _act(self, ratios_now: INPUT_VALUE) -> OUTPUT_VALUE:
+        raise NotImplementedError()
+
+    def act(self, rates_now: INPUT_VALUE) -> OUTPUT_VALUE:
+        if all(x >= 0. for x in rates_now):
+            ratio_this = InvestorRatio.get_ratio(self.rate_last, rates_now)
+            return self._act(ratio_this)
+        return tuple(-1. for _ in range(self.no_assets))
+
+
+class TraderDistribution(InvestorRatio):
+    def __init__(self, name: str, no_assets: int, certainty: float = 1., trail: int = 100):
         super().__init__(name, no_assets)
         self.frequencies_model = [1. for _ in range(no_assets)]
         self.frequencies_current = [0. for _ in range(no_assets)]
+        self.certainty = certainty
         self.trail = trail
 
     def _update_distributions(self, asset_target: int):
@@ -73,54 +116,45 @@ class TraderDistribution(Investor):
             self.frequencies_current[i] = smear(v, float(i == asset_target), self.trail // 2)
 
     def _get_target_asset(self, ratios: Sequence[float]) -> int:
-        # asset_target, ratio_best = max(enumerate(ratios), key=lambda x: x[1] * self.after_fee ** int(x[0] != self.asset_current))
         asset_target, ratio_best = max(enumerate(ratios), key=lambda x: x[1])
-        if 1.01 < ratio_best:
+        if self.certainty < ratio_best:
             return asset_target
         return -1
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        ratios = tuple(r / r_l for r, r_l in zip(target_value, input_value))
-        asset_target_last = self._get_target_asset(ratios)
+    def _learn(self, ratios_last: INPUT_VALUE, ratios_now: OUTPUT_VALUE):
+        asset_target_last = self._get_target_asset(ratios_now)
         self._update_distributions(asset_target_last)
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def _act(self, ratios_now: INPUT_VALUE) -> OUTPUT_VALUE:
+        # todo: incorporate one_hotify
         asset_output, difference = max_index(f_m - f_c for f_m, f_c in zip(self.frequencies_model, self.frequencies_current))
         return tuple(float(i == asset_output) for i in range(self.no_assets))
 
 
-class TraderApproximation(Investor):
+class TraderApproximation(InvestorRatio):
     def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]], no_assets: int, certainty: float = 1.):
         super().__init__(name, no_assets)
         self.approximation = approximation
         self.certainty = certainty
-        self.ratios = tuple(1. for _ in range(no_assets))
-        self.generate_ratios = generate_ratios_send(no_assets)
         self.iterations = 0
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        #target_asset, _ = index_max(target_value)
-        #target_amplified = tuple(float(i == target_asset) for i in range(self.no_assets))
-        self.approximation.fit(input_value, target_value, self.iterations)
+    def _learn(self, ratios_last: INPUT_VALUE, ratios_now: OUTPUT_VALUE):
+        self.approximation.fit(ratios_last, ratios_now, self.iterations)
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
-        output_value = self.approximation.output(input_value)
-        asset_output, amount_output = max_index(output_value)
-        if self.certainty < amount_output:
-            return tuple(float(asset_output == i) for i in range(self.no_assets))
-        return tuple(-1. for _ in range(self.no_assets))
+    def _act(self, ratios_now: INPUT_VALUE) -> OUTPUT_VALUE:
+        output_value = self.approximation.output(ratios_now)
+        # todo: maybe output distribution, not one hot vector?
+        return Investor.one_hotify(output_value, self.certainty)
 
 
-class TraderFrequency(Investor):
+class TraderFrequency(InvestorRatio):
     def __init__(self, name: str, no_assets: int, certainty_min: float = 1., length_history: int = 1, inertia=100):
         super().__init__(name, no_assets)
         self.frequencies = dict()
         self.certainty_min = certainty_min / no_assets
         self.length_history = length_history
         self.history = [-1 for _ in range(length_history)]
-        self.ratio = tuple(1. for _ in range(no_assets))
         self.inertia = inertia
-        self.rate_last = None
 
     def _update_frequency(self, history: Tuple[int], ratio: Sequence[float]):
         sub_dict = self.frequencies.get(history)
@@ -128,7 +162,7 @@ class TraderFrequency(Investor):
             sub_dict = dict()
             self.frequencies[history] = sub_dict
 
-        # to maintain a moving distribution
+        # maintain a moving distribution (intertia)
         for i, each_ratio in enumerate(ratio):
             sub_dict[i] = smear(sub_dict.get(i, 0.), each_ratio, self.inertia)
 
@@ -140,36 +174,49 @@ class TraderFrequency(Investor):
         asset_target, asset_frequency = max(items, key=lambda x: x[1])
         return asset_target, (asset_frequency + 1.) / (sum(x[1] for x in items) + self.no_assets)
 
-    @staticmethod
-    def _get_ratio(rate_last: INPUT_VALUE, rate: INPUT_VALUE) -> Sequence[float]:
-        return tuple(1. if 0. >= r_l else r / r_l for r, r_l in zip(rate, rate_last))
-
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        ratio = TraderFrequency._get_ratio(input_value, target_value)
-        self._update_frequency(tuple(self.history), ratio)
-
-        asset_best_prev, _ = max_index(ratio)
+    def _learn(self, ratios_last: INPUT_VALUE, ratios_now: OUTPUT_VALUE):
+        asset_best_prev, _ = max_index(ratios_last)
         self.history.append(asset_best_prev)
         del(self.history[:-self.length_history])
-        self.rate_last = input_value
+        self._update_frequency(tuple(self.history), ratios_now)
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
-        if self.rate_last is None:
-            return tuple(-1. for _ in range(self.no_assets))
-
-        ratio = TraderFrequency._get_ratio(self.rate_last, input_value)
-        asset_best_prev, _ = max_index(ratio)
+    def _act(self, ratios_now: INPUT_VALUE) -> OUTPUT_VALUE:
+        asset_best_prev, _ = max_index(ratios_now)
         history_new = self.history[1:] + [asset_best_prev]
         asset_target, certainty = self._get_target(tuple(history_new))
+
+        # todo: maybe output distribution, not one hot vector?
+
         if asset_target < 0 or certainty < self.certainty_min:
             return tuple(-1. for _ in range(self.no_assets))
 
         return tuple(float(i == asset_target) for i in range(self.no_assets))
 
 
-class TraderHistoric(Investor):
-    # todo: implement one approximator for each asset with history of n last ratios
-    raise NotImplementedError()
+class TraderHistoric(InvestorRatio):
+    def __init__(self, name: str, no_assets: int, regression: RegressionMultiple, length_history: int, certainty: float = 1.):
+        super().__init__(name, no_assets)
+        self.regression = regression
+        self.certainty = certainty
+        self.length_history = length_history
+        self.history_ratios = tuple([1. for _ in range(self.length_history)] for _ in range(self.no_assets))
+        self.iterations = 0
+
+    def _learn(self, ratios_last: INPUT_VALUE, ratios_now: OUTPUT_VALUE):
+        for each_history, each_input, each_target in zip(self.history_ratios, ratios_last, ratios_now):
+            each_history.append(each_input)
+            del(each_history[:-self.length_history])
+            self.regression.fit(each_history, each_target, self.iterations)
+
+        self.iterations += 1
+
+    def _act(self, ratios_now: INPUT_VALUE) -> OUTPUT_VALUE:
+        output_full = tuple(
+            self.regression.output(each_history[1:] + [each_ratio])
+            for each_history, each_ratio in zip(self.history_ratios, ratios_now)
+        )
+        # todo: maybe output distribution instead of one hot?
+        return Investor.one_hotify(output_full, self.certainty)
 
 
 class ExperimentMarket(Experiment):
