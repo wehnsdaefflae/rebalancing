@@ -27,7 +27,7 @@ def speculation():
     factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
 
     fee = .1 / 100.
-    certainty = 1. / (1. - fee)
+    certainty = 1.1  # 1. / (1. - fee)
     length_history = 10
     approximations = (
         RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
@@ -38,15 +38,15 @@ def speculation():
     )
     applications = (
         #TraderApproximation("square", approximations[0], no_assets_market, certainty=certainty),
-        #TraderApproximation("semiotic", approximations[3], no_assets_market, certainty=certainty),
+        TraderApproximation("semiotic", approximations[3], no_assets_market, certainty=certainty),
         # TraderFrequency("freq 1", no_assets_market, certainty, length_history=1, inertia=100),
-        #TraderFrequency("freq 2", no_assets_market, certainty_min=certainty, length_history=2, inertia=100),
+        TraderFrequency("freq 2", no_assets_market, certainty_min=certainty, length_history=2, inertia=100),
         #TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
-        #TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
-        #TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
+        TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
+        TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
         Balancing("balancing", no_assets_market, 60 * 24),
         # TraderDistribution("distribution", no_assets_market, fee),
-        TraderHistoric("historic", no_assets_market, approximations[4], length_history, certainty=certainty)
+        #TraderHistoric("historic", no_assets_market, approximations[4], length_history, certainty=certainty)
     )
 
     m = ExperimentMarket(applications, pairs, fee)  # , delay=60 * 24)
