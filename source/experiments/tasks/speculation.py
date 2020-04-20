@@ -40,7 +40,7 @@ class Investor(Application):
         index_max, value_max = max(enumerate(vector), key=lambda x: x[1])
 
         if value_max >= value_min:
-            tuple(float(i == index_max) for i in range(len(vector)))
+            return tuple(float(i == index_max) for i in range(len(vector)))
 
         return tuple(-1. for _ in vector)
 

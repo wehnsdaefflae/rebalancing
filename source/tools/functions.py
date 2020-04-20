@@ -130,6 +130,7 @@ def product(values: Iterable[float]) -> float:
 
 
 def normalize(values: Sequence[float]) -> Sequence[float]:
+    # todo: consider negative values
     s = sum(values)
     if s == 0.:
         return tuple(0. for _ in values)
