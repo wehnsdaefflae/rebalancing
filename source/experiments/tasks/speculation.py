@@ -192,15 +192,19 @@ class TraderFrequency(InvestorRatio):
 
         return tuple(float(i == asset_target) for i in range(self.no_assets))
 
+# todo: make one hotify reusable
+
 
 class TraderHistoric(InvestorRatio):
-    def __init__(self, name: str, no_assets: int, regression: RegressionMultiple, length_history: int, certainty: float = 1.):
+    # todo: make reusable
+    def __init__(self, name: str, no_assets: int, regression: RegressionMultiple, length_history: int, certainty: float = 1., one_hot: bool = True):
         super().__init__(name, no_assets)
         self.regression = regression
         self.certainty = certainty
         self.length_history = length_history
         self.history_ratios = tuple([1. for _ in range(self.length_history)] for _ in range(self.no_assets))
         self.iterations = 0
+        self.one_hot = one_hot
 
     def _learn(self, ratios_last: INPUT_VALUE, ratios_now: OUTPUT_VALUE):
         for each_history, each_input, each_target in zip(self.history_ratios, ratios_last, ratios_now):
@@ -215,8 +219,9 @@ class TraderHistoric(InvestorRatio):
             self.regression.output(each_history[1:] + [each_ratio])
             for each_history, each_ratio in zip(self.history_ratios, ratios_now)
         )
-        # todo: maybe output distribution instead of one hot?
-        return Investor.one_hotify(output_full, self.certainty)
+        if self.one_hot:
+            return Investor.one_hotify(output_full, self.certainty)
+        return output_full
 
 
 class ExperimentMarket(Experiment):
@@ -287,7 +292,8 @@ class ExperimentMarket(Experiment):
             no_trades[i] = 0
 
     def _perform(self, index_investor: int, distribution_value_target: OUTPUT_VALUE):
-        if any(x < 0. for x in distribution_value_target) or all(x == 0. for x in distribution_value_target):
+        distribution_normalized = normalize(distribution_value_target)
+        if 0. >= max(distribution_normalized):
             return
 
         rates = self.state_experiment["rates"]
@@ -302,7 +308,6 @@ class ExperimentMarket(Experiment):
         portfolio_copy = list(portfolio)
 
         value = self.__evaluate(index_investor) * self.after_fee  # actually just for those assets that do not stay the same
-        distribution_normalized = normalize(distribution_value_target)
         value_distributed = tuple(x * value for x in distribution_normalized)
         for i, (v, r) in enumerate(zip(value_distributed, rates)):
             portfolio[i] = v / r

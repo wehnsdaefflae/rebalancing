@@ -7,13 +7,14 @@ from typing import Sequence
 from matplotlib import pyplot
 
 from source.approximation.abstract import Approximation
+from source.approximation.regression import RegressionMultiple
 from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, STATE, EXAMPLE, GENERATOR_STATES
 from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.functions import smear
 from source.tools.moving_graph import MovingGraph
 
 
-class TransformRational(Application):
+class ApplicationDebug(Application):
     def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]]):
         super().__init__(name)
         self.name = name
@@ -23,12 +24,48 @@ class TransformRational(Application):
     def __str__(self) -> str:
         return self.name
 
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+        raise NotImplementedError()
+
     def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        self.approximation.fit(input_value, target_value, self.iterations)
+        self._learn(input_value, target_value)
         self.iterations += 1
 
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+        raise NotImplementedError()
+
     def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+        return self._act(input_value)
+
+
+class TransformRational(ApplicationDebug):
+    def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]]):
+        super().__init__(name, approximation)
+
+    def __str__(self) -> str:
+        return self.name
+
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+        self.approximation.fit(input_value, target_value, self.iterations)
+
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
         return self.approximation.output(input_value)
+
+
+class TransformHistoric(TransformRational):
+    def __init__(self, name: str, regression: RegressionMultiple, length_history: int):
+        super().__init__(name, regression)
+        self.regression = regression
+        self.length_history = length_history
+        self.history = [1. for _ in range(self.length_history)]
+
+    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+        self.history.append(input_value[0])
+        del(self.history[:-self.length_history])
+        self.regression.fit(self.history, target_value[0], self.iterations)
+
+    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+        return self.regression.output(self.history[1:] + [input_value[0]]),
 
 
 class ExperimentStatic(Experiment):

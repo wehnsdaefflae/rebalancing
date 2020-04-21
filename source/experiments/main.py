@@ -1,12 +1,12 @@
 import random
 
 from source.approximation.abstract_advanced import ApproximationSemioticModel
-from source.approximation.regression import RegressionMultivariatePolynomial, RegressionMultiplePolynomial
+from source.approximation.regression import RegressionMultivariatePolynomial, RegressionMultiplePolynomial, RegressionMultiple
 from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure, \
     RegressionMultivariatePolynomialProbabilistic
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderHistoric
 
-from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic
+from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic, TransformHistoric
 from source.tools.functions import get_pairs_from_filesystem
 
 """
@@ -24,38 +24,31 @@ def speculation():
     pairs = get_pairs_from_filesystem()
     pairs = random.sample(pairs, no_assets_market)
 
-    factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
-
     fee = .1 / 100.
     certainty = 1.1  # 1. / (1. - fee)
     length_history = 10
-    approximations = (
-        RegressionMultivariatePolynomial(no_assets_market, 2, no_assets_market),
-        RegressionMultivariatePolynomialRecurrent(no_assets_market, 2, no_assets_market),
-        RegressionMultivariatePolynomialFailure(no_assets_market, 2, no_assets_market, .5),
-        ApproximationSemioticModel(.9, factory, max_approximations=50),
-        RegressionMultiplePolynomial(length_history, 2),
-    )
-    applications = (
-        #TraderApproximation("square", approximations[0], no_assets_market, certainty=certainty),
-        TraderApproximation("semiotic", approximations[3], no_assets_market, certainty=certainty),
-        # TraderFrequency("freq 1", no_assets_market, certainty, length_history=1, inertia=100),
-        TraderFrequency("freq 2", no_assets_market, certainty_min=certainty, length_history=2, inertia=100),
-        #TraderFrequency("freq 3", no_assets_market, certainty, length_history=3, inertia=100),
-        TraderApproximation("square rec", approximations[1], no_assets_market, certainty=certainty),
-        TraderApproximation("square fail", approximations[2], no_assets_market, certainty=certainty),
-        Balancing("balancing", no_assets_market, 60 * 24),
-        # TraderDistribution("distribution", no_assets_market, fee),
-        #TraderHistoric("historic", no_assets_market, approximations[4], length_history, certainty=certainty)
-    )
 
-    m = ExperimentMarket(applications, pairs, fee)  # , delay=60 * 24)
+    # test only one
+    # todo: plot portfolio
+    # todo: non-one-hotified output informative. use max index only if o[i] / sum(max(_o, 0.) for _o in o) > x * 1. / no_assets
+    # todo: debug recurrency
+    # todo: implement neural nets
+
+    # factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
+    # approximation = ApproximationSemioticModel(.9, factory, max_approximations=50)
+    # application = TraderApproximation("semiotic", approximation, no_assets_market, certainty=certainty)
+
+    approximation = RegressionMultiplePolynomial(length_history, 2)
+    application = TraderHistoric("historic", no_assets_market, approximation, length_history, certainty=certainty)
+
+    m = ExperimentMarket((application, ), pairs, fee)
     m.start()
 
 
 def debug_dynamic():
-    approximation = RegressionMultivariatePolynomial(1, 1, 1)
-    applications = [TransformRational(approximation.__class__.__name__, approximation)]
+    len_history = 2
+    approximation = RegressionMultiplePolynomial(len_history, 1)
+    applications = [TransformHistoric(approximation.__class__.__name__, approximation, len_history)]
     t = ExperimentTimeseries(applications, ExperimentTimeseries.nf_trigonometry())
     t.start()
 

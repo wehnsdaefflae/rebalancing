@@ -24,9 +24,6 @@ class Approximation(JsonSerializable, Generic[INPUT_VALUE, OUTPUT_VALUE]):
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         raise NotImplementedError()
 
-    def get_parameters(self) -> Sequence[float]:
-        raise NotImplementedError()
-
 
 class ApproximationProbabilistic(Approximation[INPUT_VALUE, OUTPUT_VALUE], Generic[INPUT_VALUE, OUTPUT_VALUE]):
     @staticmethod
@@ -40,9 +37,6 @@ class ApproximationProbabilistic(Approximation[INPUT_VALUE, OUTPUT_VALUE], Gener
         raise NotImplementedError()
 
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
-        raise NotImplementedError()
-
-    def get_parameters(self) -> Sequence[float]:
         raise NotImplementedError()
 
     def get_probability(self, input_value: INPUT_VALUE, output_value: OUTPUT_VALUE) -> float:
