@@ -144,3 +144,8 @@ class RegressionMultivariatePolynomialProbabilistic(RegressionMultivariatePolyno
         return 1. / (1. + error)
         #error_normalized = self.normalize.send(error)
         #return 1. - error_normalized
+
+
+class GradientDescent:
+    # jetbrains://pycharm/navigate/reference?project=visual_experiments&path=src/notebooks/gradient_descent.py
+    pass

@@ -30,7 +30,10 @@ def speculation():
     # test only one
     # done: plot portfolio
     # todo: non-one-hotified output informative. use max index only if o[i] / sum(max(_o, 0.) for _o in o) > x * 1. / no_assets
-    # todo: debug recurrency
+    # todo: make historic inherit with super()
+    # inheritance patterns: _not implemented, super(), encapsulation
+    # todo: implement recurrency
+    #   todo: implement sgd
     # todo: implement neural nets
 
     # factory = lambda: RegressionMultivariatePolynomialProbabilistic(no_assets_market, 2, no_assets_market)
