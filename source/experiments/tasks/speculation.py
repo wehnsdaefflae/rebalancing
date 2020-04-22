@@ -226,39 +226,39 @@ class TraderHistoric(InvestorRatio):
 
 class ExperimentMarket(Experiment):
     def __init__(self,
-                 investors: Sequence[Investor],
+                 investor: Investor,
                  pairs: Sequence[Tuple[str, str]],
                  fee: float,
                  visualize: bool = True):
 
-        super().__init__(investors)
+        super().__init__([investor])
         self.after_fee = 1. - fee
         self.pairs = pairs
         self.graph = None
         if visualize:
-            subplot_amounts = (
-                "value",
-                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),
-                "moving",
-                None,
-                "regular"
-            )
+            subplot_amounts = {
+                "name_axis":        "value",
+                "name_plots":       tuple(f"{str(each_application):s}" for each_application in self.applications) + ("market", ),
+                "moving_average":   "moving",
+                "limits":           None,
+                "types":            "regular",
+            }
 
-            subplot_ratios = (
-                "relative growth",
-                tuple(f"{str(each_application):s}" for each_application in investors) + ("market", ),  # "minimum", "maximum"),
-                "full",
-                None,
-                "regular"
-            )
+            subplot_ratios = {
+                "name_axis":        "relative growth",
+                "name_plots":       tuple(f"{str(each_application):s}" for each_application in self.applications) + ("market", ),  # "minimum", "maximum"),
+                "moving_average":   "full",
+                "limits":           None,
+                "types":            "regular",
+            }
 
-            subplot_trades = (
-                "no. trades",
-                tuple(f"{str(each_application):s}" for each_application in investors),
-                "accumulate",
-                None,
-                "step"
-            )
+            subplot_trades = {
+                "name_axis":        "portfolio",
+                "name_plots":       tuple(f"{str(each_pair[0]):s} ({j:02d})" for each_pair in self.pairs for j in range(len(self.applications))),
+                "moving_average":   "None",
+                "limits":           None,
+                "types":            "stacked",
+            }
 
             self.graph = MovingGraph((subplot_amounts, subplot_ratios, subplot_trades), 50)
 
@@ -327,6 +327,7 @@ class ExperimentMarket(Experiment):
 
         value_market_last = self.state_experiment["value_market_last"]
         portfolios = self.state_experiment["portfolios"]
+        value_assets = tuple(tuple(max(r * a, 0.) for r, a in zip(rates, each_portfolio)) for each_portfolio in portfolios)
         value_portfolios_last = self.state_experiment["value_portfolios_last"]
 
         growth_market = self.__get_growth_market(growths)
@@ -336,7 +337,7 @@ class ExperimentMarket(Experiment):
             assert 0. < each_value
 
         growth_portfolios = self.__get_growth_portfolios(portfolios, value_portfolios_last, rates)
-        self.__add_to_graph(growth_market, value_market, growth_portfolios, value_portfolios)
+        self.__add_to_graph(growth_market, value_market, growth_portfolios, value_portfolios, value_assets)
 
         if Timer.time_passed(2000):
             for each_application in self.applications:
@@ -363,9 +364,7 @@ class ExperimentMarket(Experiment):
     def __get_growth_market(self, growths: Sequence[float]) -> float:
         return sum(growths) / len(growths)
 
-    def __add_to_graph(self, growth_market: float, value_market: float, growth_investors: Sequence[float], value_portfolios: Sequence[float]):
-        no_trades = self.state_experiment["no_trades"]
-
+    def __add_to_graph(self, growth_market: float, value_market: float, growth_investors: Sequence[float], value_portfolios: Sequence[float], value_assets: Sequence[Sequence[float]]):
         # value points
         points_values = {f"{str(each_application):s}": v for each_application, v in zip(self.applications, value_portfolios)}
         points_values["market"] = value_market
@@ -377,11 +376,12 @@ class ExperimentMarket(Experiment):
         }
         points_growth["market"] = 1.
 
-        # trade points
-        points_trades = {f"{str(each_application):s}": no_trades[i] for i, each_application in enumerate(self.applications)}
+        # asset value points
+        points_asset_values = {f"{str(each_pair[0]):s} ({j:02d})": each_portfolio[i] for i, each_pair in enumerate(self.pairs) for j, each_portfolio in enumerate(value_assets)}
+
         dt = datetime.datetime.utcfromtimestamp(self.timestamp // 1000)
 
-        self.graph.add_snapshot(dt, (points_values, points_growth, points_trades))
+        self.graph.add_snapshot(dt, (points_values, points_growth, points_asset_values))
 
     def __evaluate(self, index_application: int) -> float:
         portfolios = self.state_experiment["portfolios"]

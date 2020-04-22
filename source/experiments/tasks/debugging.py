@@ -138,13 +138,15 @@ class ExperimentTimeseries(Experiment):
     def __init__(self, applications: Sequence[Application], examples: STATE):
         super().__init__(applications)
         info_subplots = tuple(
-            (
-                f"{str(each_application):s}",
-                ("input", "target", "output", "average error"),
-                "None",
-                None,
-                "regular"
-            ) for each_application in applications)
+            {
+                "name_axis":        f"{str(each_application):s}",
+                "name_plots":       ("input", "target", "output", "average error"),
+                "moving_average":   "None",
+                "limits":           None,
+                "types":            "regular",
+                "stacked":          "False",
+            }
+            for each_application in applications)
 
         self.graph = MovingGraph(
             info_subplots,

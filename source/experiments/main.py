@@ -1,9 +1,8 @@
 import random
 
 from source.approximation.abstract_advanced import ApproximationSemioticModel
-from source.approximation.regression import RegressionMultivariatePolynomial, RegressionMultiplePolynomial, RegressionMultiple
-from source.approximation.regression_advanced import RegressionMultivariatePolynomialRecurrent, RegressionMultivariatePolynomialFailure, \
-    RegressionMultivariatePolynomialProbabilistic
+from source.approximation.regression import RegressionMultivariatePolynomial, RegressionMultiplePolynomial
+from source.approximation.regression_advanced import RegressionMultivariatePolynomialProbabilistic
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderHistoric
 
 from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic, TransformHistoric
@@ -29,7 +28,7 @@ def speculation():
     length_history = 10
 
     # test only one
-    # todo: plot portfolio
+    # done: plot portfolio
     # todo: non-one-hotified output informative. use max index only if o[i] / sum(max(_o, 0.) for _o in o) > x * 1. / no_assets
     # todo: debug recurrency
     # todo: implement neural nets
@@ -39,9 +38,10 @@ def speculation():
     # application = TraderApproximation("semiotic", approximation, no_assets_market, certainty=certainty)
 
     approximation = RegressionMultiplePolynomial(length_history, 2)
-    application = TraderHistoric("historic", no_assets_market, approximation, length_history, certainty=certainty)
+    application = TraderHistoric("historic", no_assets_market, approximation, length_history, certainty=certainty, one_hot=True)
+    # application = Balancing("balancing", no_assets_market, 60*24)
 
-    m = ExperimentMarket((application, ), pairs, fee)
+    m = ExperimentMarket(application, pairs, fee)
     m.start()
 
 
