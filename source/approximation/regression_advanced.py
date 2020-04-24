@@ -251,4 +251,3 @@ class GradientDescentMultivariate(Approximation[Sequence[float], Sequence[float]
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
         for each_descent, each_target in zip(self.gradient_descents, target_value):
             each_descent.fit(in_value, each_target, drag)
-
