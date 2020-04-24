@@ -2,7 +2,7 @@ import random
 
 from source.approximation.abstract_advanced import ApproximationSemioticModel
 from source.approximation.regression import RegressionMultivariatePolynomial, RegressionMultiplePolynomial
-from source.approximation.regression_advanced import RegressionMultivariatePolynomialProbabilistic
+from source.approximation.regression_advanced import RegressionMultivariatePolynomialProbabilistic, GradientDescentMultivariate, Shape
 from source.experiments.tasks.speculation import ExperimentMarket, TraderFrequency, TraderApproximation, Balancing, TraderHistoric
 
 from source.experiments.tasks.debugging import TransformRational, ExperimentTimeseries, ExperimentStatic, TransformHistoric
@@ -57,7 +57,11 @@ def debug_dynamic():
 
 
 def debug_static():
-    approximation = RegressionMultivariatePolynomial(1, 10, 1)
+    shape = Shape(lambda a, p: p[0] + p[1] * a[0] + p[2] * a[0] ** 2. + p[3] * a[0] ** 3. + p[4] * a[0] ** 4. + p[5] * a[0] ** 5., 1, 6)
+    approximation = GradientDescentMultivariate([shape], difference_gradient=.0001, learning_rate=1.)
+
+    # approximation = RegressionMultivariatePolynomial(1, 5, 1)
+
     application = TransformRational(approximation.__class__.__name__, approximation)
     t = ExperimentStatic(application)
     t.start()
@@ -79,6 +83,7 @@ def debug_nonfunctional():
 
 
 # todo: failure regression test
+# todo: gradient descent implementation
 # todo: failure regression equidistant sampling
 
 # todo: implement reinforcement learning
@@ -88,9 +93,9 @@ def debug_nonfunctional():
 
 
 def main():
-    speculation()
+    # speculation()
     # debug_dynamic()
-    # debug_static()
+    debug_static()
     # debug_nonfunctional()
 
 

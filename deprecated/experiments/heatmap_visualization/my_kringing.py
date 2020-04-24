@@ -10,21 +10,21 @@ import scipy.linalg as LA
 def heat_plot(_x, _y, _z):
 
     def SK(x, y, v, variogram, grid):
-        cov_angulos = np.zeros((x.shape[0],x.shape[0]))
-        cov_distancias = np.zeros((x.shape[0],x.shape[0]))
-        K = np.zeros((x.shape[0],x.shape[0]))
-        for i in range(x.shape[0]-1):
+        cov_angulos = np.zeros((x._shape[0], x._shape[0]))
+        cov_distancias = np.zeros((x._shape[0], x._shape[0]))
+        K = np.zeros((x._shape[0], x._shape[0]))
+        for i in range(x._shape[0] - 1):
             cov_angulos[i,i:]=np.arctan2((y[i:]-y[i]),(x[i:]-x[i]))
             cov_distancias[i,i:]=np.sqrt((x[i:]-x[i])**2+(y[i:]-y[i])**2)
-        for i in range(x.shape[0]):
-            for j in range(x.shape[0]):
+        for i in range(x._shape[0]):
+            for j in range(x._shape[0]):
                 if cov_distancias[i,j]!=0:
                     amp=np.sqrt((variogram[1]*np.cos(cov_angulos[i,j]))**2+(variogram[0]*np.sin(cov_angulos[i,j]))**2)
                     K[i,j]=v[:].var()*(1-np.e**(-3*cov_distancias[i,j]/amp))
         K = K + K.T
 
-        for i in range(grid.shape[0]):
-            for j in range(grid.shape[1]):
+        for i in range(grid._shape[0]):
+            for j in range(grid._shape[1]):
                 distancias = np.sqrt((i-x[:])**2+(j-y[:])**2)
                 angulos = np.arctan2(i-y[:],j-x[:])
                 amplitudes = np.sqrt((variogram[1]*np.cos(angulos[:]))**2+(variogram[0]*np.sin(angulos[:]))**2)
@@ -37,8 +37,8 @@ def heat_plot(_x, _y, _z):
     Grid = SK(numpy.array(_x), numpy.array(_y), numpy.array(_z), (50, 30), Grid)
     plt.imshow(Grid.T,origin='lower', interpolation='nearest', cmap='jet')
     plt.scatter(_x, _y, c=_z, cmap='jet', s=120)
-    plt.xlim(0, Grid.shape[0])
-    plt.ylim(0, Grid.shape[1])
+    plt.xlim(0, Grid._shape[0])
+    plt.ylim(0, Grid._shape[1])
     plt.grid()
     plt.show()
 

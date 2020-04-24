@@ -81,7 +81,7 @@ class ExperimentStatic(Experiment):
     def __init__(self, application: Application):
         super().__init__((application,))
         # self.function = lambda x: math.cos(.2 * x ** 2.)
-        self.function = lambda x: math.cos(10. * math.log(x + 1.))
+        self.function = lambda x: math.cos(5. * math.log(x + 1.))
         self.fig, self.subplot = pyplot.subplots(nrows=1, ncols=1)
         self.errors = [1. for _ in self.applications]
         self.max_x = 10.
