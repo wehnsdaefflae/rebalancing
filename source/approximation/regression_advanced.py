@@ -1,5 +1,5 @@
 import random
-from typing import Sequence, Callable, List, Any, Tuple, Dict, Generic
+from typing import Sequence, Callable, List, Any, Tuple, Dict
 
 from source.approximation.abstract import ApproximationProbabilistic, INPUT_VALUE, OUTPUT_VALUE, Approximation
 from source.approximation.regression import RegressionMultivariate, RegressionMultiple, RegressionMultiplePolynomial, RegressionMultivariatePolynomial
