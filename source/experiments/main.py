@@ -57,8 +57,8 @@ def debug_dynamic():
 
 
 def debug_static():
-    shape = Shape(lambda a, p: p[0] + p[1] * a[0] + p[2] * a[0] ** 2. + p[3] * a[0] ** 3. + p[4] * a[0] ** 4. + p[5] * a[0] ** 5., 1, 6)
-    approximation = GradientDescentMultivariate([shape], difference_gradient=.0001, learning_rate=1.)
+    shape = Shape(lambda a, p: p[0]*a[0]**0. + p[1]*a[0]**1. + p[2]*a[0]**2. + p[3]*a[0]**3., 1, 4)
+    approximation = GradientDescentMultivariate([shape], difference_gradient=.001, learning_rate=.000001)
 
     # approximation = RegressionMultivariatePolynomial(1, 5, 1)
 

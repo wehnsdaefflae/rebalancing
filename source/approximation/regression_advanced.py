@@ -1,5 +1,5 @@
 import random
-from typing import Sequence, Callable, List, Any, Tuple, Dict
+from typing import Sequence, Callable, List, Any, Tuple, Dict, Optional
 
 from source.approximation.abstract import ApproximationProbabilistic, INPUT_VALUE, OUTPUT_VALUE, Approximation
 from source.approximation.regression import RegressionMultivariate, RegressionMultiple, RegressionMultiplePolynomial, RegressionMultivariatePolynomial
@@ -166,8 +166,9 @@ class Shape:
 
 
 class GradientDescent(Approximation[Sequence[float], float]):
-    def __init__(self, shape: Shape, difference_gradient: float = .00001, learning_rate: float = .1):
+    def __init__(self, shape: Shape, derivative: Optional[Shape] = None, difference_gradient: float = .00001, learning_rate: float = .1):
         self.shape = shape
+        self.derivative = derivative
         self.difference_gradient = difference_gradient
         self.learning_rate = learning_rate
         self.parameters = [0.] * self.shape.no_parameters
@@ -182,23 +183,14 @@ class GradientDescent(Approximation[Sequence[float], float]):
     @staticmethod
     def gradient(function: FUNCTION_UNI, arguments: Sequence[float], difference: float) -> Sequence[float]:
         difference_half = difference / 2.
-        return tuple(
+        g = tuple(
             (
-                    function(
-                        tuple(
-                            _p + float(_i == i) * difference_half
-                            for _i, _p in enumerate(arguments)
-                        )
-                    ) -
-                    function(
-                        tuple(
-                            _p - float(_i == i) * difference_half
-                            for _i, _p in enumerate(arguments)
-                        )
-                    )
+                    function(tuple(_p + float(_i == i) * difference_half for _i, _p in enumerate(arguments))) -
+                    function(tuple(_p - float(_i == i) * difference_half for _i, _p in enumerate(arguments)))
             ) / difference
             for i, p in enumerate(arguments)
         )
+        return g
 
     @staticmethod
     def error(function: FUNCTION_UNI, arguments: Sequence[float], target: float):
@@ -209,15 +201,21 @@ class GradientDescent(Approximation[Sequence[float], float]):
         return self.shape.c(in_value, self.parameters)
 
     def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
-        def parameters_to_error(parameters: Sequence[float]) -> float:
-            output_value = self.shape.c(in_value, parameters)
-            return (output_value - target_value) ** 2.
+        if self.derivative is None:
+            def parameters_to_error(parameters: Sequence[float]) -> float:
+                output_value = self.shape.c(in_value, parameters)
+                return (output_value - target_value) ** 2.
 
-        # replace by adam optimizer?
-        # https://gluon.mxnet.io/chapter06_optimization/adam-scratch.html
-        # adjustment times error? add momentum? (https://moodle2.cs.huji.ac.il/nu15/pluginfile.php/316969/mod_resource/content/1/adam_pres.pdf)
+            # replace by adam optimizer?
+            # https://gluon.mxnet.io/chapter06_optimization/adam-scratch.html
+            # add momentum? (https://moodle2.cs.huji.ac.il/nu15/pluginfile.php/316969/mod_resource/content/1/adam_pres.pdf)
 
-        step = GradientDescent.gradient(parameters_to_error, self.parameters, self.difference_gradient)
+            step = GradientDescent.gradient(parameters_to_error, self.parameters, self.difference_gradient)
+
+        else:
+            step = self.derivative.c(in_value, self.parameters)
+            raise NotImplementedError("doesn't work. needs derivative of error function, not model function.")
+
         for i, d in enumerate(step):
             self.parameters[i] -= self.learning_rate * d
 
@@ -230,8 +228,20 @@ class GradientDescentMultivariate(Approximation[Sequence[float], Sequence[float]
     def to_dict(self) -> Dict[str, Any]:
         pass
 
-    def __init__(self, shapes: Sequence[Shape], difference_gradient: float = .00001, learning_rate: float = .1):
-        self.gradient_descents = tuple(GradientDescent(each_shape, difference_gradient=difference_gradient, learning_rate=learning_rate) for each_shape in shapes)
+    def __init__(self, shapes: Sequence[Shape], derivatives: Optional[Sequence[Shape]] = None, difference_gradient: float = .00001, learning_rate: float = .1):
+        if derivatives is None:
+            self.gradient_descents = tuple(
+                GradientDescent(each_shape, difference_gradient=difference_gradient, learning_rate=learning_rate)
+                for each_shape in shapes
+            )
+
+        else:
+            assert len(derivatives) == len(shapes)
+            self.gradient_descents = tuple(
+                GradientDescent(each_shape, derivative=each_derivative, difference_gradient=difference_gradient, learning_rate=learning_rate)
+                for each_shape, each_derivative in zip(shapes, derivatives)
+            )
+
         self.difference_gradient = difference_gradient
         self.learning_rate = learning_rate
 

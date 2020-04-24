@@ -81,7 +81,8 @@ class ExperimentStatic(Experiment):
     def __init__(self, application: Application):
         super().__init__((application,))
         # self.function = lambda x: math.cos(.2 * x ** 2.)
-        self.function = lambda x: math.cos(5. * math.log(x + 1.))
+        # self.function = lambda x: math.cos(5. * math.log(x + 1.))
+        self.function = lambda x: 6.*x**0. + +4.2*x**1. + -2.7*x**2. + +.3*x**3.
         self.fig, self.subplot = pyplot.subplots(nrows=1, ncols=1)
         self.errors = [1. for _ in self.applications]
         self.max_x = 10.
@@ -106,6 +107,7 @@ class ExperimentStatic(Experiment):
         if self.outputs_last is not None:
             for i, each_output in enumerate(self.outputs_last):
                 self.errors[i] = abs(each_output[0] - self.target_last[0])
+            print(f"errors: {str(self.errors):s}")
 
         if self.input_last is None:
             return
