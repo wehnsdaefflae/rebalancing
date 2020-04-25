@@ -8,64 +8,65 @@ from matplotlib import pyplot
 
 from source.approximation.abstract import Approximation
 from source.approximation.regression import RegressionMultiple
-from source.data.abstract import INPUT_VALUE, OUTPUT_VALUE, STATE, EXAMPLE, GENERATOR_STATES
+from source.data.abstract import STATE, EXAMPLE, GENERATOR_STATES
 from source.experiments.tasks.abstract import Application, Experiment
 from source.tools.functions import smear
 from source.tools.moving_graph import MovingGraph
 
 
 class ApplicationDebug(Application):
-    def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]]):
+    def __init__(self, name: str):
         super().__init__(name)
         self.name = name
-        self.approximation = approximation
         self.iterations = 0
 
     def __str__(self) -> str:
         return self.name
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+    def _learn(self, input_value: Sequence[float], target_value: Sequence[float]):
         raise NotImplementedError()
 
-    def learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+    def learn(self, input_value: Sequence[float], target_value: Sequence[float]):
         self._learn(input_value, target_value)
         self.iterations += 1
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def _act(self, input_value: Sequence[float]) -> Sequence[float]:
         raise NotImplementedError()
 
-    def act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def act(self, input_value: Sequence[float]) -> Sequence[float]:
         return self._act(input_value)
 
 
 class TransformRational(ApplicationDebug):
     def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]]):
-        super().__init__(name, approximation)
+        super().__init__(name)
+        self.approximation = approximation
 
     def __str__(self) -> str:
         return self.name
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
+    def _learn(self, input_value: Sequence[float], target_value: Sequence[float]):
         self.approximation.fit(input_value, target_value, self.iterations)
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def _act(self, input_value: Sequence[float]) -> Sequence[float]:
         return self.approximation.output(input_value)
 
 
 class TransformHistoric(TransformRational):
-    def __init__(self, name: str, regression: RegressionMultiple, length_history: int):
-        super().__init__(name, regression)
-        self.regression = regression
+    def __init__(self, name: str, approximation: Approximation[Sequence[float], Sequence[float]], length_history: int):
+        super().__init__(name, approximation)
         self.length_history = length_history
         self.history = [1. for _ in range(self.length_history)]
 
-    def _learn(self, input_value: INPUT_VALUE, target_value: OUTPUT_VALUE):
-        self.history.append(input_value[0])
+    def _learn(self, input_value: Sequence[float], target_value: Sequence[float]):
+        self.history.extend(input_value)
         del(self.history[:-self.length_history])
-        self.regression.fit(self.history, target_value[0], self.iterations)
+        self.approximation.fit(self.history, target_value, self.iterations)
 
-    def _act(self, input_value: INPUT_VALUE) -> OUTPUT_VALUE:
-        return self.regression.output(self.history[1:] + [input_value[0]]),
+    def _act(self, input_value: Sequence[float]) -> Sequence[float]:
+        history_new = self.history + list(input_value)
+        del(history_new[:-self.length_history])
+        return self.approximation.output(history_new)
 
 
 class ExperimentStatic(Experiment):
@@ -78,7 +79,7 @@ class ExperimentStatic(Experiment):
     def _initialize_state(self) -> STATE:
         pass
 
-    def __init__(self, application: Application):
+    def __init__(self, application: ApplicationDebug):
         super().__init__((application,))
         # self.function = lambda x: math.cos(.2 * x ** 2.)
         # self.function = lambda x: math.cos(5. * math.log(x + 1.))
@@ -100,14 +101,13 @@ class ExperimentStatic(Experiment):
             iterations += 1
             target_last = target_this
 
-    def _perform(self, index_application: int, action: OUTPUT_VALUE):
+    def _perform(self, index_application: int, action: float):
         pass
 
     def _post_process(self):
-        if self.outputs_last is not None:
-            for i, each_output in enumerate(self.outputs_last):
-                self.errors[i] = abs(each_output[0] - self.target_last[0])
-            print(f"errors: {str(self.errors):s}")
+        for i, each_output in enumerate(self.outputs_last):
+            self.errors[i] = abs(1. if each_output is None else each_output[0] - self.target_last[0])
+        print(f"errors: {str(self.errors):s}")
 
         if self.input_last is None:
             return
@@ -137,18 +137,18 @@ class ExperimentStatic(Experiment):
 
 
 class ExperimentTimeseries(Experiment):
-    def __init__(self, applications: Sequence[Application], examples: STATE):
-        super().__init__(applications)
+    def __init__(self, application: ApplicationDebug, examples: STATE):
+        super().__init__([application])
         info_subplots = tuple(
             {
                 "name_axis":        f"{str(each_application):s}",
-                "name_plots":       ("input", "target", "output", "average error"),
+                "name_plots":       ("input", "target", "output", "moving error (10)"),
                 "moving_average":   "None",
                 "limits":           None,
                 "types":            "regular",
                 "stacked":          "False",
             }
-            for each_application in applications)
+            for each_application in self.applications)
 
         self.graph = MovingGraph(
             info_subplots,
@@ -170,23 +170,24 @@ class ExperimentTimeseries(Experiment):
     def _initialize_state(self) -> STATE:
         pass
 
-    def _perform(self, index_application: int, action: OUTPUT_VALUE):
+    def _perform(self, index_application: int, action: float):
         pass
 
     def _post_process(self):
         input_last = 0. if self.input_last is None else self.input_last[0]
-        for i, each_error in enumerate(self.errors):
-            self.errors[i] = smear(each_error, 1. if self.outputs_last is None else abs(self.outputs_last[i][0] - self.target_last[0]), self.iterations)
+        for i, (each_error, each_output) in enumerate(zip(self.errors, self.outputs_last)):
+            each_error = 1. if each_output is None or self.iterations < 1 else abs(each_output[0] - self.target_last[0])
+            self.errors[i] = smear(each_error, each_error, 10)   # self.iterations)
         self.iterations += 1
 
         points = tuple(
             {
                 "input": input_last,
-                "target": self.target_last[0],
-                "output": 0. if self.outputs_last is None else self.outputs_last[i][0],
-                "average error": each_error,
+                "target": each_target,
+                "output": 0. if each_output is None else each_output[0],
+                "moving error (10)": each_error,
             }
-            for i, each_error in enumerate(self.errors)
+            for each_output, each_target, each_error in zip(self.outputs_last, self.target_last, self.errors)
         )
 
         self.graph.add_snapshot(self.now + datetime.timedelta(seconds=self.timestamp), points)
@@ -229,6 +230,20 @@ class ExperimentTimeseries(Experiment):
         while True:
             # target_last = float((iteration - 1) % frequency >= frequency // 2),
             target_last = (math.cos(iteration / period) + 1.) / 2.,
+            input_this = (math.sin((iteration + 1) / period) + 1.) / 2.,
+            yield {"iteration": iteration, "target_last": target_last, "input_this": input_this}
+            iteration += 1
+
+    @staticmethod
+    def nf_erratic() -> STATE:
+        iteration = 0
+        period = math.pi
+        f0 = lambda x: (math.cos(x / period) + 1.) / 2. - 1.
+        f1 = lambda x: 2.
+        while True:
+            if random.random() < .1:
+                f0, f1 = f1, f0
+            target_last = f0(iteration),
             input_this = (math.sin((iteration + 1) / period) + 1.) / 2.,
             yield {"iteration": iteration, "target_last": target_last, "input_this": input_this}
             iteration += 1

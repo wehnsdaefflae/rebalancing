@@ -25,7 +25,7 @@ class Experiment:
 
         self.input_last = None
         self.target_last = None
-        self.outputs_last = None
+        self.outputs_last = [None for _ in applications]
 
         self.timestamp = -1
         self.input_this = None

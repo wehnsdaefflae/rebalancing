@@ -30,9 +30,6 @@ class CapsuleIterating(ApproximationProbabilistic[INPUT_VALUE, OUTPUT_VALUE], Ge
     def get_probability(self, input_value: INPUT_VALUE, output_value: OUTPUT_VALUE) -> float:
         return self.approximation.get_probability(input_value, output_value)
 
-    def get_parameters(self) -> Sequence[float]:
-        return self.approximation.get_parameters()
-
 
 class ApproximationSemioticModel(Approximation[INPUT_VALUE, OUTPUT_VALUE], Generic[INPUT_VALUE, OUTPUT_VALUE]):
     @staticmethod

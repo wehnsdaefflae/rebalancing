@@ -1,67 +1,98 @@
 import random
-from typing import Sequence, Callable, List, Any, Tuple, Dict, Optional
+from typing import Sequence, Callable, Any, Tuple, Dict, Optional
 
-from source.approximation.abstract import ApproximationProbabilistic, INPUT_VALUE, OUTPUT_VALUE, Approximation
+from source.approximation.abstract import ApproximationProbabilistic, Approximation
 from source.approximation.regression import RegressionMultivariate, RegressionMultiple, RegressionMultiplePolynomial, RegressionMultivariatePolynomial
-from source.tools.functions import z_score_normalized_generator
 
 
-class RegressionMultivariateRecurrent(RegressionMultivariate):
-    def __init__(self,
-                 no_outputs: int,
-                 addends: Sequence[Callable[[Sequence[float]], float]], addends_memory: Sequence[Callable[[Sequence[float]], float]],
-                 resolution_memory: int = 1,
-                 error_memory: Callable[[Sequence[float], Sequence[float]], float] = RegressionMultivariate.error_distance
-                 ):
-        super().__init__(no_outputs, addends)
-        self.regressions_memory = tuple(RegressionMultiple(addends_memory) for _ in range(resolution_memory))
-        self.values_memory = [0. for _ in range(resolution_memory)]
-        self.error_memory = error_memory
-        self.last_input = None
-        self.normalization = z_score_normalized_generator()
-        next(self.normalization)
+class RegressionMultiplePolynomialProbabilistic(RegressionMultiplePolynomial, ApproximationProbabilistic[Sequence[float], float]):
+    def __init__(self, no_arguments: int, degree: int):
+        super().__init__(no_arguments, degree)
 
-    def _get_memory(self, in_values: Sequence[float]) -> List[float]:
-        return [each_memory.output(in_values) for each_memory in self.regressions_memory]
+    def get_probability(self, input_value: Sequence[float], output_value: float) -> float:
+        expected_value = self.output(input_value)
+        return 1. / (1. + abs(expected_value - output_value))
 
-    def get_state(self) -> Any:
-        return self.regressions_memory, self.values_memory
+
+class RegressionMultivariatePolynomialProbabilistic(RegressionMultivariatePolynomial, ApproximationProbabilistic[Sequence[float], Sequence[float]]):
+    def __init__(self, no_arguments: int, degree: int, no_outputs: int):
+        super().__init__(no_arguments, degree, no_outputs)
+
+    def get_probability(self, input_value: Sequence[float], output_value: Sequence[float]) -> float:
+        expected_value = self.output(input_value)
+        error = RegressionMultivariate.error_distance(expected_value, output_value)
+        return 1. / (1. + error)
+
+
+# experimental
+
+
+class RegressionMultipleRecurrent(Approximation[Sequence[float], float]):
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> Approximation:
+        pass
+
+    def to_dict(self) -> Dict[str, Any]:
+        pass
+
+    def __init__(self, addends: Sequence[Callable[[Sequence[float]], float]], memory: Approximation[Sequence[float], float]):
+        self.main = RegressionMultiple(addends)
+        self.memory = memory
+
+        self.state = 0.
+
+        self.input_last = None
+
+    def output(self, in_value: Sequence[float]) -> float:
+        input_tuple = tuple(in_value)
+
+        input_memory = (self.state,) + input_tuple
+        state = self.memory.output(input_memory)
+
+        input_main = (state, ) + input_tuple
+        return self.main.output(input_main)
+
+    def fit(self, in_value: Sequence[float], target_value: float, drag: int):
+        drag_memory = drag
+        drag_main = drag
+
+        output_value = self.output(in_value)
+        deviation = output_value - target_value
+        if self.input_last is not None:
+            input_memory = (self.state,) + self.input_last
+            self.memory.fit(input_memory, deviation, drag_memory)
+
+        input_contextualized = tuple(in_value) + (deviation, )
+        self.main.fit(input_contextualized, target_value, drag_main)
+
+        self.state = self.memory.output(input_contextualized)
+        self.input_last = tuple(in_value)
+
+
+class RegressionMultipleRecurrentPolynomial(RegressionMultipleRecurrent):
+    def __init__(self, no_arguments: int, degree: int):
+        addends = RegressionMultiplePolynomial.polynomial_addends(no_arguments + 1, degree)
+        memory = RegressionMultiplePolynomial(no_arguments + 1, degree)
+        super().__init__(addends, memory)
+
+
+class RegressionMultivariateRecurrentPolynomial(Approximation[Sequence[float], Sequence[float]]):
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> Approximation:
+        pass
+
+    def to_dict(self) -> Dict[str, Any]:
+        pass
+
+    def __init__(self, no_arguments: int, degree: int, no_outputs: int):
+        self.regressions = tuple(RegressionMultipleRecurrentPolynomial(no_arguments, degree) for _ in range(no_outputs))
 
     def output(self, in_value: Sequence[float]) -> Sequence[float]:
-        input_contextualized = tuple(in_value) + tuple(self.values_memory)
-        self.values_memory = self._get_memory(input_contextualized)
-        return super().output(input_contextualized)
+        return tuple(each_regression.output(in_value) for each_regression in self.regressions)
 
     def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
-        output_value = super().output(tuple(in_value) + tuple(self.values_memory))
-
-        e = self.error_memory(output_value, target_value)
-        e_z = self.normalization.send(e)
-        for i in range(len(self.values_memory)):
-            if random.random() < e_z:
-                self.values_memory[i] = random.random()
-
-        if self.last_input is not None:
-            for each_memory, each_value in zip(self.regressions_memory, self.values_memory):
-                # todo: fit with last target as input, because that's what functional approximations cannot do
-                each_memory.fit(self.last_input, each_value, drag)  # smaller, fixed drag?
-
-        input_contextualized = tuple(in_value) + tuple(self.values_memory)
-        super().fit(input_contextualized, target_value, drag)
-
-    def get_parameters(self) -> Sequence[float]:
-        return tuple(super().get_parameters()) + tuple(x for each_memory in self.regressions_memory for x in each_memory.get_parameters())
-
-
-class RegressionMultivariatePolynomialRecurrent(RegressionMultivariateRecurrent):
-    def __init__(self,
-                 no_arguments: int, degree: int, no_outputs: int,
-                 resolution_memory: int = 1,
-                 error_memory: Callable[[Sequence[float], Sequence[float]], float] = RegressionMultivariate.error_distance
-                 ):
-        addends_basic = RegressionMultiplePolynomial.polynomial_addends(no_arguments + resolution_memory, degree)
-        addends_memory = RegressionMultiplePolynomial.polynomial_addends(no_arguments + resolution_memory, degree)
-        super().__init__(no_outputs, addends_basic, addends_memory, resolution_memory=resolution_memory, error_memory=error_memory)
+        for each_regression, each_target in zip(self.regressions, target_value):
+            each_regression.fit(in_value, each_target, drag)
 
 
 class RegressionMultivariatePolynomialFailure(RegressionMultivariatePolynomial):
@@ -132,18 +163,6 @@ class RegressionMultivariatePolynomialFailure(RegressionMultivariatePolynomial):
         return super().output(tuple(in_value) + (self.context,))
 
 
-class RegressionMultivariatePolynomialProbabilistic(RegressionMultivariatePolynomial, ApproximationProbabilistic[Sequence[float], Sequence[float]]):
-    def __init__(self, no_arguments: int, degree: int, no_outputs: int):
-        super().__init__(no_arguments, degree, no_outputs)
-        # self.normalize = z_score_normalized_generator()
-        # next(self.normalize)
-
-    def get_probability(self, input_value: INPUT_VALUE, output_value: OUTPUT_VALUE) -> float:
-        expected_value = self.output(input_value)
-        error = RegressionMultivariate.error_distance(expected_value, output_value)
-        return 1. / (1. + error)
-        # error_normalized = self.normalize.send(error)
-        # return 1. - error_normalized
 
 
 ARGUMENTS = Sequence[float]
@@ -197,10 +216,10 @@ class GradientDescent(Approximation[Sequence[float], float]):
         output = function(arguments)
         return (target - output) ** 2.
 
-    def output(self, in_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def output(self, in_value: Sequence[float]) -> float:
         return self.shape.c(in_value, self.parameters)
 
-    def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
+    def fit(self, in_value: Sequence[float], target_value: float, drag: int):
         if self.derivative is None:
             def parameters_to_error(parameters: Sequence[float]) -> float:
                 output_value = self.shape.c(in_value, parameters)
@@ -245,9 +264,9 @@ class GradientDescentMultivariate(Approximation[Sequence[float], Sequence[float]
         self.difference_gradient = difference_gradient
         self.learning_rate = learning_rate
 
-    def output(self, in_value: INPUT_VALUE) -> OUTPUT_VALUE:
+    def output(self, in_value: Sequence[float]) -> Sequence[float]:
         return tuple(each_descent.output(in_value) for each_descent in self.gradient_descents)
 
-    def fit(self, in_value: INPUT_VALUE, target_value: OUTPUT_VALUE, drag: int):
+    def fit(self, in_value: Sequence[float], target_value: Sequence[float], drag: int):
         for each_descent, each_target in zip(self.gradient_descents, target_value):
             each_descent.fit(in_value, each_target, drag)
