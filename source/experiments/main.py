@@ -66,30 +66,34 @@ def debug_static():
     t.start()
 
 
-# todo: recurrent regression test
-# todo: gradient descent implementation
-
-# todo: test trigonometric addends
-
-# todo: implement reinforcement learning
-
-# todo: make all applications persistable
-# todo: reinforcement discrete action approximation
-
-
-# todo: debug randomly change function
-# todo: implement recurrency
-#   todo: implement sgd
-# todo: implement neural nets
-
-# todo: non-one-hotified output informative. use max index only if o[i] / sum(max(_o, 0.) for _o in o) > x * 1. / no_assets
-# todo: make historic inherit with super()
-# inheritance patterns: _not implemented, super(), encapsulation
-
 def main():
     # debug_static()
     debug_dynamic()
     # speculation()
+
+
+# todo: approximations
+#   recurrent regression
+#       test
+#   gradient descent
+#       test
+#   neural nets
+#       test
+
+# todo: speculation
+#   trigonometric addends
+#   non-one-hotified output informative. use max index only if o[i] / sum(max(_o, 0.) for _o in o) > x * 1. / no_assets
+
+# todo: make all applications persistable
+
+# todo: reinforcement learning
+#   experiment
+#   actor critic
+#       test
+
+# todo: refactoring
+#   make historic inherit with super()
+#   inheritance patterns: _not implemented, super(), encapsulation
 
 
 if __name__ == "__main__":
