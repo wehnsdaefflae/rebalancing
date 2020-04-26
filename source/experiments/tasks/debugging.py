@@ -142,10 +142,10 @@ class ExperimentTimeseries(Experiment):
         info_subplots = tuple(
             {
                 "name_axis":        f"{str(each_application):s}",
-                "name_plots":       ("input", "target", "output", "moving error (10)"),
+                "name_plots":       ("input", "target", "output"),  # , "moving error"),
                 "moving_average":   "None",
                 "limits":           None,
-                "types":            "regular",
+                "types":            "step",
                 "stacked":          "False",
             }
             for each_application in self.applications)
@@ -177,7 +177,7 @@ class ExperimentTimeseries(Experiment):
         input_last = 0. if self.input_last is None else self.input_last[0]
         for i, (each_error, each_output) in enumerate(zip(self.errors, self.outputs_last)):
             each_error = 1. if each_output is None or self.iterations < 1 else abs(each_output[0] - self.target_last[0])
-            self.errors[i] = smear(each_error, each_error, 10)   # self.iterations)
+            self.errors[i] = smear(each_error, each_error, self.iterations)
         self.iterations += 1
 
         points = tuple(
@@ -185,7 +185,7 @@ class ExperimentTimeseries(Experiment):
                 "input": input_last,
                 "target": each_target,
                 "output": 0. if each_output is None else each_output[0],
-                "moving error (10)": each_error,
+                "moving error": each_error,
             }
             for each_output, each_target, each_error in zip(self.outputs_last, self.target_last, self.errors)
         )

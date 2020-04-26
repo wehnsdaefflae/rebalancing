@@ -39,33 +39,29 @@ class RegressionMultipleRecurrent(Approximation[Sequence[float], float]):
         self.main = RegressionMultiple(addends)
         self.memory = memory
 
-        self.state = 0.
+        self.state_last = 0.
 
         self.input_last = None
 
     def output(self, in_value: Sequence[float]) -> float:
-        input_tuple = tuple(in_value)
-
-        input_memory = (self.state,) + input_tuple
-        state = self.memory.output(input_memory)
-
-        input_main = (state, ) + input_tuple
-        return self.main.output(input_main)
+        input_memory = (self.state_last,) + tuple(in_value)
+        return self.main.output(input_memory)
 
     def fit(self, in_value: Sequence[float], target_value: float, drag: int):
-        drag_memory = drag
+        drag_memory = 50
         drag_main = drag
 
         output_value = self.output(in_value)
-        deviation = output_value - target_value
+        state = (output_value - target_value)
         if self.input_last is not None:
-            input_memory = (self.state,) + self.input_last
-            self.memory.fit(input_memory, deviation, drag_memory)
+            input_memory_last = (self.state_last,) + self.input_last
+            self.memory.fit(input_memory_last, state, drag_memory)
 
-        input_contextualized = tuple(in_value) + (deviation, )
+        input_contextualized = tuple(in_value) + (state, )
         self.main.fit(input_contextualized, target_value, drag_main)
 
-        self.state = self.memory.output(input_contextualized)
+        self.state_last = state
+        # self.state_last = self.memory.output(input_contextualized)
         self.input_last = tuple(in_value)
 
 

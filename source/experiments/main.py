@@ -41,7 +41,7 @@ def speculation():
 
 def debug_dynamic():
     len_history = 2
-    approximation = RegressionMultivariatePolynomial(len_history, 1, 1)
+    approximation = RegressionMultivariatePolynomial(len_history, 2, 1)
     application = TransformHistoric(approximation.__class__.__name__, approximation, len_history)
 
     factory = lambda: RegressionMultivariatePolynomialProbabilistic(1, 2, 1)
