@@ -107,7 +107,6 @@ class RegressionMultivariate(Approximation[Sequence[float], Sequence[float]]):
         pass
 
     def __init__(self, no_outputs: int, addends: Sequence[Callable[[Sequence[float]], float]]):
-        # todo: wrong, because https://stats.stackexchange.com/questions/254254/why-do-we-need-multivariate-regression-as-opposed-to-a-bunch-of-univariate-regr
         self.regressions = tuple(RegressionMultiple(addends) for _ in range(no_outputs))
 
     @staticmethod
